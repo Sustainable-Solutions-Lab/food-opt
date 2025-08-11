@@ -1,0 +1,15 @@
+name: "toy"
+
+primary:
+  land:
+    limit: 1e6 # km^2
+  water:
+    limit: 1e9 # m^3
+  fertilizer:
+    limit: 1e7 # kg
+
+crops:
+- wheat
+- rice
+- soy
+- corn

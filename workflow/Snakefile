@@ -1,0 +1,33 @@
+from snakemake.utils import min_version
+
+min_version("9.0")
+
+
+name = config["name"]
+
+
+rule all:
+    input:
+        "results/{name}/model.nc",
+
+
+rule build_model:
+    input:
+        foods="data/foods.csv",
+    output:
+        network="results/{name}/build/model.nc",
+    script:
+        "scripts/build_model.py"
+    conda:
+        "envs/environment.yaml"
+
+
+rule solve_model:
+    input:
+        network="results/{name}/build/model.nc",
+    output:
+        network="results/{name}/solved/model.nc",
+    script:
+        "scripts/solve_model.py"
+    conda:
+        "envs/environment.yaml"

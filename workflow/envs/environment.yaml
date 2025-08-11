@@ -1,0 +1,24 @@
+name: food-model
+channels:
+- conda-forge
+- bioconda
+dependencies:
+- python>=3.10
+- pip
+
+- pypsa>=0.35
+
+- seaborn
+- numpy
+- pandas>=2.1
+- matplotlib
+
+- jupyter
+- ipython
+- pre-commit
+- ruff
+- pylint
+
+- pip:
+  - gurobipy
+  - highspy
