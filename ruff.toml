@@ -1,0 +1,11 @@
+# Exclude directories from linting
+exclude = [
+    ".snakemake",
+    "results",
+    "__pycache__",
+]
+
+[lint]
+# Ignore undefined 'snakemake' in workflow scripts (it's injected by Snakemake)
+[lint.per-file-ignores]
+"workflow/scripts/*.py" = ["F821"]  # Undefined name 'snakemake'
