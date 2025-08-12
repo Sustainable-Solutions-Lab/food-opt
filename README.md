@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # food-opt
 
 A global food systems optimization model that explores trade-offs between environmental sustainability and nutritional outcomes using linear programming. The model optimizes food production, processing, and consumption patterns while accounting for greenhouse gas emissions, land use change, water use, and dietary health impacts.
