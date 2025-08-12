@@ -2,14 +2,60 @@ name: "toy"
 
 primary:
   land:
-    limit: 1e6 # km^2
+    limit: 1e9 # ha
   water:
     limit: 1e9 # m^3
   fertilizer:
-    limit: 1e7 # kg
+    limit: 1e9 # kg
 
 crops:
 - wheat
 - rice
-- soy
 - corn
+- soy
+- potato
+- apple
+- tomato
+- barley
+- oats
+- sunflower
+- beans
+- peanut
+- carrot
+- onion
+- cabbage
+- banana
+
+population: 7000000000 # Approx world population
+
+solving:
+  solver: gurobi
+  solver_options:
+    LogToConsole: 1
+    OutputFlag: 1
+
+macronutrients:
+  carb:
+    min_per_person_per_day: 300  # g/person/day (45-65% of calories, ~2000 cal/day)
+  protein:
+    min_per_person_per_day: 50   # g/person/day (10-35% of calories)
+  fat:
+    min_per_person_per_day: 65   # g/person/day (20-35% of calories)
+
+food_groups:
+  whole grain:
+    min_per_person_per_day: 170  # g/person/day (WHO recommendations)
+  grain:
+    min_per_person_per_day: 150  # g/person/day (refined grains)
+  fruit:
+    min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
+  vegetable:
+    min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
+  legume:
+    min_per_person_per_day: 75   # g/person/day (protein source)
+  starchy vegetable:
+    min_per_person_per_day: 100  # g/person/day (potatoes, etc.)
+  oil:
+    min_per_person_per_day: 25   # g/person/day (essential fats)
+  nuts and seeds:
+    min_per_person_per_day: 30   # g/person/day (healthy fats + protein)

@@ -2,24 +2,29 @@ from snakemake.utils import min_version
 
 min_version("9.0")
 
+configfile: "config/config.yaml"
 
 name = config["name"]
 
 
 rule all:
     input:
-        "results/{name}/model.nc",
+        f"results/{name}/solved/model.nc",
+        f"results/{name}/plots",
 
 
 rule build_model:
     input:
+        crops="data/crops.csv",
         foods="data/foods.csv",
+        food_groups="data/food_groups.csv",
+        nutrition="data/nutrition.csv",
     output:
         network="results/{name}/build/model.nc",
-    script:
-        "scripts/build_model.py"
     conda:
         "envs/environment.yaml"
+    script:
+        "scripts/build_model.py"
 
 
 rule solve_model:
@@ -27,7 +32,18 @@ rule solve_model:
         network="results/{name}/build/model.nc",
     output:
         network="results/{name}/solved/model.nc",
-    script:
-        "scripts/solve_model.py"
     conda:
         "envs/environment.yaml"
+    script:
+        "scripts/solve_model.py"
+
+
+rule plot_results:
+    input:
+        network="results/{name}/solved/model.nc",
+    output:
+        plots_dir=directory("results/{name}/plots"),
+    conda:
+        "envs/environment.yaml"
+    script:
+        "scripts/plot_results.py"
