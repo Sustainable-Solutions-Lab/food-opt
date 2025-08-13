@@ -6,14 +6,25 @@ import pandas as pd
 import pypsa
 
 
-def add_carriers_and_buses(n: pypsa.Network, config: dict) -> None:
+def add_carriers_and_buses(n: pypsa.Network, config: dict, yields_data: dict) -> None:
     """Add all carriers and their corresponding buses to the network."""
+    # Get all regions from yields data
+    all_regions = set()
+    for crop_yields in yields_data.values():
+        if not crop_yields.empty:
+            all_regions.update(crop_yields.index.get_level_values("ISO_A3").unique())
+
     # Primary resources
-    n.add("Carrier", name="land", unit="ha")  # Changed to ha to match crops data
     n.add("Carrier", "water", unit="m^3")
     n.add("Carrier", "fertilizer", unit="kg")
     n.add("Carrier", "co2", unit="kg")
     n.add("Carrier", "ch4", unit="kg")
+
+    # Regional land carriers and buses
+    for region in all_regions:
+        land_carrier = f"land_{region}"
+        n.add("Carrier", land_carrier, unit="ha")
+        n.add("Bus", land_carrier, carrier=land_carrier)
 
     # Crops
     for crop in config["crops"]:
@@ -26,40 +37,59 @@ def add_carriers_and_buses(n: pypsa.Network, config: dict) -> None:
     n.add("Carrier", "protein", unit="t")
     n.add("Carrier", "fat", unit="t")
 
-    # Add buses for each carrier
+    # Add buses for non-regional carriers
     for carrier in n.carriers.index:
-        n.add("Bus", carrier, carrier=carrier)
+        if not carrier.startswith("land_"):  # Regional land buses already added
+            n.add("Bus", carrier, carrier=carrier)
 
 
-def add_primary_resources(n: pypsa.Network, config: dict) -> None:
+def add_primary_resources(n: pypsa.Network, config: dict, yields_data: dict) -> None:
     """Add stores for primary resources with their limits."""
-    # Add stores for primary resources
-    for carrier in ["land", "water", "fertilizer"]:
+    # Add stores for global resources
+    for carrier in ["water", "fertilizer"]:
         n.add("Store", carrier, bus=carrier, carrier=carrier)
         n.add("Generator", carrier, bus=carrier, carrier=carrier, p_nom_extendable=True)
+
+    # Add regional land stores
+    all_regions = set()
+    for crop_yields in yields_data.values():
+        if not crop_yields.empty:
+            all_regions.update(crop_yields.index.get_level_values("ISO_A3").unique())
+
+    for region in all_regions:
+        land_carrier = f"land_{region}"
+        # TODO: refactor to limit amount of land to available land per region
+        n.add("Store", land_carrier, bus=land_carrier, carrier=land_carrier)
+        n.add(
+            "Generator",
+            land_carrier,
+            bus=land_carrier,
+            carrier=land_carrier,
+            p_nom_extendable=True,
+        )
 
     # Add stores for emissions with costs to create objective
     n.add("Store", "co2", bus="co2", carrier="co2", e_nom_extendable=True)
     n.add("Store", "ch4", bus="ch4", carrier="ch4", e_nom_extendable=True)
 
     # Set resource limits from config
-    for resource in ["land", "water", "fertilizer"]:
+    for resource in ["water", "fertilizer"]:
         if resource in config["primary"]:
             n.stores.at[resource, "e_nom_max"] = float(
                 config["primary"][resource]["limit"]
             )
 
 
-def add_food_group_buses_and_stores(
-    n: pypsa.Network, food_groups: pd.DataFrame
+def add_food_group_buses_and_loads(
+    n: pypsa.Network, food_groups: pd.DataFrame, config: dict
 ) -> None:
-    """Add carriers, buses, and stores for food groups defined in the CSV."""
+    """Add carriers, buses, and loads for food groups defined in the CSV."""
     # Get unique food groups from CSV (excluding empty groups)
     unique_groups = food_groups[
         food_groups["group"].notna() & (food_groups["group"] != "")
     ]["group"].unique()
 
-    # Add carriers, buses, and stores for food groups
+    # Add carriers, buses, and loads for food groups
     for group in unique_groups:
         # Add carrier if it doesn't exist
         if group not in n.carriers.index:
@@ -67,23 +97,51 @@ def add_food_group_buses_and_stores(
         # Add bus if it doesn't exist
         if group not in n.buses.index:
             n.add("Bus", group, carrier=group)
-        # Add store if it doesn't exist
-        if group not in n.stores.index:
-            n.add("Store", group, bus=group, carrier=group, e_nom_extendable=True)
+
+    # Add loads for food groups with requirements
+    if "food_groups" in config:
+        print("Adding food group loads based on nutrition requirements...")
+        for group in unique_groups:
+            if group in config["food_groups"]:
+                group_config = config["food_groups"][group]
+                if "min_per_person_per_day" in group_config:
+                    # Calculate total annual requirement
+                    population = config.get("population", 1000000)
+                    days_per_year = 365
+                    min_per_person_per_day = float(
+                        group_config["min_per_person_per_day"]
+                    )  # g/person/day
+                    total_annual_requirement = (
+                        min_per_person_per_day
+                        * population
+                        * days_per_year
+                        / 1000000  # Convert g to tonnes
+                    )
+
+                    n.add(
+                        "Load",
+                        group,
+                        bus=group,
+                        carrier=group,
+                        p_set=total_annual_requirement,
+                    )
+                    print(
+                        f"  {group}: {total_annual_requirement:.1f} t/year ({min_per_person_per_day}g/person/day)"
+                    )
 
 
-def add_crop_production_links(
-    n: pypsa.Network, crops: pd.DataFrame, config: dict
+def add_regional_crop_production_links(
+    n: pypsa.Network, crops: pd.DataFrame, yields_data: dict, config: dict
 ) -> None:
-    """Add links for crop production (land/water/fertilizer -> crop + emissions)."""
+    """Add links for crop production per region and resource class."""
     for crop in config["crops"]:
         if crop not in crops.index.get_level_values(0):
             continue
 
         crop_data = crops.loc[crop]
+        crop_bus = f"crop_{crop}"
 
-        # Get production coefficients
-        yield_value = crop_data.loc["yield", "value"]  # t/ha
+        # Get global production coefficients
         water_use = crop_data.loc["water", "value"]  # m^3/t
         fert_use = crop_data.loc["fertilizer", "value"]  # kg/t
 
@@ -95,44 +153,83 @@ def add_crop_production_links(
         if "ch4" in crop_data.index:
             ch4_emission = crop_data.loc["ch4", "value"]  # kg/t
 
-        # Add crop production link
-        # bus0 is the primary input (land), bus1 is the main output (crop)
-        # Other buses are additional inputs (negative efficiency) or outputs (positive)
-        link_name = f"produce_{crop}"
-        crop_bus = f"crop_{crop}"
+        # Get regional yields data for this crop
+        crop_yields = yields_data[f"{crop}_yield"]
 
-        # Start with basic parameters - add small cost to make optimization work
+        # Add a "name" column to crop_yields following this: f"produce_{crop}_{region}_class{resource_class}"
+        crop_yields["name"] = crop_yields.index.map(
+            lambda x: f"produce_{crop}_{x[0]}_class{x[1]}"
+        )
+
+        # Make index levels columns
+        df = crop_yields.reset_index()
+
+        # Set index to "name"
+        df.set_index("name", inplace=True)
+        df.index.name = None
+
+        # Filter out rows with zero suitable area
+        df = df[(df["suitable_area"] > 0) & (df["yield"] > 0)]
+
+        # Add links
         link_params = {
-            "bus0": "land",  # Primary input
-            "bus1": crop_bus,  # Main output
-            "efficiency": yield_value,  # Efficiency from land to crop (t crop per ha land)
+            "name": df.index,
+            "bus0": df["ISO_A3"].apply(lambda x: f"land_{x}"),
+            "bus1": crop_bus,
+            "efficiency": df["yield"],
             "bus2": "water",
-            "efficiency2": (
-                -water_use / yield_value
-            ),  # Additional input per unit output (m^3 per t crop)
+            "efficiency2": -water_use / df["yield"],
             "bus3": "fertilizer",
-            "efficiency3": (
-                -fert_use / yield_value
-            ),  # Additional input per unit output (kg per t crop)
-            "marginal_cost": 0.01,  # Small cost to enable optimization
+            "efficiency3": -fert_use / df["yield"],
+            "marginal_cost": 0.01,
+            "p_nom_max": df["suitable_area"],
+            "p_nom_extendable": True,
         }
 
         # Add emission outputs if they exist
-        bus_idx = 4
         if co2_emission > 0:
-            link_params[f"bus{bus_idx}"] = "co2"
-            link_params[f"efficiency{bus_idx}"] = (
-                co2_emission / yield_value  # Output per unit crop (kg per t crop)
-            )
-            bus_idx += 1
+            link_params["bus4"] = "co2"
+            link_params["efficiency4"] = co2_emission / df["yield"]
 
         if ch4_emission > 0:
+            bus_idx = 5 if co2_emission > 0 else 4
             link_params[f"bus{bus_idx}"] = "ch4"
-            link_params[f"efficiency{bus_idx}"] = (
-                ch4_emission / yield_value  # Output per unit crop (kg per t crop)
-            )
+            link_params[f"efficiency{bus_idx}"] = ch4_emission / df["yield"]
 
-        n.add("Link", link_name, p_nom_extendable=True, **link_params)
+        n.add("Link", **link_params)
+
+
+def add_regional_land_limits(n: pypsa.Network, yields_data: dict, config: dict) -> None:
+    """Set total land availability limits per region."""
+    # Calculate total suitable land per region across all crops and resource classes
+    regional_land_totals = {}
+
+    for crop_yields in yields_data.values():
+        if crop_yields.empty:
+            continue
+
+        for (region, resource_class), row in crop_yields.iterrows():
+            suitable_area = row["suitable_area"]
+            if suitable_area > 0:
+                if region not in regional_land_totals:
+                    regional_land_totals[region] = 0
+                regional_land_totals[region] += suitable_area
+
+    # Set land limits for each region
+    for region, total_land in regional_land_totals.items():
+        land_store = f"land_{region}"
+        if land_store in n.stores.index:
+            # Apply global land limit if specified, otherwise use calculated total
+            if "land" in config["primary"]:
+                global_limit = float(config["primary"]["land"]["limit"])
+                # Distribute global limit proportionally
+                total_global_land = sum(regional_land_totals.values())
+                regional_limit = min(
+                    total_land, global_limit * (total_land / total_global_land)
+                )
+                n.stores.at[land_store, "e_nom_max"] = regional_limit
+            else:
+                n.stores.at[land_store, "e_nom_max"] = total_land
 
 
 def add_food_conversion_links(n: pypsa.Network, foods: pd.DataFrame) -> None:
@@ -168,13 +265,37 @@ def add_food_conversion_links(n: pypsa.Network, foods: pd.DataFrame) -> None:
             )  # Small cost to enable optimization
 
 
-def add_macronutrient_stores(n: pypsa.Network) -> None:
-    """Add stores for macronutrients."""
-    for nutrient in ["carb", "protein", "fat"]:
-        if nutrient in n.buses.index:
-            n.add(
-                "Store", nutrient, bus=nutrient, carrier=nutrient, e_nom_extendable=True
-            )
+def add_macronutrient_loads(n: pypsa.Network, config: dict) -> None:
+    """Add loads for macronutrients based on minimum requirements."""
+    if "macronutrients" in config:
+        print("Adding macronutrient loads based on nutrition requirements...")
+        for nutrient in ["carb", "protein", "fat"]:
+            if nutrient in n.buses.index and nutrient in config["macronutrients"]:
+                nutrient_config = config["macronutrients"][nutrient]
+                if "min_per_person_per_day" in nutrient_config:
+                    # Calculate total annual requirement
+                    population = config.get("population", 1000000)
+                    days_per_year = 365
+                    min_per_person_per_day = float(
+                        nutrient_config["min_per_person_per_day"]
+                    )  # g/person/day
+                    total_annual_requirement = (
+                        min_per_person_per_day
+                        * population
+                        * days_per_year
+                        / 1000000  # Convert g to tonnes
+                    )
+
+                    n.add(
+                        "Load",
+                        nutrient,
+                        bus=nutrient,
+                        carrier=nutrient,
+                        p_set=total_annual_requirement,
+                    )
+                    print(
+                        f"  {nutrient}: {total_annual_requirement:.1f} t/year ({min_per_person_per_day}g/person/day)"
+                    )
 
 
 def add_food_nutrition_links(
@@ -257,18 +378,20 @@ def build_network(
     foods: pd.DataFrame,
     food_groups: pd.DataFrame,
     nutrition: pd.DataFrame,
+    yields_data: dict,
 ) -> pypsa.Network:
     """Build the complete food systems optimization network."""
     n = pypsa.Network()
     n.set_snapshots(["now"])
 
     # Build network step by step
-    add_carriers_and_buses(n, config)
-    add_primary_resources(n, config)
-    add_crop_production_links(n, crops, config)
+    add_carriers_and_buses(n, config, yields_data)
+    add_primary_resources(n, config, yields_data)
+    add_regional_crop_production_links(n, crops, yields_data, config)
+    add_regional_land_limits(n, yields_data, config)
     add_food_conversion_links(n, foods)
-    add_food_group_buses_and_stores(n, food_groups)
-    add_macronutrient_stores(n)
+    add_food_group_buses_and_loads(n, food_groups, config)
+    add_macronutrient_loads(n, config)
     add_food_nutrition_links(n, foods, food_groups, nutrition)
 
     return n
@@ -287,6 +410,16 @@ if __name__ == "__main__":
     # Read nutrition data
     nutrition = pd.read_csv(snakemake.input.nutrition)
 
+    # Read yields data for each crop
+    yields_data = {}
+    for crop in snakemake.config["crops"]:
+        yields_key = f"{crop}_yield"
+        yields_df = pd.read_csv(
+            snakemake.input[yields_key], index_col=["ISO_A3", "resource_class"]
+        )
+        yields_data[yields_key] = yields_df
+        print(f"Loaded yields for {crop}: {len(yields_df)} regions/classes")
+
     print("Crops data:")
     print(crops.head(10))
     print("\nFoods data:")
@@ -297,7 +430,9 @@ if __name__ == "__main__":
     print(nutrition.head())
 
     # Build the network
-    n = build_network(snakemake.config, crops, foods, food_groups, nutrition)
+    n = build_network(
+        snakemake.config, crops, foods, food_groups, nutrition, yields_data
+    )
 
     print("\nNetwork summary:")
     print(f"Carriers: {len(n.carriers)}")

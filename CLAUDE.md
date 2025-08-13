@@ -51,14 +51,7 @@ snakemake --use-conda -j4 results/{config_name}/solved/model.nc
 ```
 
 ### Code Quality
-```bash
-# Linting and formatting
-ruff check .
-ruff format .
-
-# Pre-commit hooks available
-pre-commit run --all-files
-```
+Linting and formatting is done using ruff, but this is applied automatically after every code change through a claude code hook and doesn't have to be done manually.
 
 ## Configuration System
 
@@ -76,7 +69,8 @@ The model uses a hierarchical configuration system:
 
 ### PyPSA
 
-For code involving pypsa components, consider looking up relevant pypsa documentation: https://pypsa.readthedocs.io/en/stable/user-guide/components.html for components and https://pypsa.readthedocs.io/en/stable/api/optimization.html for optimization.
+For code involving pypsa components, optimization, consult the official documentation using the context7 tool; library ID is pypsa/pypsa.
+If you need to look up linopy documentation, search the web.
 
 Links are tricky components. When they have more than 2 buses, the following conventions reign:
 - `bus0` is the (first) input bus

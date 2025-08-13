@@ -3,10 +3,28 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from snakemake.utils import min_version
+import os
 
 min_version("9.0")
 
+
+storage:
+    provider="http",
+
+
 configfile: "config/config.yaml"
+
+
+wildcard_constraints:
+    climate_model=r"[a-zA-Z0-9\-]+",
+    variable=r"[a-z]+",
+    time_period=r"2020s|2050s|2080s",
+    rcp=r"[0-9]p[0-9]",
+    input_management=r"H|L",
+    water_supply=r"r|i",
+    co2_fertilization=r"0*",
+    crop=r"[a-z\w]+",
+
 
 name = config["name"]
 
@@ -17,8 +35,58 @@ rule all:
         f"results/{name}/plots",
 
 
+rule build_regions:
+    output:
+        "processing/{name}/regions.geojson",
+    conda:
+        "envs/environment.yaml"
+    script:
+        "scripts/build_regions.py"
+
+
+rule build_crop_yields:
+    input:
+        yields=storage.http(
+            (
+                "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/{climate_model}/rcp{rcp}/{time_period}H/"
+                + config["data"]["gaez"]["yield_var"]
+                + "{input_management}{water_supply}{co2_fertilization}_{crop}.tif"
+            ),
+            keep_local=True,
+        ),
+        suitability=storage.http(
+            (
+                "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/{climate_model}/rcp{rcp}/{time_period}H/"
+                + config["data"]["gaez"]["suitability_var"]
+                + "{input_management}{water_supply}{co2_fertilization}_{crop}.tif"
+            ),
+            keep_local=True,
+        ),
+        regions=f"processing/{name}/regions.geojson",
+    output:
+        os.path.join(
+            "processing",
+            name,
+            "crop_yields/{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.csv",
+        ),
+    conda:
+        "envs/environment.yaml"
+    script:
+        "scripts/build_crop_yields.py"
+
+
+def yield_inputs(wildcards):
+    gaez = config["data"]["gaez"]
+    return {
+        crop
+        + "_yield": f"processing/{name}/crop_yields/{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_{gaez['water_supply']}_{gaez['co2_fertilization']}_{gaez['crops'][crop]}.csv"
+        for crop in config["crops"]
+    }
+
+
 rule build_model:
     input:
+        unpack(yield_inputs),
         crops="data/crops.csv",
         foods="data/foods.csv",
         food_groups="data/food_groups.csv",

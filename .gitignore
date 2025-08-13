@@ -4,6 +4,8 @@
 
 .snakemake
 results
+processing
+notebooks
 data
 **/__pycache__
 gurobi.log

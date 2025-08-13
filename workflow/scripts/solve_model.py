@@ -5,87 +5,14 @@
 import pypsa
 
 
-def add_nutrition_constraints(n: pypsa.Network, config: dict) -> None:
-    """Add custom constraints for nutrition requirements based on population."""
-    print("Adding nutrition constraints based on population requirements...")
-
-    # Get the linopy model
-    m = n.model
-
-    # Get population and calculate total requirements
-    population = config.get("population", 1000000)
-    days_per_year = 365
-
-    # Add macronutrient constraints
-    if "macronutrients" in config:
-        print("  Adding macronutrient constraints...")
-        for nutrient, nutrient_config in config["macronutrients"].items():
-            if (
-                "min_per_person_per_day" in nutrient_config
-                and nutrient in n.stores.index
-            ):
-                # Calculate total annual requirement
-                min_per_person_per_day = float(
-                    nutrient_config["min_per_person_per_day"]
-                )  # g/person/day
-                total_annual_requirement = (
-                    min_per_person_per_day
-                    * population
-                    * days_per_year
-                    / 1000000  # Convert g to tonnes
-                )
-
-                # Get the store energy variable for the last snapshot
-                store_idx = n.stores.index.get_loc(nutrient)
-
-                # Add constraint: e[store, last_snapshot] >= total_annual_requirement
-                # Use isel to select by integer position instead of label
-                m.add_constraints(
-                    m.variables["Store-e"].isel(Store=store_idx, snapshot=-1)
-                    >= total_annual_requirement,
-                    name=f"min_{nutrient}_requirement",
-                )
-                print(
-                    f"    {nutrient}: {total_annual_requirement:.1f} t/year ({min_per_person_per_day}g/person/day)"
-                )
-
-    # Add food group constraints
-    if "food_groups" in config:
-        print("  Adding food group constraints...")
-        for group_name, group_config in config["food_groups"].items():
-            if (
-                "min_per_person_per_day" in group_config
-                and group_name in n.stores.index
-            ):
-                # Calculate total annual requirement
-                min_per_person_per_day = float(
-                    group_config["min_per_person_per_day"]
-                )  # g/person/day
-                total_annual_requirement = (
-                    min_per_person_per_day
-                    * population
-                    * days_per_year
-                    / 1000000  # Convert g to tonnes
-                )
-
-                # Get the store energy variable for the last snapshot
-                store_idx = n.stores.index.get_loc(group_name)
-
-                # Add constraint: e[store, last_snapshot] >= total_annual_requirement
-                # Use isel to select by integer position instead of label
-                m.add_constraints(
-                    m.variables["Store-e"].isel(Store=store_idx, snapshot=-1)
-                    >= total_annual_requirement,
-                    name=f"min_{group_name}_requirement",
-                )
-                print(
-                    f"    {group_name}: {total_annual_requirement:.1f} t/year ({min_per_person_per_day}g/person/day)"
-                )
-
-    # Add greenhouse gas constraint (combining CO2 and CH4 using GWP)
+def add_ghg_constraint(n: pypsa.Network, config: dict) -> None:
+    """Add greenhouse gas constraint (combining CO2 and CH4 using GWP)."""
     if "ghg" in config.get("primary", {}):
         print("  Adding greenhouse gas constraint...")
         ghg_limit = float(config["primary"]["ghg"]["limit"])  # kg CO2-eq
+
+        # Get the linopy model
+        m = n.model
 
         # GWP values: CO2 = 1, CH4 = 25 (100-year GWP)
         ghg_expression = None
@@ -164,8 +91,8 @@ def solve_network(n: pypsa.Network) -> pypsa.Network:
     # Create the linopy model
     n.optimize.create_model()
 
-    # Add custom nutrition constraints
-    add_nutrition_constraints(n, snakemake.config)
+    # Add GHG constraint if specified
+    add_ghg_constraint(n, snakemake.config)
 
     # Add GHG emissions to objective function
     add_ghg_objective(n, snakemake.config)
@@ -202,6 +129,8 @@ def solve_network(n: pypsa.Network) -> pypsa.Network:
                 )
         except Exception as e:
             print(f"Could not compute infeasibilities: {e}")
+
+        return None
     else:
         print(f"Solver result: {result}")
 
@@ -223,4 +152,5 @@ def solve_network(n: pypsa.Network) -> pypsa.Network:
 if __name__ == "__main__":
     n = pypsa.Network(snakemake.input.network)
     n = solve_network(n)
-    n.export_to_netcdf(snakemake.output.network)
+    if n:
+        n.export_to_netcdf(snakemake.output.network)

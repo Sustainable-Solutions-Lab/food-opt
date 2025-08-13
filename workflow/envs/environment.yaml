@@ -17,6 +17,9 @@ dependencies:
 - numpy
 - pandas>=2.1
 - matplotlib
+- networkx
+- geopandas
+- rasterio
 
 - jupyter
 - ipython
@@ -26,3 +29,4 @@ dependencies:
 - pip:
   - gurobipy
   - highspy
+  - snakemake-storage-plugin-http
