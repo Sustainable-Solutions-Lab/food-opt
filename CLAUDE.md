@@ -35,19 +35,19 @@ This is food-opt, a global food systems optimization model using linear programm
 ## Development Commands
 
 ### Environment Setup
-Prepend the following to any bash command needing snakemake or devel dependencies: `source ~/.bashrc && conda activate food-opt &&`
+The project uses uv for dependency management. Install dependencies with `uv sync` and run commands in the uv environment using `uv run <command>`.
 
 ### Running the Model
 In general, it's not necessary to clean up the results directory after modifying code; snakemake will detect when code was changed and rerun the necessary rules.
 ```bash
 # Full workflow (data processing, build, solve)
-snakemake --use-conda -j4 all
+uv run snakemake -j4 all
 
 # Build model only
-snakemake --use-conda -j4 results/{config_name}/build/model.nc
+uv run snakemake -j4 results/{config_name}/build/model.nc
 
 # Solve model only
-snakemake --use-conda -j4 results/{config_name}/solved/model.nc
+uv run snakemake -j4 results/{config_name}/solved/model.nc
 ```
 
 ### Code Quality

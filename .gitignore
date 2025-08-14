@@ -9,3 +9,4 @@ notebooks
 data
 **/__pycache__
 gurobi.log
+/uv.lock

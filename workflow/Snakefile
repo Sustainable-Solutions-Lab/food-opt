@@ -38,8 +38,6 @@ rule all:
 rule build_regions:
     output:
         "processing/{name}/regions.geojson",
-    conda:
-        "envs/environment.yaml"
     script:
         "scripts/build_regions.py"
 
@@ -69,8 +67,6 @@ rule build_crop_yields:
             name,
             "crop_yields/{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.csv",
         ),
-    conda:
-        "envs/environment.yaml"
     script:
         "scripts/build_crop_yields.py"
 
@@ -93,8 +89,6 @@ rule build_model:
         nutrition="data/nutrition.csv",
     output:
         network="results/{name}/build/model.nc",
-    conda:
-        "envs/environment.yaml"
     script:
         "scripts/build_model.py"
 
@@ -104,8 +98,6 @@ rule solve_model:
         network="results/{name}/build/model.nc",
     output:
         network="results/{name}/solved/model.nc",
-    conda:
-        "envs/environment.yaml"
     script:
         "scripts/solve_model.py"
 
@@ -115,7 +107,5 @@ rule plot_results:
         network="results/{name}/solved/model.nc",
     output:
         plots_dir=directory("results/{name}/plots"),
-    conda:
-        "envs/environment.yaml"
     script:
         "scripts/plot_results.py"
