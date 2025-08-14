@@ -61,7 +61,7 @@ def main():
     config = snakemake.config
 
     # For now, only support countries as specified
-    if config.get("regions") == "countries":
+    if config["aggregation"]["regions"] == "countries":
         download_countries_geojson(output_path)
     else:
         raise NotImplementedError(
