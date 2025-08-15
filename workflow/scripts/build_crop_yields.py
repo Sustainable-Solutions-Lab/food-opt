@@ -83,11 +83,11 @@ def aggregate_yields_by_region(
     regions_gdf = gpd.read_file(regions_path)
 
     # Ensure the index is set to alpha3 codes (should already be from build_regions.py)
-    if regions_gdf.index.name != "ISO_A3":
-        if "ISO_A3" in regions_gdf.columns:
-            regions_gdf = regions_gdf.set_index("ISO_A3")
+    if regions_gdf.index.name != "region":
+        if "region" in regions_gdf.columns:
+            regions_gdf = regions_gdf.set_index("region")
         else:
-            raise ValueError("Regions GeoJSON must have ISO_A3 column or index")
+            raise ValueError("Regions GeoJSON must have region column or index")
 
     logger.info("Loaded %d regions", len(regions_gdf))
 
@@ -131,10 +131,10 @@ def aggregate_yields_by_region(
         logger.info("Cell area calculation completed")
 
         # Process each region
-        for alpha3_code, region in regions_gdf.iterrows():
+        for region, row in regions_gdf.iterrows():
             try:
                 # Extract geometry
-                geometry = [region.geometry]
+                geometry = [row.geometry]
 
                 # Mask both rasters with the region geometry
                 yield_masked, yield_transform = mask(
@@ -224,7 +224,7 @@ def aggregate_yields_by_region(
 
                             results_data.append(
                                 {
-                                    "ISO_A3": alpha3_code,
+                                    "region": region,
                                     "resource_class": class_idx,
                                     "yield": mean_yield,
                                     "suitable_area": total_suitable_area,
@@ -233,7 +233,7 @@ def aggregate_yields_by_region(
 
                             logger.debug(
                                 "%s class %d: yield=%.2f t/ha, area=%.0f ha",
-                                alpha3_code,
+                                region,
                                 class_idx,
                                 mean_yield,
                                 total_suitable_area,
@@ -249,12 +249,12 @@ def aggregate_yields_by_region(
     # Create DataFrame with MultiIndex
     if results_data:
         results_df = pd.DataFrame(results_data)
-        results_df = results_df.set_index(["ISO_A3", "resource_class"])
+        results_df = results_df.set_index(["region", "resource_class"])
         return results_df
     else:
         # Return empty DataFrame with correct structure
         return pd.DataFrame(columns=["yield", "suitable_area"]).set_index(
-            ["ISO_A3", "resource_class"]
+            ["region", "resource_class"]
         )
 
 

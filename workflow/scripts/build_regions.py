@@ -46,6 +46,9 @@ def download_countries_geojson(output_path: str) -> None:
     # Set index to alpha3 country codes using ISO_A3
     valid_countries = valid_countries.set_index("ISO_A3")
 
+    # Rename index to "region"
+    valid_countries.index.name = "region"
+
     # Create output directory if it doesn't exist
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
