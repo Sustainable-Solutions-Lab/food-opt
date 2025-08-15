@@ -8,36 +8,49 @@ import rasterio
 import numpy as np
 from rasterio.mask import mask
 from pathlib import Path
-from pyproj import Transformer
+from pyproj import Transformer, Geod
 
 
 def calculate_all_cell_areas(src, transformer):
-    """Calculate areas for all cells in the raster using vectorized operations."""
+    """Calculate areas for all cells in the raster using geographic coordinates."""
+    # Get pixel size in degrees
+    pixel_width_deg = abs(src.transform.a)  # degrees longitude
+    pixel_height_deg = abs(src.transform.e)  # degrees latitude
+
+    # Create arrays for all pixel centers
     rows, cols = src.shape
 
-    # Create coordinate arrays for all pixels
-    col_indices, row_indices = np.meshgrid(np.arange(cols), np.arange(rows))
+    # Get bounds of the raster
+    left, bottom, right, top = src.bounds
 
-    # Get corner coordinates for all pixels at once
-    left_coords, top_coords = src.transform * (col_indices, row_indices)
-    right_coords, bottom_coords = src.transform * (col_indices + 1, row_indices + 1)
+    # Calculate latitude for each row (pixel centers)
+    lats = np.linspace(top - pixel_height_deg / 2, bottom + pixel_height_deg / 2, rows)
 
-    # Flatten for bulk transformation
-    left_flat = left_coords.flatten()
-    top_flat = top_coords.flatten()
-    right_flat = right_coords.flatten()
-    bottom_flat = bottom_coords.flatten()
+    # Use geodesic calculations for accurate area
+    geod = Geod(ellps="WGS84")
 
-    # Bulk coordinate transformation
-    left_proj, top_proj = transformer.transform(left_flat, top_flat)
-    right_proj, bottom_proj = transformer.transform(right_flat, bottom_flat)
+    # Calculate area for each latitude band
+    areas_ha = np.zeros(rows)
 
-    # Calculate areas vectorized
-    area_m2 = np.abs(right_proj - left_proj) * np.abs(top_proj - bottom_proj)
-    area_ha = area_m2 / 10000  # Convert to hectares
+    for i, lat in enumerate(lats):
+        # Calculate the area of one pixel at this latitude
+        # Define corners of a single pixel
+        lat_top = lat + pixel_height_deg / 2
+        lat_bottom = lat - pixel_height_deg / 2
+        lon_left = left  # Any longitude will do for area calculation
+        lon_right = left + pixel_width_deg
 
-    # Reshape back to raster shape
-    return area_ha.reshape(rows, cols)
+        # Calculate area using geodesic polygon area
+        lons = [lon_left, lon_right, lon_right, lon_left, lon_left]
+        lats_poly = [lat_bottom, lat_bottom, lat_top, lat_top, lat_bottom]
+
+        area_m2, _ = geod.polygon_area_perimeter(lons, lats_poly)
+        areas_ha[i] = abs(area_m2) / 10000  # Convert to hectares
+
+    # Create 2D array with correct area per latitude
+    area_array = np.repeat(areas_ha[:, np.newaxis], cols, axis=1)
+
+    return area_array
 
 
 def aggregate_yields_by_region(
@@ -173,7 +186,9 @@ def aggregate_yields_by_region(
                         cell_areas = masked_cell_areas[0]
 
                 valid_cell_areas = cell_areas[valid_mask]
-                valid_suitable_areas = valid_cell_areas * valid_suitability
+                # Convert suitability from scale 0-10000 to fraction 0-1
+                valid_suitability_fraction = valid_suitability / 10000
+                valid_suitable_areas = valid_cell_areas * valid_suitability_fraction
 
                 # Create resource classes based on yield quantiles
                 if len(valid_yields) > 0:
