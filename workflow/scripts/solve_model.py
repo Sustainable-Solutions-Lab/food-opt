@@ -21,7 +21,7 @@ def add_ghg_constraint(n: pypsa.Network, config: dict) -> None:
         if "co2" in n.stores.index:
             co2_store_idx = n.stores.index.get_loc("co2")
             co2_term = (
-                m.variables["Store-e"].isel(Store=co2_store_idx, snapshot=-1) * 1
+                m.variables["Store-e"].isel(name=co2_store_idx, snapshot=-1) * 1
             )  # GWP = 1
             ghg_expression = co2_term
 
@@ -29,7 +29,7 @@ def add_ghg_constraint(n: pypsa.Network, config: dict) -> None:
         if "ch4" in n.stores.index:
             ch4_store_idx = n.stores.index.get_loc("ch4")
             ch4_term = (
-                m.variables["Store-e"].isel(Store=ch4_store_idx, snapshot=-1) * 25
+                m.variables["Store-e"].isel(name=ch4_store_idx, snapshot=-1) * 25
             )  # GWP = 25
             if ghg_expression is not None:
                 ghg_expression = ghg_expression + ch4_term
@@ -56,7 +56,7 @@ def add_ghg_objective(n: pypsa.Network, config: dict) -> None:
     if "co2" in n.stores.index:
         co2_store_idx = n.stores.index.get_loc("co2")
         co2_term = (
-            m.variables["Store-e"].isel(Store=co2_store_idx, snapshot=-1) * 1
+            m.variables["Store-e"].isel(name=co2_store_idx, snapshot=-1) * 1
         )  # GWP = 1
         ghg_expression = co2_term
         print("  Added CO2 emissions to objective")
@@ -65,7 +65,7 @@ def add_ghg_objective(n: pypsa.Network, config: dict) -> None:
     if "ch4" in n.stores.index:
         ch4_store_idx = n.stores.index.get_loc("ch4")
         ch4_term = (
-            m.variables["Store-e"].isel(Store=ch4_store_idx, snapshot=-1) * 25
+            m.variables["Store-e"].isel(name=ch4_store_idx, snapshot=-1) * 25
         )  # GWP = 25
         if ghg_expression is not None:
             ghg_expression = ghg_expression + ch4_term

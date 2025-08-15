@@ -14,29 +14,21 @@ primary:
 
 crops:
 - wheat
-- rice
-- corn
-- soy
-- potato
-- apple
+- dryland rice
+- wetland rice
+- maize
+- soybean
+- white potato
 - tomato
 - barley
-- oats
+- oat
 - sunflower
-- beans
-- peanut
 - carrot
 - onion
 - cabbage
 - banana
 
 population: 7000000000 # Approx world population
-
-solving:
-  solver: gurobi
-  solver_options:
-    LogToConsole: 1
-    OutputFlag: 1
 
 macronutrients:
   carb:
@@ -55,11 +47,80 @@ food_groups:
     min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
   vegetable:
     min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
-  legume:
-    min_per_person_per_day: 75   # g/person/day (protein source)
   starchy vegetable:
     min_per_person_per_day: 100  # g/person/day (potatoes, etc.)
   oil:
     min_per_person_per_day: 25   # g/person/day (essential fats)
-  nuts and seeds:
-    min_per_person_per_day: 30   # g/person/day (healthy fats + protein)
+
+aggregation:
+  regions: "countries"
+  resource_class_quantiles: [0.25, 0.5, 0.75]
+
+data:
+  gaez:
+    climate_model: "NorESM1-M"
+    time_period: "2020s" # "2020s", "2050s", "2080s"; these are 30 year averages from climate ensembles centered on the given decade.
+    rcp: "4p5" # "2p6", "4p5", "6p0", "8p5"
+    input_management: "H" # "H" (High), "L" (Low)
+    water_supply: "r" # "r" (rainfed), "i" (irrigated)
+    co2_fertilization: "" # "" (with) or "0" (without)
+    yield_var: "yc" # "Average attainable yield, current cropland" (GAEZ documentation, page 129)
+    suitability_var: "sx1" # "Share of gridcell assessed as VS or S" (i.e. very suitable or suitable; GAEZ documentation, page 129)
+    crops:
+      alfalfa: alf
+      banana: ban
+      buckwheat: bck
+      barley: brl
+      biomass sorghum: bsg
+      cabbage: cab
+      carrot: car
+      chickpea: chk
+      citrus: cit
+      cocoa: coc
+      coffee: cof
+      coconut: con
+      cotton: cot
+      cowpea: cow
+      cassava: csv
+      flax: flx
+      foxtail millet: fml
+      groundnut: grd
+      gram: grm
+      jatropha: jtr
+      miscanthus: mis
+      maize: mze
+      silage maize: mzs
+      napier grass: nap
+      oat: oat
+      oil palm: olp
+      olive: olv
+      onion: oni
+      dry pea: pea
+      phaseolus bean: phb
+      pigeonpea: pig
+      pearl millet: pml
+      dryland rice: rcd
+      reed canary grass: rcg
+      wetland rice: rcw
+      rapeseed: rsd
+      rubber: rub
+      rye: rye
+      sunflower: sfl
+      soybean: soy
+      sweet potato: spo
+      sorghum: srg
+      sugarbeet: sub
+      sugarcane: suc
+      switchgrass: swg
+      tea: tea
+      tobacco: tob
+      tomato: tom
+      wheat: whe
+      white potato: wpo
+      yam: yam
+
+solving:
+  solver: gurobi
+  solver_options:
+    LogToConsole: 1
+    OutputFlag: 1
