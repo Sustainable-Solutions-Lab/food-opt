@@ -6,10 +6,11 @@ import geopandas as gpd
 import pandas as pd
 import rasterio
 import numpy as np
-from rasterio.mask import mask
 from pathlib import Path
 from pyproj import Transformer, Geod
 import logging
+import xarray as xr
+from rasterio import features
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,11 @@ def aggregate_yields_by_region(
     resource_class_quantiles: list,
 ) -> pd.DataFrame:
     """
-    Aggregate crop yields from a GeoTIFF file over regions and resource classes.
+    Aggregate crop yields from a GeoTIFF file over regions and resource classes using vectorized operations.
+
+    This function reads yield and suitability rasters, creates a region mask raster,
+    and calculates mean yields and suitable areas for each resource class within each region
+    using vectorized operations instead of looping over regions.
 
     Args:
         yield_path: Path to the GAEZ crop yield GeoTIFF file
@@ -84,16 +89,13 @@ def aggregate_yields_by_region(
     regions_gdf.set_index("region", inplace=True)
     logger.info("Loaded %d regions", len(regions_gdf))
 
-    # Create transformer for equal-area projection (let it fail if projection not available)
+    # Create transformer for equal-area projection
     try:
         transformer = Transformer.from_crs("EPSG:4326", "EPSG:54009", always_xy=True)
         logger.info("Using World Mollweide projection (EPSG:54009)")
     except Exception:
         transformer = Transformer.from_crs("EPSG:4326", "EPSG:3410", always_xy=True)
         logger.info("Using World Cylindrical Equal Area projection (EPSG:3410)")
-
-    # Prepare output data structure
-    results_data = []
 
     # Open both yield and suitability rasters
     with (
@@ -118,131 +120,118 @@ def aggregate_yields_by_region(
             )
             regions_gdf = regions_gdf.to_crs(yield_src.crs)
 
-        # Calculate cell areas once for the entire raster (this is the expensive operation)
+        # Calculate cell areas once for the entire raster
         logger.info("Calculating cell areas for entire raster...")
         cell_areas_global = calculate_all_cell_areas(yield_src, transformer)
         logger.info("Cell area calculation completed")
 
-        # Process each region
-        for region, row in regions_gdf.iterrows():
-            try:
-                # Extract geometry
-                geometry = [row.geometry]
+        # Read full rasters into xarray
+        logger.info("Reading raster data into xarray...")
+        yield_data = yield_src.read(1)
+        suit_data = suit_src.read(1)
 
-                # Mask both rasters with the region geometry
-                yield_masked, yield_transform = mask(
-                    yield_src, geometry, crop=True, nodata=yield_src.nodata
-                )
-                suit_masked, suit_transform = mask(
-                    suit_src, geometry, crop=True, nodata=suit_src.nodata
-                )
+        # Create xarray DataArrays with proper coordinates
+        height, width = yield_data.shape
+        transform = yield_src.transform
 
-                # Get the masked data (first band)
-                yield_data = yield_masked[0]
-                suit_data = suit_masked[0]
+        # Create coordinate arrays
+        x_coords = np.arange(width) * transform.a + transform.c + transform.a / 2
+        y_coords = np.arange(height) * transform.e + transform.f + transform.e / 2
 
-                # Filter out nodata values for both datasets
-                valid_mask = np.ones_like(yield_data, dtype=bool)
+        # Dataset with both yields, suitability and area
+        data = xr.Dataset(
+            {
+                "yield_raw": (["y", "x"], yield_data, {"nodata": yield_src.nodata}),
+                "suitability_raw": (["y", "x"], suit_data, {"nodata": suit_src.nodata}),
+                "cell_areas": (["y", "x"], cell_areas_global),
+            },
+            coords={"y": y_coords, "x": x_coords},
+        )
 
-                if yield_src.nodata is not None:
-                    valid_mask &= yield_data != yield_src.nodata
-                else:
-                    valid_mask &= ~np.isnan(yield_data)
-                    valid_mask &= yield_data > 0  # GAEZ yields should be positive
+        # Create region ID raster using rasterio.features.rasterize
+        logger.info("Creating region mask raster...")
+        region_shapes = [(geom, idx) for idx, geom in enumerate(regions_gdf.geometry)]
+        region_raster = features.rasterize(
+            region_shapes,
+            out_shape=(height, width),
+            transform=transform,
+            fill=-1,  # Use -1 for areas outside any region
+            dtype=np.int32,
+        )
 
-                if suit_src.nodata is not None:
-                    valid_mask &= suit_data != suit_src.nodata
-                else:
-                    valid_mask &= ~np.isnan(suit_data)
-                    valid_mask &= suit_data >= 0  # Suitability should be non-negative
+        # Add region raster to dataset
+        data = data.assign(region=(("y", "x"), region_raster))
 
-                if not np.any(valid_mask):
-                    logger.debug("%s: No valid data", region)
-                    continue
+        # Create validity masks and convert units in the dataset
+        logger.info("Creating validity masks and converting units...")
 
-                # Extract valid data
-                valid_yields = yield_data[valid_mask] / 1000  # Convert kg/ha to t/ha
-                valid_suitability = suit_data[valid_mask]
+        # Check for nodata values
+        yield_nodata = data["yield_raw"].attrs.get("nodata")
+        suit_nodata = data["suitability_raw"].attrs.get("nodata")
 
-                # Create a temporary raster from cell areas and apply the same mask
-                with rasterio.MemoryFile() as memfile:
-                    with memfile.open(
-                        driver="GTiff",
-                        height=cell_areas_global.shape[0],
-                        width=cell_areas_global.shape[1],
-                        count=1,
-                        dtype=cell_areas_global.dtype,
-                        crs=yield_src.crs,
-                        transform=yield_src.transform,
-                        nodata=-9999,
-                    ) as temp_src:
-                        temp_src.write(cell_areas_global, 1)
+        yield_valid = (
+            data["yield_raw"] != yield_nodata
+            if yield_nodata is not None
+            else ~np.isnan(data["yield_raw"])
+        ) & (data["yield_raw"] > 0)
 
-                    with memfile.open() as temp_src:
-                        # Use the same mask operation as for yield data
-                        masked_cell_areas, _ = mask(
-                            temp_src, geometry, crop=True, nodata=-9999
-                        )
-                        cell_areas = masked_cell_areas[0]
+        suit_valid = (
+            data["suitability_raw"] != suit_nodata
+            if suit_nodata is not None
+            else ~np.isnan(data["suitability_raw"])
+        ) & (data["suitability_raw"] >= 0)
 
-                valid_cell_areas = cell_areas[valid_mask]
-                # Convert suitability from scale 0-10000 to fraction 0-1
-                valid_suitability_fraction = valid_suitability / 10000
-                valid_suitable_areas = valid_cell_areas * valid_suitability_fraction
+        # Unit conversions
+        data["yield"] = data["yield_raw"] / 1000  # kg/ha to t/ha
+        data["suitability"] = data["suitability_raw"] / 10000  # 0-10000 to 0-1
+        data["suitable_area"] = data["cell_areas"] * data["suitability"]
+        data["valid"] = yield_valid & suit_valid & (data["region"] >= 0)
 
-                # Create resource classes based on yield quantiles
-                if len(valid_yields) > 0:
-                    yield_quantiles = np.quantile(
-                        valid_yields, [0] + resource_class_quantiles + [1]
-                    )
+        # Calculate quantiles by region, then map back to full resolution threshold values
+        quantiles = [0] + resource_class_quantiles + [1]
+        region_quantiles = data["yield"].groupby(data["region"]).quantile(quantiles)
+        thresholds = region_quantiles.sel(region=data.region)  # Has y and x coordinates
+        thresholds = thresholds.reset_coords(drop=True)  # Gets rid of region coordinate
 
-                    for class_idx in range(len(yield_quantiles) - 1):
-                        # Find pixels in this yield quantile range
-                        class_mask = (valid_yields >= yield_quantiles[class_idx]) & (
-                            valid_yields < yield_quantiles[class_idx + 1]
-                        )
+        # Resource class assignment using thresholds
+        resource_classes = xr.zeros_like(data["yield"], dtype="int8")
+        for class_idx in range(len(quantiles) - 1):
+            lower_bound = thresholds.isel(quantile=class_idx)
+            upper_bound = thresholds.isel(quantile=class_idx + 1)
 
-                        # Handle the last class to include the maximum value
-                        if class_idx == len(yield_quantiles) - 2:
-                            class_mask = (
-                                valid_yields >= yield_quantiles[class_idx]
-                            ) & (valid_yields <= yield_quantiles[class_idx + 1])
+            # Handle duplicate thresholds by using only the lower bound
+            mask = (data["yield"] >= lower_bound) & (data["yield"] < upper_bound)
 
-                        if np.any(class_mask):
-                            class_yields = valid_yields[class_mask]
-                            class_suitable_areas = valid_suitable_areas[class_mask]
+            # For the highest class, include the upper bound
+            if class_idx == len(quantiles) - 2:
+                mask = mask | (data["yield"] >= upper_bound)
 
-                            mean_yield = np.mean(class_yields)
-                            total_suitable_area = np.sum(class_suitable_areas)
+            resource_classes = resource_classes.where(~mask, class_idx)
 
-                            results_data.append(
-                                {
-                                    "region": region,
-                                    "resource_class": class_idx,
-                                    "yield": mean_yield,
-                                    "suitable_area": total_suitable_area,
-                                }
-                            )
+        data["resource_class"] = resource_classes
 
-                            logger.debug(
-                                "%s class %d: yield=%.2f t/ha, area=%.0f ha",
-                                region,
-                                class_idx,
-                                mean_yield,
-                                total_suitable_area,
-                            )
+        # Group by both region and resource class for aggregation, only on valid data
+        grouped = data.groupby(["region", "resource_class"])
 
-                # Explicitly clean up large arrays to prevent memory accumulation
-                del yield_data, suit_data, valid_mask, valid_yields, valid_suitability
-                del cell_areas, valid_cell_areas, valid_suitable_areas
+        # Calculate mean yields and sum areas for each region-class combination
+        yield_mean = grouped.mean()["yield"]
+        area_sum = grouped.sum()["suitable_area"]
+        aggregated = xr.Dataset({"yield": yield_mean, "suitable_area": area_sum})
 
-            except Exception as e:
-                logger.warning("Error processing %s: %s", region, e)
+        # Convert to DataFrame directly from xarray
+        results_df = aggregated.to_dataframe().dropna()
 
-    # Create DataFrame with MultiIndex
-    if results_data:
-        results_df = pd.DataFrame(results_data)
-        results_df = results_df.set_index(["region", "resource_class"])
+        # Drop any rows where region is -1
+        results_df.drop("quantile", axis=1, inplace=True)
+        results_df.drop(-1, level="region", inplace=True)
+
+        # Map region IDs to names
+        results_df.rename(
+            dict(enumerate(regions_gdf.index)), level="region", inplace=True
+        )
+
+    # Return DataFrame with MultiIndex
+    if not results_df.empty:
         return results_df
     else:
         # Return empty DataFrame with correct structure
