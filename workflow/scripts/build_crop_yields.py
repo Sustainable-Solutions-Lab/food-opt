@@ -68,7 +68,7 @@ def aggregate_yields_by_region(
     Args:
         yield_path: Path to the GAEZ crop yield GeoTIFF file
         suitability_path: Path to the GAEZ suitability GeoTIFF file
-        regions_path: Path to regions GeoJSON file (indexed by alpha3 codes)
+        regions_path: Path to regions GeoJSON file
         resource_class_quantiles: List of quantile thresholds for resource classes
 
     Returns:
@@ -81,14 +81,7 @@ def aggregate_yields_by_region(
 
     # Load regions (countries) data
     regions_gdf = gpd.read_file(regions_path)
-
-    # Ensure the index is set to alpha3 codes (should already be from build_regions.py)
-    if regions_gdf.index.name != "region":
-        if "region" in regions_gdf.columns:
-            regions_gdf = regions_gdf.set_index("region")
-        else:
-            raise ValueError("Regions GeoJSON must have region column or index")
-
+    regions_gdf.set_index("region", inplace=True)
     logger.info("Loaded %d regions", len(regions_gdf))
 
     # Create transformer for equal-area projection (let it fail if projection not available)
@@ -164,7 +157,7 @@ def aggregate_yields_by_region(
                     valid_mask &= suit_data >= 0  # Suitability should be non-negative
 
                 if not np.any(valid_mask):
-                    logger.debug("%s: No valid data", alpha3_code)
+                    logger.debug("%s: No valid data", region)
                     continue
 
                 # Extract valid data
@@ -244,7 +237,7 @@ def aggregate_yields_by_region(
                 del cell_areas, valid_cell_areas, valid_suitable_areas
 
             except Exception as e:
-                logger.warning("Error processing %s: %s", alpha3_code, e)
+                logger.warning("Error processing %s: %s", region, e)
 
     # Create DataFrame with MultiIndex
     if results_data:

@@ -71,6 +71,29 @@ rule build_crop_yields:
         "scripts/build_crop_yields.py"
 
 
+def suitability_inputs(wildcards):
+    gaez = config["data"]["gaez"]
+    return {
+        crop: storage.http(
+            (
+                f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/{gaez['climate_model']}/rcp{gaez['rcp']}/{gaez['time_period']}H/{gaez['suitability_var']}{gaez['input_management']}{gaez['water_supply']}{gaez['co2_fertilization']}_{gaez['crops'][crop]}.tif"
+            ),
+            keep_local=True,
+        )
+        for crop in config["crops"]
+    }
+
+
+rule build_region_crop_areas:
+    input:
+        unpack(suitability_inputs),
+        regions=f"processing/{name}/regions.geojson",
+    output:
+        "processing/{name}/region_crop_areas.csv",
+    script:
+        "scripts/build_region_crop_areas.py"
+
+
 def yield_inputs(wildcards):
     gaez = config["data"]["gaez"]
     return {
@@ -87,6 +110,8 @@ rule build_model:
         foods="data/foods.csv",
         food_groups="data/food_groups.csv",
         nutrition="data/nutrition.csv",
+        regions="processing/{name}/regions.geojson",
+        region_crop_areas="processing/{name}/region_crop_areas.csv",
     output:
         network="results/{name}/build/model.nc",
     script:

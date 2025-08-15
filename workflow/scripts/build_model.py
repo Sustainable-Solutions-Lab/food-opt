@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import pandas as pd
+import geopandas as gpd
 import pypsa
 import logging
 
@@ -14,17 +15,12 @@ def add_carriers_and_buses(
     crop_list: list,
     food_list: list,
     food_group_list: list,
+    regions: list,
     yields_data: dict,
 ) -> None:
     """Add all carriers and their corresponding buses to the network."""
-    # Get all regions from yields data
-    all_regions = set()
-    for crop_yields in yields_data.values():
-        if not crop_yields.empty:
-            all_regions.update(crop_yields.index.get_level_values("ISO_A3").unique())
-
     # Regional land carriers and buses
-    for region in all_regions:
+    for region in regions:
         n.add("Bus", f"land_{region}", carrier="land")
 
     # Crops
@@ -62,29 +58,25 @@ def add_carriers_and_buses(
         n.add("Bus", carrier, carrier=carrier)
 
 
-def add_primary_resources(n: pypsa.Network, config: dict, yields_data: dict) -> None:
+def add_primary_resources(
+    n: pypsa.Network, config: dict, region_crop_areas: pd.Series
+) -> None:
     """Add stores for primary resources with their limits."""
     # Add stores for global resources
     for carrier in ["water", "fertilizer"]:
         n.add("Store", carrier, bus=carrier, carrier=carrier)
         n.add("Generator", carrier, bus=carrier, carrier=carrier, p_nom_extendable=True)
 
-    # Add regional land stores
-    all_regions = set()
-    for crop_yields in yields_data.values():
-        if not crop_yields.empty:
-            all_regions.update(crop_yields.index.get_level_values("ISO_A3").unique())
-
-    for region in all_regions:
+    for region, area in region_crop_areas.items():
         land_carrier = f"land_{region}"
-        # TODO: refactor to limit amount of land to available land per region
-        n.add("Store", land_carrier, bus=land_carrier, carrier=land_carrier)
+        # n.add("Store", land_carrier, bus=land_carrier, carrier=land_carrier)
         n.add(
             "Generator",
             land_carrier,
             bus=land_carrier,
             carrier=land_carrier,
             p_nom_extendable=True,
+            p_nom_max=area,
         )
 
     # Add stores for emissions with costs to create objective
@@ -144,7 +136,7 @@ def add_regional_crop_production_links(
         # Add links
         link_params = {
             "name": df.index,
-            "bus0": df["ISO_A3"].apply(lambda x: f"land_{x}"),
+            "bus0": df["region"].apply(lambda x: f"land_{x}"),
             "bus1": crop_bus,
             "efficiency": df["yield"],
             "bus2": "water",
@@ -167,11 +159,6 @@ def add_regional_crop_production_links(
             link_params[f"efficiency{bus_idx}"] = ch4_emission / df["yield"]
 
         n.add("Link", **link_params)
-
-
-def add_regional_land_limits(n: pypsa.Network, yields_data: dict, config: dict) -> None:
-    """Set total land availability limits per region."""
-    pass
 
 
 def add_food_conversion_links(
@@ -333,6 +320,8 @@ def build_network(
     food_groups: pd.DataFrame,
     nutrition: pd.DataFrame,
     yields_data: dict,
+    regions: list,
+    region_crop_areas: pd.Series,
 ) -> pypsa.Network:
     """Build the complete food systems optimization network."""
     n = pypsa.Network()
@@ -346,15 +335,16 @@ def build_network(
     ].unique()
 
     # Build network step by step
-    add_carriers_and_buses(n, crop_list, food_list, food_group_list, yields_data)
-    add_primary_resources(n, config, yields_data)
+    add_carriers_and_buses(
+        n, crop_list, food_list, food_group_list, regions, yields_data
+    )
+    add_primary_resources(n, config, region_crop_areas)
     add_regional_crop_production_links(
         n,
         crop_list,
         crops,
         yields_data,
     )
-    add_regional_land_limits(n, yields_data, config)
     add_food_conversion_links(n, food_list, foods)
     add_food_group_buses_and_loads(n, food_group_list, food_groups, config)
     add_macronutrient_loads(n, config)
@@ -381,10 +371,18 @@ if __name__ == "__main__":
     for crop in snakemake.config["crops"]:
         yields_key = f"{crop}_yield"
         yields_df = pd.read_csv(
-            snakemake.input[yields_key], index_col=["ISO_A3", "resource_class"]
+            snakemake.input[yields_key], index_col=["region", "resource_class"]
         )
         yields_data[yields_key] = yields_df
         logger.info("Loaded yields for %s: %d regions/classes", crop, len(yields_df))
+
+    # Read regions
+    regions_df = gpd.read_file(snakemake.input.regions)
+    regions = regions_df["region"].tolist()
+
+    # Load region crop areas
+    region_crop_areas_df = pd.read_csv(snakemake.input.region_crop_areas)
+    region_crop_areas = region_crop_areas_df.set_index("region")["cropland_area_ha"]
 
     logger.debug("Crops data:\n%s", crops.head(10))
     logger.debug("Foods data:\n%s", foods.head())
@@ -393,7 +391,14 @@ if __name__ == "__main__":
 
     # Build the network
     n = build_network(
-        snakemake.config, crops, foods, food_groups, nutrition, yields_data
+        snakemake.config,
+        crops,
+        foods,
+        food_groups,
+        nutrition,
+        yields_data,
+        regions,
+        region_crop_areas,
     )
 
     logger.info("Network summary:")
