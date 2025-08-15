@@ -3,12 +3,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import pypsa
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def add_ghg_constraint(n: pypsa.Network, config: dict) -> None:
     """Add greenhouse gas constraint (combining CO2 and CH4 using GWP)."""
     if "ghg" in config.get("primary", {}):
-        print("  Adding greenhouse gas constraint...")
+        logger.info("Adding greenhouse gas constraint...")
         ghg_limit = float(config["primary"]["ghg"]["limit"])  # kg CO2-eq
 
         # Get the linopy model
@@ -39,12 +42,12 @@ def add_ghg_constraint(n: pypsa.Network, config: dict) -> None:
         # Add constraint if we have any GHG emissions
         if ghg_expression is not None:
             m.add_constraints(ghg_expression <= ghg_limit, name="max_ghg_emissions")
-            print(f"    Total GHG limit: {ghg_limit / 1e9:.1f} Gt CO2-eq")
+            logger.info("Total GHG limit: %.1f Gt CO2-eq", ghg_limit / 1e9)
 
 
 def add_ghg_objective(n: pypsa.Network, config: dict) -> None:
     """Add GHG emissions to the objective function."""
-    print("Adding GHG emissions to objective function...")
+    logger.info("Adding GHG emissions to objective function...")
 
     # Get the linopy model
     m = n.model
@@ -59,7 +62,7 @@ def add_ghg_objective(n: pypsa.Network, config: dict) -> None:
             m.variables["Store-e"].isel(name=co2_store_idx, snapshot=-1) * 1
         )  # GWP = 1
         ghg_expression = co2_term
-        print("  Added CO2 emissions to objective")
+        logger.info("Added CO2 emissions to objective")
 
     # Add CH4 contribution if CH4 store exists
     if "ch4" in n.stores.index:
@@ -71,7 +74,7 @@ def add_ghg_objective(n: pypsa.Network, config: dict) -> None:
             ghg_expression = ghg_expression + ch4_term
         else:
             ghg_expression = ch4_term
-        print("  Added CH4 emissions to objective")
+        logger.info("Added CH4 emissions to objective")
 
     # Add GHG emissions to objective if we have any
     if ghg_expression is not None:
@@ -80,13 +83,13 @@ def add_ghg_objective(n: pypsa.Network, config: dict) -> None:
 
         # Add to objective (minimizing GHG emissions)
         m.objective = m.objective + ghg_weight * ghg_expression
-        print(f"  GHG weight in objective: {ghg_weight}")
+        logger.info("GHG weight in objective: %s", ghg_weight)
 
 
 def solve_network(n: pypsa.Network) -> pypsa.Network:
     """Solve the food systems optimization problem."""
-    print("\nSolving network...")
-    print(f"Network has {len(n.links)} links and {len(n.stores)} stores")
+    logger.info("Solving network...")
+    logger.info("Network has %d links and %d stores", len(n.links), len(n.stores))
 
     # Create the linopy model
     n.optimize.create_model()
@@ -102,7 +105,7 @@ def solve_network(n: pypsa.Network) -> pypsa.Network:
     solver_options = snakemake.config.get("solving", {}).get("solver_options", {})
 
     # Solve the model with configured solver
-    print(f"Using solver: {solver_name}")
+    logger.info("Using solver: %s", solver_name)
     result = n.optimize.solve_model(
         solver_name=solver_name, solver_options=solver_options
     )
@@ -112,39 +115,43 @@ def solve_network(n: pypsa.Network) -> pypsa.Network:
         "warning",
         "infeasible_or_unbounded",
     ):
-        print("Model is infeasible or unbounded! Computing infeasibility diagnosis...")
+        logger.error(
+            "Model is infeasible or unbounded! Computing infeasibility diagnosis..."
+        )
         try:
             # Try to compute and print infeasibilities (Gurobi only)
             if solver_name.lower() == "gurobi":
-                print("Infeasible constraints:")
+                logger.error("Infeasible constraints:")
                 n.model.print_infeasibilities()
                 infeasible_constraints = n.model.compute_infeasibilities()
-                print(
-                    f"Number of infeasible constraints: {len(infeasible_constraints)}"
+                logger.error(
+                    "Number of infeasible constraints: %d", len(infeasible_constraints)
                 )
             else:
-                print("Infeasibility diagnosis only available with Gurobi solver")
-                print(
+                logger.error(
+                    "Infeasibility diagnosis only available with Gurobi solver"
+                )
+                logger.error(
                     "Consider switching to Gurobi in config for detailed infeasibility analysis"
                 )
         except Exception as e:
-            print(f"Could not compute infeasibilities: {e}")
+            logger.error("Could not compute infeasibilities: %s", e)
 
         return None
     else:
-        print(f"Solver result: {result}")
+        logger.info("Solver result: %s", result)
 
-    print("\nOptimization results:")
+    logger.info("Optimization results:")
     if hasattr(n, "objective"):
-        print(f"Objective value: {n.objective}")
+        logger.info("Objective value: %s", n.objective)
 
     # Print some key results
     if len(n.links_t.p0) > 0:
-        print("\nLink flows:")
+        logger.info("Link flows:")
         active_links = n.links_t.p0.loc["now"].abs() > 1e-6
         for link in active_links[active_links].index:
             flow = n.links_t.p0.loc["now", link]
-            print(f"  {link}: {flow:.3f}")
+            logger.info("  %s: %.3f", link, flow)
 
     return n
 

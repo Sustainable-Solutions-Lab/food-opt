@@ -4,6 +4,9 @@
 
 import geopandas as gpd
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def download_countries_geojson(output_path: str) -> None:
@@ -12,12 +15,14 @@ def download_countries_geojson(output_path: str) -> None:
     # Natural Earth 1:10m countries dataset (high resolution)
     url = "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip"
 
-    print("Downloading country boundaries from Natural Earth (1:10m resolution)...")
+    logger.info(
+        "Downloading country boundaries from Natural Earth (1:10m resolution)..."
+    )
 
     # Download and read the data directly with geopandas
     gdf = gpd.read_file(url)
 
-    print(f"Downloaded {len(gdf)} country features")
+    logger.info("Downloaded %d country features", len(gdf))
 
     # Manually fix some ISO_A3 codes (see https://github.com/geopandas/geopandas/issues/1041)
     gdf.loc[gdf["SOVEREIGNT"] == "France", "ISO_A3"] = "FRA"
@@ -30,8 +35,9 @@ def download_countries_geojson(output_path: str) -> None:
     valid_countries = gdf[gdf["ISO_A3"] != "-99"].copy()
 
     if len(valid_countries) < len(gdf):
-        print(
-            f"Filtered out {len(gdf) - len(valid_countries)} countries with invalid ISO_A3 codes"
+        logger.info(
+            "Filtered out %d countries with invalid ISO_A3 codes",
+            len(gdf) - len(valid_countries),
         )
 
     # Group by ISO_A3 to ensure unique entries; join geometries
@@ -46,9 +52,10 @@ def download_countries_geojson(output_path: str) -> None:
     # Save as GeoJSON indexed by alpha3 codes
     valid_countries.to_file(output_path, driver="GeoJSON")
 
-    print(f"Saved {len(valid_countries)} country regions to {output_path}")
-    print(
-        f"Countries indexed by ISO alpha3 codes: {', '.join(sorted(valid_countries.index)[:10])}..."
+    logger.info("Saved %d country regions to %s", len(valid_countries), output_path)
+    logger.debug(
+        "Countries indexed by ISO alpha3 codes: %s...",
+        ", ".join(sorted(valid_countries.index)[:10]),
     )
 
 

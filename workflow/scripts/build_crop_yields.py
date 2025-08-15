@@ -9,6 +9,9 @@ import numpy as np
 from rasterio.mask import mask
 from pathlib import Path
 from pyproj import Transformer, Geod
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_all_cell_areas(src, transformer):
@@ -54,7 +57,7 @@ def calculate_all_cell_areas(src, transformer):
 
 
 def aggregate_yields_by_region(
-    tif_path: str,
+    yield_path: str,
     suitability_path: str,
     regions_path: str,
     resource_class_quantiles: list,
@@ -63,7 +66,7 @@ def aggregate_yields_by_region(
     Aggregate crop yields from a GeoTIFF file over regions and resource classes.
 
     Args:
-        tif_path: Path to the GAEZ crop yield GeoTIFF file
+        yield_path: Path to the GAEZ crop yield GeoTIFF file
         suitability_path: Path to the GAEZ suitability GeoTIFF file
         regions_path: Path to regions GeoJSON file (indexed by alpha3 codes)
         resource_class_quantiles: List of quantile thresholds for resource classes
@@ -71,10 +74,10 @@ def aggregate_yields_by_region(
     Returns:
         DataFrame with MultiIndex (regions, resource_classes) containing yield and area
     """
-    print(f"Processing yield data from {tif_path}")
-    print(f"Processing suitability data from {suitability_path}")
-    print(f"Using regions from {regions_path}")
-    print(f"Resource class quantiles: {resource_class_quantiles}")
+    logger.info("Processing yield data from %s", yield_path)
+    logger.info("Processing suitability data from %s", suitability_path)
+    logger.info("Using regions from %s", regions_path)
+    logger.info("Resource class quantiles: %s", resource_class_quantiles)
 
     # Load regions (countries) data
     regions_gdf = gpd.read_file(regions_path)
@@ -86,26 +89,28 @@ def aggregate_yields_by_region(
         else:
             raise ValueError("Regions GeoJSON must have ISO_A3 column or index")
 
-    print(f"Loaded {len(regions_gdf)} regions")
+    logger.info("Loaded %d regions", len(regions_gdf))
 
     # Create transformer for equal-area projection (let it fail if projection not available)
     try:
         transformer = Transformer.from_crs("EPSG:4326", "EPSG:54009", always_xy=True)
-        print("Using World Mollweide projection (EPSG:54009)")
+        logger.info("Using World Mollweide projection (EPSG:54009)")
     except Exception:
         transformer = Transformer.from_crs("EPSG:4326", "EPSG:3410", always_xy=True)
-        print("Using World Cylindrical Equal Area projection (EPSG:3410)")
+        logger.info("Using World Cylindrical Equal Area projection (EPSG:3410)")
 
     # Prepare output data structure
     results_data = []
 
     # Open both yield and suitability rasters
     with (
-        rasterio.open(tif_path) as yield_src,
+        rasterio.open(yield_path) as yield_src,
         rasterio.open(suitability_path) as suit_src,
     ):
-        print(f"Yield raster shape: {yield_src.shape}, CRS: {yield_src.crs}")
-        print(f"Suitability raster shape: {suit_src.shape}, CRS: {suit_src.crs}")
+        logger.info("Yield raster shape: %s, CRS: %s", yield_src.shape, yield_src.crs)
+        logger.info(
+            "Suitability raster shape: %s, CRS: %s", suit_src.shape, suit_src.crs
+        )
 
         # Ensure both rasters have the same CRS and shape
         if yield_src.crs != suit_src.crs:
@@ -115,13 +120,15 @@ def aggregate_yields_by_region(
 
         # Ensure regions are in the same CRS as the rasters
         if regions_gdf.crs != yield_src.crs:
-            print(f"Reprojecting regions from {regions_gdf.crs} to {yield_src.crs}")
+            logger.info(
+                "Reprojecting regions from %s to %s", regions_gdf.crs, yield_src.crs
+            )
             regions_gdf = regions_gdf.to_crs(yield_src.crs)
 
         # Calculate cell areas once for the entire raster (this is the expensive operation)
-        print("Calculating cell areas for entire raster...")
+        logger.info("Calculating cell areas for entire raster...")
         cell_areas_global = calculate_all_cell_areas(yield_src, transformer)
-        print("Cell area calculation completed")
+        logger.info("Cell area calculation completed")
 
         # Process each region
         for alpha3_code, region in regions_gdf.iterrows():
@@ -157,7 +164,7 @@ def aggregate_yields_by_region(
                     valid_mask &= suit_data >= 0  # Suitability should be non-negative
 
                 if not np.any(valid_mask):
-                    print(f"{alpha3_code}: No valid data")
+                    logger.debug("%s: No valid data", alpha3_code)
                     continue
 
                 # Extract valid data
@@ -224,8 +231,12 @@ def aggregate_yields_by_region(
                                 }
                             )
 
-                            print(
-                                f"{alpha3_code} class {class_idx}: yield={mean_yield:.2f} t/ha, area={total_suitable_area:.0f} ha"
+                            logger.debug(
+                                "%s class %d: yield=%.2f t/ha, area=%.0f ha",
+                                alpha3_code,
+                                class_idx,
+                                mean_yield,
+                                total_suitable_area,
                             )
 
                 # Explicitly clean up large arrays to prevent memory accumulation
@@ -233,7 +244,7 @@ def aggregate_yields_by_region(
                 del cell_areas, valid_cell_areas, valid_suitable_areas
 
             except Exception as e:
-                print(f"Warning: Error processing {alpha3_code}: {e}")
+                logger.warning("Error processing %s: %s", alpha3_code, e)
 
     # Create DataFrame with MultiIndex
     if results_data:
@@ -259,17 +270,21 @@ if __name__ == "__main__":
     Path(snakemake.output[0]).parent.mkdir(parents=True, exist_ok=True)
     yields_df.to_csv(snakemake.output[0])
 
-    print(
-        f"Saved yields for {len(yields_df)} regions and resource classes to {snakemake.output[0]}"
+    logger.info(
+        "Saved yields for %d regions and resource classes to %s",
+        len(yields_df),
+        snakemake.output[0],
     )
     if not yields_df.empty:
-        print(
-            f"Yield statistics: min={yields_df['yield'].min():.2f}, "
-            f"max={yields_df['yield'].max():.2f}, "
-            f"mean={yields_df['yield'].mean():.2f}"
+        logger.info(
+            "Yield statistics: min=%.2f, max=%.2f, mean=%.2f",
+            yields_df["yield"].min(),
+            yields_df["yield"].max(),
+            yields_df["yield"].mean(),
         )
-        print(
-            f"Area statistics: min={yields_df['suitable_area'].min():.0f}, "
-            f"max={yields_df['suitable_area'].max():.0f}, "
-            f"total={yields_df['suitable_area'].sum():.0f} ha"
+        logger.info(
+            "Area statistics: min=%.0f, max=%.0f, total=%.0f ha",
+            yields_df["suitable_area"].min(),
+            yields_df["suitable_area"].max(),
+            yields_df["suitable_area"].sum(),
         )

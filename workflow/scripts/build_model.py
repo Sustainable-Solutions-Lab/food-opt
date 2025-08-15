@@ -4,6 +4,9 @@
 
 import pandas as pd
 import pypsa
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def add_carriers_and_buses(
@@ -102,7 +105,7 @@ def add_regional_crop_production_links(
     """Add links for crop production per region and resource class."""
     for crop in crop_list:
         if crop not in crops.index.get_level_values(0):
-            print(f"Warning: Crop '{crop}' not found in crops data, skipping.")
+            logger.warning("Crop '%s' not found in crops data, skipping", crop)
             continue
 
         crop_data = crops.loc[crop]
@@ -199,7 +202,7 @@ def add_food_group_buses_and_loads(
     """Add carriers, buses, and loads for food groups defined in the CSV."""
     # Add loads for food groups with requirements
     if "food_groups" in config:
-        print("Adding food group loads based on nutrition requirements...")
+        logger.info("Adding food group loads based on nutrition requirements...")
         for group in food_group_list:
             if group in config["food_groups"]:
                 group_config = config["food_groups"][group]
@@ -238,7 +241,7 @@ def add_food_group_buses_and_loads(
 def add_macronutrient_loads(n: pypsa.Network, config: dict) -> None:
     """Add loads for macronutrients based on minimum requirements."""
     if "macronutrients" in config:
-        print("Adding macronutrient loads based on nutrition requirements...")
+        logger.info("Adding macronutrient loads based on nutrition requirements...")
         for nutrient in ["carb", "protein", "fat"]:
             if nutrient in n.buses.index and nutrient in config["macronutrients"]:
                 nutrient_config = config["macronutrients"][nutrient]
@@ -381,26 +384,22 @@ if __name__ == "__main__":
             snakemake.input[yields_key], index_col=["ISO_A3", "resource_class"]
         )
         yields_data[yields_key] = yields_df
-        print(f"Loaded yields for {crop}: {len(yields_df)} regions/classes")
+        logger.info("Loaded yields for %s: %d regions/classes", crop, len(yields_df))
 
-    print("Crops data:")
-    print(crops.head(10))
-    print("\nFoods data:")
-    print(foods.head())
-    print("\nFood groups data:")
-    print(food_groups.head())
-    print("\nNutrition data:")
-    print(nutrition.head())
+    logger.debug("Crops data:\n%s", crops.head(10))
+    logger.debug("Foods data:\n%s", foods.head())
+    logger.debug("Food groups data:\n%s", food_groups.head())
+    logger.debug("Nutrition data:\n%s", nutrition.head())
 
     # Build the network
     n = build_network(
         snakemake.config, crops, foods, food_groups, nutrition, yields_data
     )
 
-    print("\nNetwork summary:")
-    print(f"Carriers: {len(n.carriers)}")
-    print(f"Buses: {len(n.buses)}")
-    print(f"Stores: {len(n.stores)}")
-    print(f"Links: {len(n.links)}")
+    logger.info("Network summary:")
+    logger.info("Carriers: %d", len(n.carriers))
+    logger.info("Buses: %d", len(n.buses))
+    logger.info("Stores: %d", len(n.stores))
+    logger.info("Links: %d", len(n.links))
 
     n.export_to_netcdf(snakemake.output.network)

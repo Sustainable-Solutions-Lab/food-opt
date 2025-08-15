@@ -10,6 +10,9 @@ matplotlib.use("pdf")  # Use PDF backend
 import matplotlib.pyplot as plt
 import networkx as nx
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def extract_crop_production(n: pypsa.Network) -> pd.Series:
@@ -66,7 +69,7 @@ def plot_crop_production(crop_production: pd.Series, output_dir: Path) -> None:
     crop_production_sorted = crop_production_sorted[crop_production_sorted > 1e-6]
 
     if len(crop_production_sorted) == 0:
-        print("No crop production found")
+        logger.warning("No crop production found")
         return
 
     plt.figure(figsize=(12, 8))
@@ -100,7 +103,7 @@ def plot_crop_production(crop_production: pd.Series, output_dir: Path) -> None:
     plt.savefig(output_dir / "crop_production.pdf", bbox_inches="tight", dpi=300)
     plt.close()
 
-    print(f"Crop production plot saved to {output_dir / 'crop_production.pdf'}")
+    logger.info("Crop production plot saved to %s", output_dir / "crop_production.pdf")
 
 
 def plot_food_production(food_production: pd.Series, output_dir: Path) -> None:
@@ -112,7 +115,7 @@ def plot_food_production(food_production: pd.Series, output_dir: Path) -> None:
     food_production_sorted = food_production_sorted[food_production_sorted > 1e-6]
 
     if len(food_production_sorted) == 0:
-        print("No food production found")
+        logger.warning("No food production found")
         return
 
     plt.figure(figsize=(14, 8))
@@ -146,7 +149,7 @@ def plot_food_production(food_production: pd.Series, output_dir: Path) -> None:
     plt.savefig(output_dir / "food_production.pdf", bbox_inches="tight", dpi=300)
     plt.close()
 
-    print(f"Food production plot saved to {output_dir / 'food_production.pdf'}")
+    logger.info("Food production plot saved to %s", output_dir / "food_production.pdf")
 
 
 def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
@@ -177,7 +180,7 @@ def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
         resource_usage[resource] = total_flow
 
     if not resource_usage or all(v == 0 for v in resource_usage.values()):
-        print("No resource usage data found")
+        logger.warning("No resource usage data found")
         return
 
     resource_series = pd.Series(resource_usage)
@@ -209,7 +212,7 @@ def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
     plt.savefig(output_dir / "resource_usage.pdf", bbox_inches="tight", dpi=300)
     plt.close()
 
-    print(f"Resource usage plot saved to {output_dir / 'resource_usage.pdf'}")
+    logger.info("Resource usage plot saved to %s", output_dir / "resource_usage.pdf")
 
 
 def plot_network_topology(n: pypsa.Network, output_dir: Path) -> None:
@@ -312,8 +315,10 @@ def plot_network_topology(n: pypsa.Network, output_dir: Path) -> None:
                     link_widths[(bus1, bus2)] = 1
 
     # Create layout
-    print(
-        f"Creating network layout with {len(G.nodes)} nodes and {len(G.edges)} edges..."
+    logger.info(
+        "Creating network layout with %d nodes and %d edges...",
+        len(G.nodes),
+        len(G.edges),
     )
 
     # Create custom layered layout
@@ -445,7 +450,9 @@ def plot_network_topology(n: pypsa.Network, output_dir: Path) -> None:
     plt.savefig(output_dir / "network_topology.pdf", bbox_inches="tight", dpi=300)
     plt.close()
 
-    print(f"Network topology plot saved to {output_dir / 'network_topology.pdf'}")
+    logger.info(
+        "Network topology plot saved to %s", output_dir / "network_topology.pdf"
+    )
 
     # Also save network statistics
     stats = {
@@ -455,28 +462,28 @@ def plot_network_topology(n: pypsa.Network, output_dir: Path) -> None:
         "connected_components": nx.number_connected_components(G),
     }
 
-    print(f"Network statistics: {stats}")
+    logger.info("Network statistics: %s", stats)
 
 
 if __name__ == "__main__":
     # Load the solved network
-    print("Loading solved network...")
+    logger.info("Loading solved network...")
     n = pypsa.Network(snakemake.input.network)
 
     # Create output directory
     output_dir = Path(snakemake.output.plots_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Creating plots in {output_dir}")
+    logger.info("Creating plots in %s", output_dir)
 
     # Extract data
-    print("Extracting crop production data...")
+    logger.info("Extracting crop production data...")
     crop_production = extract_crop_production(n)
-    print(f"Found {len(crop_production)} crops with production data")
+    logger.info("Found %d crops with production data", len(crop_production))
 
-    print("Extracting food production data...")
+    logger.info("Extracting food production data...")
     food_production = extract_food_production(n)
-    print(f"Found {len(food_production)} foods with production data")
+    logger.info("Found %d foods with production data", len(food_production))
 
     # Create plots
     plot_crop_production(crop_production, output_dir)
@@ -495,4 +502,4 @@ if __name__ == "__main__":
             output_dir / "food_production.csv", header=["production_tonnes"]
         )
 
-    print("Plotting completed successfully!")
+    logger.info("Plotting completed successfully!")
