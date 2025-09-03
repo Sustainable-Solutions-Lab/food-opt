@@ -7,15 +7,17 @@ import pandas as pd
 import rasterio
 import numpy as np
 from pathlib import Path
-from pyproj import Transformer, Geod
+from pyproj import Geod
 import logging
 import xarray as xr
 from rasterio import features
+from exactextract import exact_extract
+from exactextract.raster import NumPyRasterSource
 
 logger = logging.getLogger(__name__)
 
 
-def calculate_all_cell_areas(src, transformer):
+def calculate_all_cell_areas(src):
     """Calculate areas for all cells in the raster using geographic coordinates."""
     # Get pixel size in degrees
     pixel_width_deg = abs(src.transform.a)  # degrees longitude
@@ -89,14 +91,6 @@ def aggregate_yields_by_region(
     regions_gdf.set_index("region", inplace=True)
     logger.info("Loaded %d regions", len(regions_gdf))
 
-    # Create transformer for equal-area projection
-    try:
-        transformer = Transformer.from_crs("EPSG:4326", "EPSG:54009", always_xy=True)
-        logger.info("Using World Mollweide projection (EPSG:54009)")
-    except Exception:
-        transformer = Transformer.from_crs("EPSG:4326", "EPSG:3410", always_xy=True)
-        logger.info("Using World Cylindrical Equal Area projection (EPSG:3410)")
-
     # Open both yield and suitability rasters
     with (
         rasterio.open(yield_path) as yield_src,
@@ -120,10 +114,7 @@ def aggregate_yields_by_region(
             )
             regions_gdf = regions_gdf.to_crs(yield_src.crs)
 
-        # Calculate cell areas once for the entire raster
-        logger.info("Calculating cell areas for entire raster...")
-        cell_areas_global = calculate_all_cell_areas(yield_src, transformer)
-        logger.info("Cell area calculation completed")
+        cell_areas_global = calculate_all_cell_areas(yield_src)
 
         # Read full rasters into xarray
         logger.info("Reading raster data into xarray...")
@@ -210,34 +201,94 @@ def aggregate_yields_by_region(
 
         data["resource_class"] = resource_classes
 
-        # Group by both region and resource class for aggregation, only on valid data
-        grouped = data.groupby(["region", "resource_class"])
+        logger.info("Calculating fractional coverage statistics with exactextract...")
 
-        # Calculate mean yields and sum areas for each region-class combination
-        yield_mean = grouped.mean()["yield"]
-        area_sum = grouped.sum()["suitable_area"]
-        aggregated = xr.Dataset({"yield": yield_mean, "suitable_area": area_sum})
+        # Create bounds from transform for NumPyRasterSource
+        transform = yield_src.transform
+        xmin = transform.c
+        ymax = transform.f
+        xmax = xmin + width * transform.a
+        ymin = ymax + height * transform.e
+        crs_wkt = yield_src.crs.to_wkt() if yield_src.crs else None
 
-        # Convert to DataFrame directly from xarray
-        results_df = aggregated.to_dataframe().dropna()
+        results = []
 
-        # Drop any rows where region is -1
-        results_df.drop("quantile", axis=1, inplace=True)
-        results_df.drop(-1, level="region", inplace=True)
+        # Process each resource class separately, but all regions in parallel
+        for resource_class_id in range(len(quantiles) - 1):
+            # Create masks for this resource class across all regions
+            class_mask = (data["resource_class"] == resource_class_id) & data["valid"]
 
-        # Map region IDs to names
-        results_df.rename(
-            dict(enumerate(regions_gdf.index)), level="region", inplace=True
-        )
+            # Skip if no valid data for this resource class
+            if class_mask.sum() == 0:
+                logger.info(
+                    "No valid data for resource class %d, skipping", resource_class_id
+                )
+                continue
 
-    # Return DataFrame with MultiIndex
-    if not results_df.empty:
-        return results_df
-    else:
-        # Return empty DataFrame with correct structure
-        return pd.DataFrame(columns=["yield", "suitable_area"]).set_index(
-            ["region", "resource_class"]
-        )
+            # Create composite rasters for this resource class (all regions)
+            yield_composite = np.where(class_mask, data["yield"], np.nan)
+            area_composite = np.where(class_mask, data["suitable_area"], np.nan)
+
+            # Create NumPyRasterSource objects
+            yield_raster = NumPyRasterSource(
+                yield_composite,
+                xmin=xmin,
+                ymin=ymin,
+                xmax=xmax,
+                ymax=ymax,
+                nodata=np.nan,
+                srs_wkt=crs_wkt,
+            )
+            area_raster = NumPyRasterSource(
+                area_composite,
+                xmin=xmin,
+                ymin=ymin,
+                xmax=xmax,
+                ymax=ymax,
+                nodata=np.nan,
+                srs_wkt=crs_wkt,
+            )
+
+            # Use exactextract to calculate statistics for all regions at once
+            # Reset index so 'region' is available as a column for exactextract
+            regions_for_extract = regions_gdf.reset_index()
+
+            yield_stats = exact_extract(
+                yield_raster,
+                regions_for_extract,
+                ["mean"],
+                include_cols=["region"],
+                output="pandas",
+            )
+            area_stats = exact_extract(
+                area_raster,
+                regions_for_extract,
+                ["sum"],
+                include_cols=["region"],
+                output="pandas",
+            )
+
+            # Combine results for this resource class
+            if not yield_stats.empty and not area_stats.empty:
+                for idx, row in yield_stats.iterrows():
+                    if (
+                        not pd.isna(row["mean"])
+                        and row["region"] in area_stats["region"].values
+                    ):
+                        area_value = area_stats[area_stats["region"] == row["region"]][
+                            "sum"
+                        ].iloc[0]
+                        results.append(
+                            {
+                                "region": row["region"],
+                                "resource_class": resource_class_id,
+                                "yield": row["mean"],
+                                "suitable_area": area_value,
+                            }
+                        )
+
+    results_df = pd.DataFrame(results)
+    return results_df.set_index(["region", "resource_class"])
 
 
 if __name__ == "__main__":
