@@ -53,8 +53,259 @@ food_groups:
     min_per_person_per_day: 25   # g/person/day (essential fats)
 
 aggregation:
-  regions: "countries"
+  regions: "states"  # Options: "countries", "states"
   resource_class_quantiles: [0.25, 0.5, 0.75]
+
+countries:
+# - ABW  # No level-1 GADM data
+- AFG
+- AGO
+- AIA
+- ALA
+- ALB
+- AND
+- ARE
+- ARG
+- ARM
+- ASM
+# - ATA  # No level-1 GADM data
+- ATF
+- ATG
+- AUS
+- AUT
+- AZE
+- BDI
+- BEL
+- BEN
+- BES
+- BFA
+- BGD
+- BGR
+- BHR
+- BHS
+- BIH
+- BLM
+- BLR
+- BLZ
+- BMU
+- BOL
+- BRA
+- BRB
+- BRN
+- BTN
+# - BVT  # No level-1 GADM data
+- BWA
+- CAF
+- CAN
+# - CCK  # No level-1 GADM data
+- CHE
+- CHL
+- CHN
+- CIV
+- CMR
+- COD
+- COG
+- COK
+- COL
+- COM
+- CPV
+- CRI
+- CUB
+# - CUW  # No level-1 GADM data
+# - CXR  # No level-1 GADM data
+- CYM
+- CYP
+- CZE
+- DEU
+- DJI
+- DMA
+- DNK
+- DOM
+- DZA
+- ECU
+- EGY
+- ERI
+- ESH
+- ESP
+- EST
+- ETH
+- FIN
+- FJI
+# - FLK  # No level-1 GADM data
+- FRA
+- FRO
+- FSM
+- GAB
+- GBR
+- GEO
+- GGY
+- GHA
+# - GIB  # No level-1 GADM data
+- GIN
+- GLP
+- GMB
+- GNB
+- GNQ
+- GRC
+- GRD
+- GRL
+- GTM
+- GUF
+- GUM
+- GUY
+# - HKG  # No level-1 GADM data
+# - HMD  # No level-1 GADM data
+- HND
+- HRV
+- HTI
+- HUN
+- IDN
+- IMN
+- IND
+# - IOT  # No level-1 GADM data
+- IRL
+- IRN
+- IRQ
+- ISL
+- ISR
+- ITA
+- JAM
+- JEY
+- JOR
+- JPN
+- KAZ
+- KEN
+- KGZ
+- KHM
+# - KIR  # No level-1 GADM data
+- KNA
+- KOR
+- KWT
+- LAO
+- LBN
+- LBR
+- LBY
+- LCA
+- LIE
+- LKA
+- LSO
+- LTU
+- LUX
+- LVA
+# - MAC  # No level-1 GADM data
+# - MAF  # No level-1 GADM data
+- MAR
+# - MCO  # No level-1 GADM data
+- MDA
+- MDG
+# - MDV  # No level-1 GADM data
+- MEX
+- MHL
+- MKD
+- MLI
+- MLT
+- MMR
+- MNE
+- MNG
+- MNP
+- MOZ
+- MRT
+- MSR
+- MTQ
+- MUS
+- MWI
+- MYS
+- MYT
+- NAM
+- NCL
+- NER
+# - NFK  # No level-1 GADM data
+- NGA
+- NIC
+# - NIU  # No level-1 GADM data
+- NLD
+- NOR
+- NPL
+- NRU
+- NZL
+- OMN
+- PAK
+- PAN
+# - PCN  # No level-1 GADM data
+- PER
+- PHL
+- PLW
+- PNG
+- POL
+- PRI
+- PRK
+- PRT
+- PRY
+- PSE
+- PYF
+- QAT
+- REU
+- ROU
+- RUS
+- RWA
+- SAU
+- SDN
+- SEN
+- SGP
+# - SGS  # No level-1 GADM data
+- SHN
+- SJM
+- SLB
+- SLE
+- SLV
+- SMR
+- SOM
+- SPM
+- SRB
+- SSD
+- STP
+- SUR
+- SVK
+- SVN
+- SWE
+- SWZ
+# - SXM  # No level-1 GADM data
+- SYC
+- SYR
+- TCA
+- TCD
+- TGO
+- THA
+- TJK
+- TKL
+- TKM
+- TLS
+- TON
+- TTO
+- TUN
+- TUR
+- TUV
+- TWN
+- TZA
+- UGA
+- UKR
+- UMI
+- URY
+- USA
+- UZB
+# - VAT  # No level-1 GADM data
+- VCT
+- VEN
+- VGB
+- VIR
+- VNM
+- VUT
+- WLF
+- WSM
+- YEM
+- ZAF
+- ZMB
+- ZWE
 
 data:
   gaez:

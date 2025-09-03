@@ -21,9 +21,11 @@ dependencies = [
     "networkx",
     "geopandas",
     "rasterio",
+    "exactextract",
     "gurobipy",
     "highspy",
     "snakemake-storage-plugin-http",
+    "pycountry>=24.6.1",
 ]
 
 [project.optional-dependencies]
