@@ -273,11 +273,18 @@ def aggregate_yields_by_region(
                 for idx, row in yield_stats.iterrows():
                     if (
                         not pd.isna(row["mean"])
+                        and not pd.isna(row["region"])
                         and row["region"] in area_stats["region"].values
                     ):
-                        area_value = area_stats[area_stats["region"] == row["region"]][
-                            "sum"
-                        ].iloc[0]
+                        area_matches = area_stats[
+                            area_stats["region"] == row["region"]
+                        ]["sum"]
+                        if len(area_matches) == 0:
+                            logger.warning(
+                                f"No area data found for region {row['region']}"
+                            )
+                            continue
+                        area_value = area_matches.iloc[0]
                         results.append(
                             {
                                 "region": row["region"],
@@ -288,7 +295,9 @@ def aggregate_yields_by_region(
                         )
 
     results_df = pd.DataFrame(results)
-    return results_df.set_index(["region", "resource_class"])
+    # results_df = results_df.loc[results_df.region != "NA"]
+    results_df = results_df.set_index(["region", "resource_class"])
+    return results_df
 
 
 if __name__ == "__main__":

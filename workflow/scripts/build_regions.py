@@ -60,13 +60,18 @@ def load_gadm_geojson(output_path: str, country_files: dict, gadm_level: int) ->
 
     # Filter out regions with invalid identifiers
     initial_count = len(gdf)
-    valid_mask = (gdf["region"] != "?") & gdf["region"].notna() & (gdf["region"] != "")
+    valid_mask = (
+        (gdf["region"] != "?")
+        & gdf["region"].notna()
+        & (gdf["region"] != "")
+        & (gdf["region"] != "NA")
+    )
     gdf = gdf[valid_mask]
 
     if len(gdf) < initial_count:
         filtered_count = initial_count - len(gdf)
         logger.warning(
-            f"Filtered out {filtered_count} regions with invalid identifiers (?, NaN, or empty)"
+            f"Filtered out {filtered_count} regions with invalid identifiers (?, NaN, NA, or empty)"
         )
 
     # Make sure there are no duplicates

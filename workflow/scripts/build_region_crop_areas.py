@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import geopandas as gpd
-import pandas as pd
 import rasterio
 import numpy as np
 import logging
@@ -101,12 +100,13 @@ def calculate_region_areas(crop_files, regions_path):
         output="pandas",  # Return pandas DataFrame
     )
 
-    # Convert to pandas Series with region names as index
-    region_areas = pd.Series(
-        region_stats["sum"].values, index=region_stats["region"].values
+    region_stats = region_stats.set_index("region", drop=True).rename(
+        {"sum": "cropland_area_ha"}, axis=1
     )
 
-    return region_areas
+    # Filter out the string "NA"
+    # region_stats = region_stats.loc[region_stats.index != "NA"]
+    return region_stats
 
 
 if __name__ == "__main__":
@@ -116,8 +116,6 @@ if __name__ == "__main__":
     }
 
     region_areas = calculate_region_areas(crop_files, snakemake.input.regions)
-    region_areas.name = "cropland_area_ha"
-    region_areas.index.name = "region"
 
     logger.info("Total cropland area: %.2f ha", region_areas.sum())
 

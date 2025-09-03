@@ -20,8 +20,8 @@ def add_carriers_and_buses(
 ) -> None:
     """Add all carriers and their corresponding buses to the network."""
     # Regional land carriers and buses
-    for region in regions:
-        n.add("Bus", f"land_{region}", carrier="land")
+    n.add("Carrier", "land", unit="ha")
+    n.add("Bus", [f"land_{r}" for r in regions], carrier="land")
 
     # Crops
     for crop in crop_list:
@@ -67,17 +67,15 @@ def add_primary_resources(
         n.add("Store", carrier, bus=carrier, carrier=carrier)
         n.add("Generator", carrier, bus=carrier, carrier=carrier, p_nom_extendable=True)
 
-    for region, area in region_crop_areas.items():
-        land_carrier = f"land_{region}"
-        # n.add("Store", land_carrier, bus=land_carrier, carrier=land_carrier)
-        n.add(
-            "Generator",
-            land_carrier,
-            bus=land_carrier,
-            carrier=land_carrier,
-            p_nom_extendable=True,
-            p_nom_max=area,
-        )
+    land_carrier = "land_" + region_crop_areas.index
+    n.add(
+        "Generator",
+        land_carrier,
+        bus=land_carrier,
+        carrier="land",
+        p_nom_extendable=True,
+        p_nom_max=region_crop_areas.values,
+    )
 
     # Add stores for emissions with costs to create objective
     n.add("Store", "co2", bus="co2", carrier="co2", e_nom_extendable=True)
@@ -136,6 +134,7 @@ def add_regional_crop_production_links(
         # Add links
         link_params = {
             "name": df.index,
+            "carrier": "crop_production",
             "bus0": df["region"].apply(lambda x: f"land_{x}"),
             "bus1": crop_bus,
             "efficiency": df["yield"],
