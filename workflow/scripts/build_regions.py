@@ -3,81 +3,106 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import geopandas as gpd
+import pandas as pd
 from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def download_countries_geojson(output_path: str) -> None:
-    """Download Natural Earth 1:10m countries data and save as GeoJSON indexed by alpha3 codes."""
+def load_gadm_geojson(output_path: str, country_files: dict, gadm_level: int) -> None:
+    """Load GADM data at specified level from downloaded files and save as GeoJSON indexed by region codes.
 
-    # Natural Earth 1:10m countries dataset (high resolution)
-    url = "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip"
+    Args:
+        output_path: Path to save the output GeoJSON file
+        country_files: Dictionary mapping country codes to GADM file paths
+        gadm_level: GADM level (0 for countries, 1 for states/provinces)
+    """
 
+    level_name = "countries" if gadm_level == 0 else "states/provinces"
     logger.info(
-        "Downloading country boundaries from Natural Earth (1:10m resolution)..."
+        f"Loading {level_name} boundaries from GADM level {gadm_level} files..."
     )
 
-    # Download and read the data directly with geopandas
-    gdf = gpd.read_file(url)
+    if not country_files:
+        raise ValueError("No country files provided")
 
-    logger.info("Downloaded %d country features", len(gdf))
+    all_regions = []
 
-    # Manually fix some ISO_A3 codes (see https://github.com/geopandas/geopandas/issues/1041)
-    gdf.loc[gdf["SOVEREIGNT"] == "France", "ISO_A3"] = "FRA"
-    gdf.loc[gdf["SOVEREIGNT"] == "Norway", "ISO_A3"] = "NOR"
-    gdf.loc[gdf["SOVEREIGNT"] == "N. Cyprus", "ISO_A3"] = "CYP"
-    gdf.loc[gdf["SOVEREIGNT"] == "Somaliland", "ISO_A3"] = "SOM"
-    gdf.loc[gdf["SOVEREIGNT"] == "Kosovo", "ISO_A3"] = "XKX"
+    for country_code, file_path in country_files.items():
+        try:
+            logger.debug(f"Loading {country_code} from {file_path}")
+            country_data = gpd.read_file(file_path)
 
-    # Filter out countries with invalid ISO_A3 codes
-    valid_countries = gdf[gdf["ISO_A3"] != "-99"].copy()
+            if len(country_data) > 0:
+                all_regions.append(country_data)
+                logger.debug(f"Loaded {len(country_data)} regions for {country_code}")
 
-    if len(valid_countries) < len(gdf):
-        logger.info(
-            "Filtered out %d countries with invalid ISO_A3 codes",
-            len(gdf) - len(valid_countries),
+        except Exception as e:
+            logger.debug(f"Failed to load {country_code}: {e}")
+            continue
+
+    if not all_regions:
+        raise ValueError(f"No level {gadm_level} data could be loaded from files")
+
+    # Combine all region data
+    gdf = pd.concat(all_regions, ignore_index=True)
+
+    # Use appropriate GADM field as region identifier
+    if gadm_level == 0:
+        # For countries: use ISO_A3 (3-letter country code)
+        gdf["region"] = gdf["GID_0"]
+    elif gadm_level == 1:
+        # For states: use GID_1 (country.state identifier)
+        gdf["region"] = gdf["GID_1"]
+    else:
+        raise ValueError(f"Unsupported GADM level: {gadm_level}")
+
+    # Filter out regions with invalid identifiers
+    initial_count = len(gdf)
+    valid_mask = (gdf["region"] != "?") & gdf["region"].notna() & (gdf["region"] != "")
+    gdf = gdf[valid_mask]
+
+    if len(gdf) < initial_count:
+        filtered_count = initial_count - len(gdf)
+        logger.warning(
+            f"Filtered out {filtered_count} regions with invalid identifiers (?, NaN, or empty)"
         )
 
-    # Group by ISO_A3 to ensure unique entries; join geometries
-    valid_countries = valid_countries.dissolve(by="ISO_A3", as_index=False)
+    # Make sure there are no duplicates
+    region_counts = gdf["region"].value_counts()
+    duplicate_ids = region_counts[region_counts > 1].index
+    assert len(duplicate_ids) == 0
 
-    # Set index to alpha3 country codes using ISO_A3
-    valid_countries = valid_countries.set_index("ISO_A3")
-
-    # Rename index to "region"
-    valid_countries.index.name = "region"
+    # Set index to region identifiers
+    gdf = gdf.set_index("region")
 
     # Create output directory if it doesn't exist
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    # Save as GeoJSON indexed by alpha3 codes
-    valid_countries.to_file(output_path, driver="GeoJSON")
+    # Save as GeoJSON indexed by region codes
+    gdf.to_file(output_path, driver="GeoJSON")
 
-    logger.info("Saved %d country regions to %s", len(valid_countries), output_path)
+    logger.info(f"Saved {len(gdf)} {level_name} regions to {output_path}")
     logger.debug(
-        "Countries indexed by ISO alpha3 codes: %s...",
-        ", ".join(sorted(valid_countries.index)[:10]),
+        f"{level_name.capitalize()} indexed by region codes: %s...",
+        ", ".join(sorted(gdf.index)[:10]),
     )
 
 
-def main():
-    """Main function called by Snakemake."""
-    # Get output path from Snakemake
-    output_path = snakemake.output[0]
+if __name__ == "__main__":
+    agg_level = snakemake.config["aggregation"]["regions"]
 
-    # Get config to check region type
-    config = snakemake.config
+    # Get input files from Snakemake
+    country_files = {c: snakemake.input[c] for c in snakemake.config["countries"]}
 
-    # For now, only support countries as specified
-    if config["aggregation"]["regions"] == "countries":
-        download_countries_geojson(output_path)
+    if agg_level == "countries":
+        # Use GADM level 0 (country boundaries)
+        load_gadm_geojson(snakemake.output[0], country_files, gadm_level=0)
+    elif agg_level == "states":
+        # Use GADM level 1 (state/province boundaries)
+        load_gadm_geojson(snakemake.output[0], country_files, gadm_level=1)
     else:
         raise NotImplementedError(
-            f"Region type '{config.get('regions')}' not supported yet"
+            f"Aggregation level '{agg_level}' not supported. Options: 'countries', 'states'"
         )
-
-
-if __name__ == "__main__":
-    main()

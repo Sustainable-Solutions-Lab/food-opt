@@ -7,9 +7,10 @@ import os
 
 min_version("9.0")
 
+os.makedirs("data/downloads", exist_ok=True)
 
-storage:
-    provider="http",
+
+include: "rules/retrieve.smk"
 
 
 configfile: "config/config.yaml"
@@ -35,7 +36,25 @@ rule all:
         f"results/{name}/plots",
 
 
+def gadm_inputs(wildcards):
+    # Determine GADM level based on region aggregation type
+    region_type = config["aggregation"]["regions"]
+    if region_type == "countries":
+        gadm_level = 0
+    elif region_type == "states":
+        gadm_level = 1
+    else:
+        raise ValueError(f"Unsupported region type: {region_type}")
+    
+    return {
+        country: f"data/downloads/gadm41_{country}_{gadm_level}.json.zip"
+        for country in config["countries"]
+    }
+
+
 rule build_regions:
+    input:
+        ancient(unpack(gadm_inputs)),
     output:
         "processing/{name}/regions.geojson",
     script:
@@ -44,22 +63,8 @@ rule build_regions:
 
 rule build_crop_yields:
     input:
-        yields=storage.http(
-            (
-                "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/{climate_model}/rcp{rcp}/{time_period}H/"
-                + config["data"]["gaez"]["yield_var"]
-                + "{input_management}{water_supply}{co2_fertilization}_{crop}.tif"
-            ),
-            keep_local=True,
-        ),
-        suitability=storage.http(
-            (
-                "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/{climate_model}/rcp{rcp}/{time_period}H/"
-                + config["data"]["gaez"]["suitability_var"]
-                + "{input_management}{water_supply}{co2_fertilization}_{crop}.tif"
-            ),
-            keep_local=True,
-        ),
+        yields="data/downloads/gaez_yield_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
+        suitability="data/downloads/gaez_suitability_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
         regions=f"processing/{name}/regions.geojson",
     output:
         os.path.join(
@@ -74,12 +79,7 @@ rule build_crop_yields:
 def suitability_inputs(wildcards):
     gaez = config["data"]["gaez"]
     return {
-        crop: storage.http(
-            (
-                f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/{gaez['climate_model']}/rcp{gaez['rcp']}/{gaez['time_period']}H/{gaez['suitability_var']}{gaez['input_management']}{gaez['water_supply']}{gaez['co2_fertilization']}_{gaez['crops'][crop]}.tif"
-            ),
-            keep_local=True,
-        )
+        crop: f"data/downloads/gaez_suitability_{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_{gaez['water_supply']}_{gaez['co2_fertilization']}_{gaez['crops'][crop]}.tif"
         for crop in config["crops"]
     }
 
