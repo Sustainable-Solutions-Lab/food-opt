@@ -6,7 +6,8 @@ import geopandas as gpd
 import pandas as pd
 from pathlib import Path
 import numpy as np
-from pyproj import Geod
+from pyproj import Geod, CRS
+from shapely.geometry import Polygon, MultiPolygon
 
 from sklearn.cluster import KMeans, AgglomerativeClustering
 
@@ -20,10 +21,7 @@ def _compute_country_geodesic_areas(
 
     Expects geometries in EPSG:4326. Uses pyproj.Geod for accurate spherical area.
     """
-    if gdf_wgs84.crs is None or str(gdf_wgs84.crs).lower() not in (
-        "epsg:4326",
-        "wgs84",
-    ):
+    if gdf_wgs84.crs is None or not CRS(gdf_wgs84.crs).equals(CRS(4326)):
         gdf_wgs84 = gdf_wgs84.to_crs(4326)
 
     def geom_area(geom) -> float:
@@ -44,7 +42,8 @@ def _allocate_per_country_targets_by_weight(
 
     - Ensures at least 1 cluster for countries with at least 1 base unit
     - Caps by available units per country
-    - Uses largest remainder to match total_target
+    - Uses largest remainder and capacity-aware fill to match
+      min(total_target, sum(counts)) exactly
     """
     # Keep only countries present in counts
     weights = weights.reindex(counts.index).fillna(0.0)
@@ -56,29 +55,39 @@ def _allocate_per_country_targets_by_weight(
             "cannot avoid cross-border clustering with this target."
         )
 
+    # Respect global capacity (cannot exceed number of base units)
+    feasible_target = int(min(total_target, int(nonempty.sum())))
+
     total_w = weights.loc[nonempty.index].sum()
     if total_w <= 0:
         # fallback: equal shares
-        raw = pd.Series(float(total_target) / len(nonempty), index=nonempty.index)
+        raw = pd.Series(float(feasible_target) / len(nonempty), index=nonempty.index)
     else:
-        raw = weights.loc[nonempty.index] / total_w * float(total_target)
+        raw = weights.loc[nonempty.index] / total_w * float(feasible_target)
 
     base = np.floor(raw).astype(int)
     base = base.clip(lower=1)
     base = np.minimum(base, nonempty)
 
     assigned = int(base.sum())
-    remaining = total_target - assigned
+    remaining = feasible_target - assigned
 
     # Distribute remaining by largest remainder respecting caps
     if remaining > 0:
         remainders = (raw - np.floor(raw)).sort_values(ascending=False)
-        for country in remainders.index:
-            if remaining == 0:
+        # Keep cycling through remainders until filled or no capacity remains
+        while remaining > 0:
+            progressed = False
+            for country in remainders.index:
+                if remaining == 0:
+                    break
+                if base[country] < nonempty[country]:
+                    base[country] += 1
+                    remaining -= 1
+                    progressed = True
+            if not progressed:
+                # All countries are at capacity; cannot assign more
                 break
-            if base[country] < nonempty[country]:
-                base[country] += 1
-                remaining -= 1
 
     # If overshoot, reduce from countries with largest allocations (>1)
     while remaining < 0:
@@ -98,6 +107,10 @@ def _allocate_per_country_targets_by_weight(
 def _cluster_coords(
     coords: np.ndarray, k: int, method: str, random_state: int = 0
 ) -> np.ndarray:
+    """Cluster coordinate array into up to k clusters.
+
+    Returns one label per row. If k <= 0 or k >= n, assigns unique labels.
+    """
     if coords.shape[0] <= k or k <= 0:
         return np.arange(coords.shape[0])
 
@@ -136,8 +149,8 @@ def cluster_level1_regions(
     if gdf.crs is None:
         gdf = gdf.set_crs(4326, allow_override=True)
 
-    # Project to Web Mercator for approximate Euclidean distances
-    gdf_proj = gdf.to_crs(3857)
+    # Project to equal-area for reasonable Euclidean approximation
+    gdf_proj = gdf.to_crs(6933)
     cent = gdf_proj.geometry.centroid
     coords = np.vstack([cent.x.values, cent.y.values]).T
 
@@ -200,6 +213,18 @@ def cluster_level1_regions(
     return dissolved
 
 
+def _remove_small_islands(geom, min_area: float):
+    """Return geometry with small islands removed (Polygon/MultiPolygon safe)."""
+    if geom is None or geom.is_empty:
+        return geom
+    if isinstance(geom, MultiPolygon):
+        kept = [p for p in geom.geoms if p.area >= min_area]
+        return MultiPolygon(kept) if kept else Polygon()
+    if isinstance(geom, Polygon):
+        return geom if geom.area >= min_area else Polygon()
+    return geom
+
+
 if __name__ == "__main__":
     # Use GADM level 1 (state/province boundaries) then simplify jointly
     gdf = gpd.read_file(snakemake.input.world, layer="ADM_1")
@@ -207,10 +232,10 @@ if __name__ == "__main__":
     # Reproject to equal-area (in meters)
     gdf = gdf.to_crs("EPSG:6933")
 
-    # Remove small islands
+    # Remove small islands (Polygon/MultiPolygon safe)
     min_area = snakemake.config["aggregation"]["simplify_min_area_km"] * 1e6
     gdf.geometry = gdf.geometry.apply(
-        lambda mp: type(mp)([p for p in mp.geoms if p.area >= min_area])
+        lambda geom: _remove_small_islands(geom, min_area)
     )
     gdf = gdf[~gdf.geometry.is_empty]
 
