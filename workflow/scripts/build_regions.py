@@ -5,61 +5,225 @@
 import geopandas as gpd
 import pandas as pd
 from pathlib import Path
-import logging
+import numpy as np
+from pyproj import Geod
 
-logger = logging.getLogger(__name__)
+from sklearn.cluster import KMeans, AgglomerativeClustering
+
+GEOD = Geod(ellps="WGS84")
 
 
-def load_gadm_geojson(output_path: str, country_files: dict, gadm_level: int) -> None:
-    """Load GADM data at specified level from downloaded files and save as GeoJSON indexed by region codes.
+def _compute_country_geodesic_areas(
+    gdf_wgs84: gpd.GeoDataFrame, country_col: str = "GID_0"
+) -> pd.Series:
+    """Compute geodesic area (m^2) per country by summing polygon areas.
 
-    Args:
-        output_path: Path to save the output GeoJSON file
-        country_files: Dictionary mapping country codes to GADM file paths
-        gadm_level: GADM level (0 for countries, 1 for states/provinces)
+    Expects geometries in EPSG:4326. Uses pyproj.Geod for accurate spherical area.
     """
+    if gdf_wgs84.crs is None or str(gdf_wgs84.crs).lower() not in (
+        "epsg:4326",
+        "wgs84",
+    ):
+        gdf_wgs84 = gdf_wgs84.to_crs(4326)
 
-    level_name = "countries" if gadm_level == 0 else "states/provinces"
-    logger.info(
-        f"Loading {level_name} boundaries from GADM level {gadm_level} files..."
+    def geom_area(geom) -> float:
+        if geom is None or geom.is_empty:
+            return 0.0
+        area, _ = GEOD.geometry_area_perimeter(geom)
+        return abs(area)
+
+    # area per region, then sum by country
+    areas = gdf_wgs84.geometry.apply(geom_area)
+    return areas.groupby(gdf_wgs84[country_col]).sum()
+
+
+def _allocate_per_country_targets_by_weight(
+    weights: pd.Series, counts: pd.Series, total_target: int
+) -> pd.Series:
+    """Allocate cluster counts per country proportional to weights (e.g., area).
+
+    - Ensures at least 1 cluster for countries with at least 1 base unit
+    - Caps by available units per country
+    - Uses largest remainder to match total_target
+    """
+    # Keep only countries present in counts
+    weights = weights.reindex(counts.index).fillna(0.0)
+
+    nonempty = counts[counts > 0]
+    if total_target < len(nonempty):
+        raise ValueError(
+            "target_count is smaller than the number of countries with regions; "
+            "cannot avoid cross-border clustering with this target."
+        )
+
+    total_w = weights.loc[nonempty.index].sum()
+    if total_w <= 0:
+        # fallback: equal shares
+        raw = pd.Series(float(total_target) / len(nonempty), index=nonempty.index)
+    else:
+        raw = weights.loc[nonempty.index] / total_w * float(total_target)
+
+    base = np.floor(raw).astype(int)
+    base = base.clip(lower=1)
+    base = np.minimum(base, nonempty)
+
+    assigned = int(base.sum())
+    remaining = total_target - assigned
+
+    # Distribute remaining by largest remainder respecting caps
+    if remaining > 0:
+        remainders = (raw - np.floor(raw)).sort_values(ascending=False)
+        for country in remainders.index:
+            if remaining == 0:
+                break
+            if base[country] < nonempty[country]:
+                base[country] += 1
+                remaining -= 1
+
+    # If overshoot, reduce from countries with largest allocations (>1)
+    while remaining < 0:
+        candidates = base[base > 1]
+        if candidates.empty:
+            break
+        drop_country = candidates.sort_values(ascending=False).index[0]
+        base[drop_country] -= 1
+        remaining += 1
+
+    # Ensure full index coverage
+    out = pd.Series(0, index=counts.index)
+    out.loc[base.index] = base
+    return out
+
+
+def _cluster_coords(
+    coords: np.ndarray, k: int, method: str, random_state: int = 0
+) -> np.ndarray:
+    if coords.shape[0] <= k or k <= 0:
+        return np.arange(coords.shape[0])
+
+    method = (method or "kmeans").lower()
+
+    if method == "kmeans":
+        km = KMeans(n_clusters=k, n_init=10, random_state=random_state)
+        labels = km.fit_predict(coords)
+        return labels
+    elif method in {"ward", "agglomerative"}:
+        # Ward linkage minimizes within-cluster variance (good heuristic)
+        ac = AgglomerativeClustering(n_clusters=k, linkage="ward")
+        labels = ac.fit_predict(coords)
+        return labels
+    else:
+        raise ValueError(f"Unknown clustering method: {method}")
+
+
+def cluster_level1_regions(
+    gdf: gpd.GeoDataFrame,
+    target_count: int,
+    allow_cross_border: bool,
+    method: str = "kmeans",
+    random_state: int = 0,
+) -> gpd.GeoDataFrame:
+    """Cluster level-1 administrative regions into target_count clusters.
+
+    Clustering is based on centroids in a projected CRS (EPSG:3857) for a
+    reasonable Euclidean approximation. When cross-border clustering is not
+    allowed, clustering is performed per country and the per-country targets
+    are allocated proportionally to the number of base regions.
+    """
+    if target_count <= 0:
+        raise ValueError("target_count must be positive")
+
+    if gdf.crs is None:
+        gdf = gdf.set_crs(4326, allow_override=True)
+
+    # Project to Web Mercator for approximate Euclidean distances
+    gdf_proj = gdf.to_crs(3857)
+    cent = gdf_proj.geometry.centroid
+    coords = np.vstack([cent.x.values, cent.y.values]).T
+
+    if allow_cross_border:
+        labels = _cluster_coords(coords, target_count, method, random_state)
+        # Create global cluster ids
+        cluster_ids = pd.Series(labels, index=gdf.index).astype(int)
+        gdf = gdf.assign(_cluster=cluster_ids)
+    else:
+        # Allocate targets per country and cluster within each
+        if "GID_0" not in gdf.columns:
+            raise ValueError(
+                "Expected GID_0 column for country codes in GADM level 1 data"
+            )
+
+        counts = gdf.groupby("GID_0").size()
+        # Compute geodesic area per country for proportional allocation
+        country_areas = _compute_country_geodesic_areas(gdf[["GID_0", "geometry"]])
+        per_country = _allocate_per_country_targets_by_weight(
+            country_areas, counts, target_count
+        )
+
+        cluster_ids = pd.Series(index=gdf.index, dtype=int)
+        next_cluster = 0
+        for country, group in gdf.groupby("GID_0"):
+            k = int(per_country.get(country, 0))
+            idx = group.index.values
+            if k <= 0:
+                # No clusters allocated (can happen if country had 0 units)
+                continue
+            sub_coords = coords[gdf.index.get_indexer(idx)]
+            labels = _cluster_coords(sub_coords, k, method, random_state)
+            # Offset labels to keep them globally unique
+            cluster_ids.loc[idx] = labels + next_cluster
+            next_cluster += int(labels.max()) + 1
+
+        gdf = gdf.assign(_cluster=cluster_ids.astype(int))
+
+    # Dissolve polygons by cluster id
+    dissolved = gdf.dissolve(by="_cluster", as_index=False)
+
+    # Assign unique region identifiers
+    dissolved["region"] = [f"cluster_{int(i):05d}" for i in dissolved["_cluster"]]
+
+    # Keep a representative country code if available
+    if "GID_0" in gdf.columns:
+        # first country code within the cluster as representative
+        rep_country = gdf.groupby("_cluster")["GID_0"].first()
+        dissolved = dissolved.merge(
+            rep_country.rename("GID_0"),
+            left_on="_cluster",
+            right_index=True,
+            how="left",
+        )
+
+    dissolved = dissolved.set_index("region")
+    dissolved = dissolved.drop(
+        columns=[c for c in ["_cluster"] if c in dissolved.columns]
+    )
+    return dissolved
+
+
+if __name__ == "__main__":
+    # Use GADM level 1 (state/province boundaries) then simplify jointly
+    gdf = gpd.read_file(snakemake.input.world, layer="ADM_1")
+
+    # Reproject to equal-area (in meters)
+    gdf = gdf.to_crs("EPSG:6933")
+
+    # Remove small islands
+    min_area = snakemake.config["aggregation"]["simplify_min_area_km"] * 1e6
+    gdf.geometry = gdf.geometry.apply(
+        lambda mp: type(mp)([p for p in mp.geoms if p.area >= min_area])
+    )
+    gdf = gdf[~gdf.geometry.is_empty]
+
+    # Simplify
+    gdf.geometry = gdf.geometry.simplify_coverage(
+        tolerance=snakemake.config["aggregation"]["simplify_tolerance_km"] * 1e3
     )
 
-    if not country_files:
-        raise ValueError("No country files provided")
+    # Reproject back to degrees
+    gdf = gdf.to_crs("EPSG:4326")
 
-    all_regions = []
-
-    for country_code, file_path in country_files.items():
-        try:
-            logger.debug(f"Loading {country_code} from {file_path}")
-            country_data = gpd.read_file(file_path)
-
-            if len(country_data) > 0:
-                all_regions.append(country_data)
-                logger.debug(f"Loaded {len(country_data)} regions for {country_code}")
-
-        except Exception as e:
-            logger.debug(f"Failed to load {country_code}: {e}")
-            continue
-
-    if not all_regions:
-        raise ValueError(f"No level {gadm_level} data could be loaded from files")
-
-    # Combine all region data
-    gdf = pd.concat(all_regions, ignore_index=True)
-
-    # Use appropriate GADM field as region identifier
-    if gadm_level == 0:
-        # For countries: use ISO_A3 (3-letter country code)
-        gdf["region"] = gdf["GID_0"]
-    elif gadm_level == 1:
-        # For states: use GID_1 (country.state identifier)
-        gdf["region"] = gdf["GID_1"]
-    else:
-        raise ValueError(f"Unsupported GADM level: {gadm_level}")
-
-    # Filter out regions with invalid identifiers
-    initial_count = len(gdf)
+    # Filter out invalid regions
+    gdf = gdf.rename({"GID_1": "region"}, axis=1)
     valid_mask = (
         (gdf["region"] != "?")
         & gdf["region"].notna()
@@ -68,46 +232,14 @@ def load_gadm_geojson(output_path: str, country_files: dict, gadm_level: int) ->
     )
     gdf = gdf[valid_mask]
 
-    if len(gdf) < initial_count:
-        filtered_count = initial_count - len(gdf)
-        logger.warning(
-            f"Filtered out {filtered_count} regions with invalid identifiers (?, NaN, NA, or empty)"
-        )
+    gdf = gdf.set_index("region", drop=True)
 
-    # Make sure there are no duplicates
-    region_counts = gdf["region"].value_counts()
-    duplicate_ids = region_counts[region_counts > 1].index
-    assert len(duplicate_ids) == 0
-
-    # Set index to region identifiers
-    gdf = gdf.set_index("region")
-
-    # Create output directory if it doesn't exist
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-
-    # Save as GeoJSON indexed by region codes
-    gdf.to_file(output_path, driver="GeoJSON")
-
-    logger.info(f"Saved {len(gdf)} {level_name} regions to {output_path}")
-    logger.debug(
-        f"{level_name.capitalize()} indexed by region codes: %s...",
-        ", ".join(sorted(gdf.index)[:10]),
+    gdf = cluster_level1_regions(
+        gdf,
+        snakemake.params.n_regions,
+        snakemake.params.allow_cross_border,
+        snakemake.params.cluster_method,
     )
 
-
-if __name__ == "__main__":
-    agg_level = snakemake.config["aggregation"]["regions"]
-
-    # Get input files from Snakemake
-    country_files = {c: snakemake.input[c] for c in snakemake.config["countries"]}
-
-    if agg_level == "countries":
-        # Use GADM level 0 (country boundaries)
-        load_gadm_geojson(snakemake.output[0], country_files, gadm_level=0)
-    elif agg_level == "states":
-        # Use GADM level 1 (state/province boundaries)
-        load_gadm_geojson(snakemake.output[0], country_files, gadm_level=1)
-    else:
-        raise NotImplementedError(
-            f"Aggregation level '{agg_level}' not supported. Options: 'countries', 'states'"
-        )
+    Path(snakemake.output[0]).parent.mkdir(parents=True, exist_ok=True)
+    gdf.to_file(snakemake.output[0], driver="GeoJSON")

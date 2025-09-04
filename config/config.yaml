@@ -53,7 +53,13 @@ food_groups:
     min_per_person_per_day: 25   # g/person/day (essential fats)
 
 aggregation:
-  regions: "states"  # Options: "countries", "states"
+  regions:
+    type: "cluster"
+    target_count: 500
+    allow_cross_border: false
+    method: "kmeans"
+  simplify_tolerance_km: 5
+  simplify_min_area_km: 25
   resource_class_quantiles: [0.25, 0.5, 0.75]
 
 countries:

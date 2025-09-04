@@ -36,25 +36,13 @@ rule all:
         f"results/{name}/plots",
 
 
-def gadm_inputs(wildcards):
-    # Determine GADM level based on region aggregation type
-    region_type = config["aggregation"]["regions"]
-    if region_type == "countries":
-        gadm_level = 0
-    elif region_type == "states":
-        gadm_level = 1
-    else:
-        raise ValueError(f"Unsupported region type: {region_type}")
-    
-    return {
-        country: f"data/downloads/gadm41_{country}_{gadm_level}.json.zip"
-        for country in config["countries"]
-    }
-
-
 rule build_regions:
     input:
-        ancient(unpack(gadm_inputs)),
+        world="data/gadm_410-levels.gpkg",
+    params:
+        n_regions=config["aggregation"]["regions"]["target_count"],
+        allow_cross_border=config["aggregation"]["regions"]["allow_cross_border"],
+        cluster_method=config["aggregation"]["regions"]["method"],
     output:
         "processing/{name}/regions.geojson",
     script:
@@ -134,3 +122,12 @@ rule plot_results:
         plots_dir=directory("results/{name}/plots"),
     script:
         "scripts/plot_results.py"
+
+
+rule plot_regions_map:
+    input:
+        regions=f"processing/{name}/regions.geojson",
+    output:
+        pdf=f"results/{name}/plots/regions_equal_earth.pdf",
+    script:
+        "scripts/plot_regions_map.py"

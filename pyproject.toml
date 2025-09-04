@@ -13,19 +13,21 @@ license = "GPL-3.0-or-later"
 requires-python = ">=3.12"
 dependencies = [
     "snakemake>=9.0",
-    "pypsa @ git+https://github.com/PyPSA/PyPSA.git@master",
+    "pypsa @ git+https://github.com/koen-vg/PyPSA.git@relaxed-shapely",
     "seaborn",
     "numpy",
     "pandas>=2.1",
     "matplotlib",
     "networkx",
     "geopandas",
+    "shapely>=2.1",
     "rasterio",
     "exactextract",
     "gurobipy",
     "highspy",
     "snakemake-storage-plugin-http",
     "pycountry>=24.6.1",
+    "scikit-learn>=1.4",
 ]
 
 [project.optional-dependencies]
