@@ -35,28 +35,29 @@ For a longer overview and concrete file references, see `CLAUDE.md`.
 
 - Dependency manager: `uv` (see `pyproject.toml`).
 - Lint/format: `ruff` (auto-enforced via hooks; no manual action usually needed).
-- Workflow engine: `snakemake`.
+- Workflow engine: `snakemake` (run via `tools/smk` wrapper by default).
 
-Recommended commands (run inside the uv environment):
+Recommended commands (use the memory-capped wrapper):
 
 ```bash
 # Install and sync dependencies
 uv sync
 
 # Run the full workflow (data prep → build → solve)
-uv run snakemake -j4 all
+tools/smk -j4 all
 
 # Build model only
-uv run snakemake -j4 results/{config_name}/build/model.nc
+tools/smk -j4 results/{config_name}/build/model.nc
 
 # Solve model only (after build)
-uv run snakemake -j4 results/{config_name}/solved/model.nc
+tools/smk -j4 results/{config_name}/solved/model.nc
 ```
 
 Notes:
 
 - Snakemake tracks code changes and will rerun affected rules; manual cleanup of `results/` is usually unnecessary.
 - Prefer small, testable edits and validate by running the narrowest target that exercises your change.
+- `tools/smk` runs Snakemake in a systemd cgroup with a hard 10G cap and swap disabled by default; override with `SMK_MEM_MAX=12G tools/smk ...`.
 
 ## Repository Conventions
 
@@ -99,4 +100,3 @@ Notes:
 - Respect SPDX headers; keep or add them to new files following repository practice.
 - Do not introduce secrets, credentials, or hard-coded local paths.
 - Use only licensed datasets and dependencies already declared in `pyproject.toml` unless explicitly instructed to add new ones.
-

@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Minimal wrapper: run Snakemake under a 10G cgroup cap, no swap.
+# Customize with SMK_MEM_MAX env (e.g., SMK_MEM_MAX=8G).
+
+MEM_MAX=${SMK_MEM_MAX:-10G}
+
+if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1; then
+  exec systemd-run --user --scope -p MemoryMax="${MEM_MAX}" -p MemorySwapMax=0 \
+    uv run snakemake "$@"
+fi
+
+echo "[tools/smk] systemd user scope unavailable; running without memory cap" >&2
+exec uv run snakemake "$@"
