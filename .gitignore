@@ -6,7 +6,8 @@
 results
 processing
 notebooks
-data
+data/*
+!data/DATASETS.md
 **/__pycache__
 gurobi.log
 /uv.lock
