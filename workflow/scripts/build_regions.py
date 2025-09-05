@@ -7,7 +7,6 @@ import pandas as pd
 from pathlib import Path
 import numpy as np
 from pyproj import Geod, CRS
-from shapely.geometry import Polygon, MultiPolygon
 
 from sklearn.cluster import KMeans, AgglomerativeClustering
 
@@ -129,7 +128,7 @@ def _cluster_coords(
         raise ValueError(f"Unknown clustering method: {method}")
 
 
-def cluster_level1_regions(
+def cluster_regions(
     gdf: gpd.GeoDataFrame,
     target_count: int,
     allow_cross_border: bool,
@@ -193,7 +192,7 @@ def cluster_level1_regions(
     dissolved = gdf.dissolve(by="_cluster", as_index=False)
 
     # Assign unique region identifiers
-    dissolved["region"] = [f"cluster_{int(i):05d}" for i in dissolved["_cluster"]]
+    dissolved["region"] = [f"region{int(i):04d}" for i in dissolved["_cluster"]]
 
     # Keep a representative country code if available
     if "GID_0" in gdf.columns:
@@ -213,39 +212,9 @@ def cluster_level1_regions(
     return dissolved
 
 
-def _remove_small_islands(geom, min_area: float):
-    """Return geometry with small islands removed (Polygon/MultiPolygon safe)."""
-    if geom is None or geom.is_empty:
-        return geom
-    if isinstance(geom, MultiPolygon):
-        kept = [p for p in geom.geoms if p.area >= min_area]
-        return MultiPolygon(kept) if kept else Polygon()
-    if isinstance(geom, Polygon):
-        return geom if geom.area >= min_area else Polygon()
-    return geom
-
-
 if __name__ == "__main__":
-    # Use GADM level 1 (state/province boundaries) then simplify jointly
-    gdf = gpd.read_file(snakemake.input.world, layer="ADM_1")
-
-    # Reproject to equal-area (in meters)
-    gdf = gdf.to_crs("EPSG:6933")
-
-    # Remove small islands (Polygon/MultiPolygon safe)
-    min_area = snakemake.config["aggregation"]["simplify_min_area_km"] * 1e6
-    gdf.geometry = gdf.geometry.apply(
-        lambda geom: _remove_small_islands(geom, min_area)
-    )
-    gdf = gdf[~gdf.geometry.is_empty]
-
-    # Simplify
-    gdf.geometry = gdf.geometry.simplify_coverage(
-        tolerance=snakemake.config["aggregation"]["simplify_tolerance_km"] * 1e3
-    )
-
-    # Reproject back to degrees
-    gdf = gdf.to_crs("EPSG:4326")
+    # Use GADM level 1 (state/province boundaries). Geometries are pre-simplified.
+    gdf = gpd.read_file(snakemake.input.world)
 
     # Filter out invalid regions
     gdf = gdf.rename({"GID_1": "region"}, axis=1)
@@ -259,7 +228,7 @@ if __name__ == "__main__":
 
     gdf = gdf.set_index("region", drop=True)
 
-    gdf = cluster_level1_regions(
+    gdf = cluster_regions(
         gdf,
         snakemake.params.n_regions,
         snakemake.params.allow_cross_border,

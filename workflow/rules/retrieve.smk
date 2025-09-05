@@ -3,11 +3,28 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 
-rule download_gadm_data:
+rule download_gadm_zip:
     output:
-        "data/downloads/gadm41_{country}_1.json.zip",
+        temp("data/downloads/gadm_410-levels.zip"),
+    params:
+        url="https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-levels.zip",
     shell:
-        "wget -O {output} https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_{wildcards.country}_1.json.zip"
+        r"""
+        mkdir -p "$(dirname {output})"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        """
+
+
+rule extract_adm1:
+    input:
+        zip="data/downloads/gadm_410-levels.zip",
+    output:
+        "data/downloads/gadm.gpkg",
+    shell:
+        r"""
+        mkdir -p "$(dirname {output})"
+        ogr2ogr -f GPKG "{output}" "/vsizip/{input.zip}/gadm_410-levels.gpkg" ADM_1
+        """
 
 
 rule download_gaez_yield_data:

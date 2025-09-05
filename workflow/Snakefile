@@ -36,9 +36,18 @@ rule all:
         f"results/{name}/plots",
 
 
+rule simplify_gadm:
+    input:
+        "data/downloads/gadm.gpkg",
+    output:
+        "processing/shared/gadm-simplified.gpkg",
+    script:
+        "scripts/simplify_gadm.py"
+
+
 rule build_regions:
     input:
-        world="data/gadm_410-levels.gpkg",
+        world="processing/shared/gadm-simplified.gpkg",
     params:
         n_regions=config["aggregation"]["regions"]["target_count"],
         allow_cross_border=config["aggregation"]["regions"]["allow_cross_border"],

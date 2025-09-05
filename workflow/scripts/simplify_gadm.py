@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import logging
+from pathlib import Path
+
+import geopandas as gpd
+
+logger = logging.getLogger(__name__)
+
+GADM_URL = "https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-levels.zip"
+
+
+def _remove_small_islands(
+    gdf: gpd.GeoDataFrame, min_area_m2: float
+) -> gpd.GeoDataFrame:
+    """Remove small polygons from geometries by area threshold in projected CRS.
+
+    Expects geometries in projected meters CRS (e.g., EPSG:6933).
+    """
+    from shapely.geometry import Polygon, MultiPolygon
+
+    def _filter_geom(geom):
+        if geom is None or geom.is_empty:
+            return geom
+        if isinstance(geom, MultiPolygon):
+            kept = [p for p in geom.geoms if p.area >= min_area_m2]
+            return MultiPolygon(kept) if kept else Polygon()
+        if isinstance(geom, Polygon):
+            return geom if geom.area >= min_area_m2 else Polygon()
+        return geom
+
+    gdf = gdf.copy()
+    gdf.geometry = gdf.geometry.apply(_filter_geom)
+    gdf = gdf[~gdf.geometry.is_empty]
+    return gdf
+
+
+if __name__ == "__main__":
+    gdf = gpd.read_file(snakemake.input[0])
+
+    # Simplify geometries
+    gdf = gdf.to_crs("EPSG:6933")
+    min_area = snakemake.config["aggregation"]["simplify_min_area_km"] * 1e6
+    gdf = _remove_small_islands(gdf, min_area)
+    gdf.geometry = gdf.geometry.simplify_coverage(
+        tolerance=snakemake.config["aggregation"]["simplify_tolerance_km"] * 1e3
+    )
+    gdf = gdf.to_crs("EPSG:4326")
+
+    # Write a compact GPKG with only the simplified ADM_1 layer
+    out_path = Path(snakemake.output[0])  # type: ignore[name-defined]
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    gdf.to_file(out_path, layer="ADM_1", driver="GPKG")
+    logger.info("Wrote simplified ADM_1 to %s", out_path)
