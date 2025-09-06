@@ -15,22 +15,31 @@ logger = logging.getLogger(__name__)
 
 
 def extract_crop_production(n: pypsa.Network) -> pd.Series:
-    """Extract crop production from solved network."""
-    crop_production = {}
+    """Extract total crop production aggregated across regions/classes.
 
-    # Get all crop production links (those starting with "produce_")
+    Link naming convention from build_model.py:
+    produce_{crop}_{region}_class{resource_class}
+    We aggregate by the {crop} token only.
+    """
+    crop_totals: dict[str, float] = {}
+
+    # All crop production links
     production_links = [link for link in n.links.index if link.startswith("produce_")]
 
     for link in production_links:
-        # Extract crop name from link name (remove "produce_" prefix)
-        crop = link.replace("produce_", "")
-        # Get the flow through this link (production level)
-        flow = n.links_t.p1.loc["now", link]
-        # Convert to absolute value (flows might be negative depending on convention)
-        production = abs(flow)
-        crop_production[crop] = production
+        # Extract crop token between 'produce_' and the next underscore
+        # Fallback to conservative behavior if pattern unexpected
+        try:
+            crop = link.split("_", 2)[1]
+        except Exception:
+            crop = link.replace("produce_", "").split("_")[0]
 
-    return pd.Series(crop_production)
+        # Flow at bus1 is crop output (tonnes)
+        flow = float(n.links_t.p1.loc["now", link])
+        production = abs(flow)
+        crop_totals[crop] = crop_totals.get(crop, 0.0) + production
+
+    return pd.Series(crop_totals).sort_index()
 
 
 def extract_food_production(n: pypsa.Network) -> pd.Series:
@@ -60,99 +69,78 @@ def extract_food_production(n: pypsa.Network) -> pd.Series:
 
 
 def plot_crop_production(crop_production: pd.Series, output_dir: Path) -> None:
-    """Create bar plot for crop production."""
+    """Create bar plot for crop production; always writes a PDF."""
     # Sort by production value for better visualization
-    crop_production_sorted = crop_production.sort_values(ascending=False)
-
-    # Filter out crops with zero production
-    crop_production_sorted = crop_production_sorted[crop_production_sorted > 1e-6]
-
-    if len(crop_production_sorted) == 0:
-        logger.warning("No crop production found")
-        return
+    ser = crop_production.fillna(0.0).astype(float)
+    ser = ser[ser > 0]
+    ser = ser.sort_values(ascending=False)
 
     plt.figure(figsize=(12, 8))
-    plt.bar(range(len(crop_production_sorted)), crop_production_sorted.values)
-
-    # Add value labels on bars
-    max_value = crop_production_sorted.max()
-    for i, (crop, value) in enumerate(crop_production_sorted.items()):
-        plt.text(
-            i,
-            value + max_value * 0.01,
-            f"{value:.1e}",
-            ha="center",
-            va="bottom",
-            fontsize=8,
-        )
-
-    plt.xlabel("Crops")
-    plt.ylabel("Production (tonnes)")
+    if len(ser) == 0:
+        plt.text(0.5, 0.5, "No crop production found", ha="center", va="center")
+        plt.axis("off")
+    else:
+        plt.bar(range(len(ser)), ser.values)
+        max_value = ser.max()
+        for i, (crop, value) in enumerate(ser.items()):
+            plt.text(
+                i,
+                value + max_value * 0.01,
+                f"{value:.1e}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
+        plt.xlabel("Crops")
+        plt.ylabel("Production (tonnes)")
+        plt.xticks(range(len(ser)), ser.index, rotation=45, ha="right")
+        plt.grid(True, alpha=0.3)
     plt.title("Crop Production by Type")
-    plt.xticks(
-        range(len(crop_production_sorted)),
-        crop_production_sorted.index,
-        rotation=45,
-        ha="right",
-    )
-    plt.grid(True, alpha=0.3)
     plt.tight_layout()
 
-    # Save the plot
-    plt.savefig(output_dir / "crop_production.pdf", bbox_inches="tight", dpi=300)
+    out = output_dir / "crop_production.pdf"
+    plt.savefig(out, bbox_inches="tight", dpi=300)
     plt.close()
-
-    logger.info("Crop production plot saved to %s", output_dir / "crop_production.pdf")
+    logger.info("Crop production plot saved to %s", out)
 
 
 def plot_food_production(food_production: pd.Series, output_dir: Path) -> None:
-    """Create bar plot for food production."""
-    # Sort by production value for better visualization
-    food_production_sorted = food_production.sort_values(ascending=False)
-
-    # Filter out foods with zero production
-    food_production_sorted = food_production_sorted[food_production_sorted > 1e-6]
-
-    if len(food_production_sorted) == 0:
-        logger.warning("No food production found")
-        return
+    """Create bar plot for food production; always writes a PDF."""
+    ser = food_production.fillna(0.0).astype(float)
+    ser = ser[ser > 0]
+    ser = ser.sort_values(ascending=False)
 
     plt.figure(figsize=(14, 8))
-    plt.bar(range(len(food_production_sorted)), food_production_sorted.values)
-
-    # Add value labels on bars
-    max_value = food_production_sorted.max()
-    for i, (food, value) in enumerate(food_production_sorted.items()):
-        plt.text(
-            i,
-            value + max_value * 0.01,
-            f"{value:.1e}",
-            ha="center",
-            va="bottom",
-            fontsize=8,
-        )
-
-    plt.xlabel("Food Products")
-    plt.ylabel("Production (tonnes)")
+    if len(ser) == 0:
+        plt.text(0.5, 0.5, "No food production found", ha="center", va="center")
+        plt.axis("off")
+    else:
+        plt.bar(range(len(ser)), ser.values)
+        max_value = ser.max()
+        for i, (food, value) in enumerate(ser.items()):
+            plt.text(
+                i,
+                value + max_value * 0.01,
+                f"{value:.1e}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
+        plt.xlabel("Food Products")
+        plt.ylabel("Production (tonnes)")
+        plt.xticks(range(len(ser)), ser.index, rotation=45, ha="right")
+        plt.grid(True, alpha=0.3)
     plt.title("Food Production by Type")
-    plt.xticks(
-        range(len(food_production_sorted)),
-        food_production_sorted.index,
-        rotation=45,
-        ha="right",
-    )
-    plt.grid(True, alpha=0.3)
     plt.tight_layout()
 
-    # Save the plot
-    plt.savefig(output_dir / "food_production.pdf", bbox_inches="tight", dpi=300)
+    out = output_dir / "food_production.pdf"
+    plt.savefig(out, bbox_inches="tight", dpi=300)
     plt.close()
-
-    logger.info("Food production plot saved to %s", output_dir / "food_production.pdf")
+    logger.info("Food production plot saved to %s", out)
 
 
 def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
-    """Create bar plot for resource usage."""
+    """Create bar plot for resource usage; always writes a PDF."""
     resources = ["land", "water", "fertilizer"]
     resource_usage = {}
 
@@ -178,40 +166,37 @@ def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
 
         resource_usage[resource] = total_flow
 
-    if not resource_usage or all(v == 0 for v in resource_usage.values()):
-        logger.warning("No resource usage data found")
-        return
-
     resource_series = pd.Series(resource_usage)
 
     plt.figure(figsize=(10, 6))
-    plt.bar(resource_series.index, resource_series.values)
-
-    # Add value labels on bars with appropriate units
-    units = {"land": "ha", "water": "m³", "fertilizer": "kg"}
-    max_value = resource_series.max()
-    for i, (resource, value) in enumerate(resource_series.items()):
-        unit = units.get(resource, "units")
-        plt.text(
-            i,
-            value + max_value * 0.01,
-            f"{value:.1e} {unit}",
-            ha="center",
-            va="bottom",
-            fontsize=10,
-        )
-
-    plt.xlabel("Resources")
-    plt.ylabel("Usage")
+    if resource_series.sum() <= 0:
+        plt.text(0.5, 0.5, "No resource usage found", ha="center", va="center")
+        plt.axis("off")
+    else:
+        plt.bar(resource_series.index, resource_series.values)
+        # Add value labels on bars with appropriate units
+        units = {"land": "ha", "water": "m³", "fertilizer": "kg"}
+        max_value = resource_series.max()
+        for i, (resource, value) in enumerate(resource_series.items()):
+            unit = units.get(resource, "units")
+            plt.text(
+                i,
+                value + max_value * 0.01,
+                f"{value:.1e} {unit}",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+            )
+        plt.xlabel("Resources")
+        plt.ylabel("Usage")
+        plt.grid(True, alpha=0.3)
     plt.title("Primary Resource Usage")
-    plt.grid(True, alpha=0.3)
     plt.tight_layout()
 
-    # Save the plot
-    plt.savefig(output_dir / "resource_usage.pdf", bbox_inches="tight", dpi=300)
+    out = output_dir / "resource_usage.pdf"
+    plt.savefig(out, bbox_inches="tight", dpi=300)
     plt.close()
-
-    logger.info("Resource usage plot saved to %s", output_dir / "resource_usage.pdf")
+    logger.info("Resource usage plot saved to %s", out)
 
 
 if __name__ == "__main__":
@@ -219,8 +204,8 @@ if __name__ == "__main__":
     logger.info("Loading solved network...")
     n = pypsa.Network(snakemake.input.network)
 
-    # Create output directory
-    output_dir = Path(snakemake.output.plots_dir)
+    # Output directory from params
+    output_dir = Path(snakemake.params.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info("Creating plots in %s", output_dir)
@@ -239,15 +224,12 @@ if __name__ == "__main__":
     plot_food_production(food_production, output_dir)
     plot_resource_usage(n, output_dir)
 
-    # Save summary data as CSV for reference
-    if len(crop_production) > 0:
-        crop_production.to_csv(
-            output_dir / "crop_production.csv", header=["production_tonnes"]
-        )
-
-    if len(food_production) > 0:
-        food_production.to_csv(
-            output_dir / "food_production.csv", header=["production_tonnes"]
-        )
+    # Save summary data as CSV for reference (always write files)
+    crop_production.to_csv(
+        output_dir / "crop_production.csv", header=["production_tonnes"]
+    )
+    food_production.to_csv(
+        output_dir / "food_production.csv", header=["production_tonnes"]
+    )
 
     logger.info("Plotting completed successfully!")

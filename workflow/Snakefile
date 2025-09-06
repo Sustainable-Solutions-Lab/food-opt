@@ -33,7 +33,15 @@ name = config["name"]
 rule all:
     input:
         f"results/{name}/solved/model.nc",
-        f"results/{name}/plots",
+        # results plots
+        f"results/{name}/plots/crop_production.pdf",
+        f"results/{name}/plots/food_production.pdf",
+        f"results/{name}/plots/resource_usage.pdf",
+        f"results/{name}/plots/crop_production.csv",
+        f"results/{name}/plots/food_production.csv",
+        # maps
+        f"results/{name}/plots/regions_map.pdf",
+        f"results/{name}/plots/crop_production_map.pdf",
 
 
 rule prepare_population:
@@ -66,6 +74,7 @@ rule build_regions:
         n_regions=config["aggregation"]["regions"]["target_count"],
         allow_cross_border=config["aggregation"]["regions"]["allow_cross_border"],
         cluster_method=config["aggregation"]["regions"]["method"],
+        countries=config["countries"],
     output:
         "processing/{name}/regions.geojson",
     script:
@@ -161,7 +170,13 @@ rule plot_results:
     input:
         network="results/{name}/solved/model.nc",
     output:
-        plots_dir=directory("results/{name}/plots"),
+        crop_pdf="results/{name}/plots/crop_production.pdf",
+        food_pdf="results/{name}/plots/food_production.pdf",
+        resource_pdf="results/{name}/plots/resource_usage.pdf",
+        crop_csv="results/{name}/plots/crop_production.csv",
+        food_csv="results/{name}/plots/food_production.csv",
+    params:
+        output_dir="results/{name}/plots",
     script:
         "scripts/plot_results.py"
 
@@ -170,6 +185,16 @@ rule plot_regions_map:
     input:
         regions=f"processing/{name}/regions.geojson",
     output:
-        pdf=f"results/{name}/plots/regions_equal_earth.pdf",
+        pdf=f"results/{name}/plots/regions_map.pdf",
     script:
         "scripts/plot_regions_map.py"
+
+
+rule plot_crop_production_map:
+    input:
+        network=f"results/{name}/solved/model.nc",
+        regions=f"processing/{name}/regions.geojson",
+    output:
+        pdf=f"results/{name}/plots/crop_production_map.pdf",
+    script:
+        "scripts/plot_crop_production_map.py"

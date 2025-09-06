@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 logger = logging.getLogger(__name__)
 
 
-def plot_regions_equal_earth(regions_path: str, output_path: str) -> None:
+def plot_regions_map(regions_path: str, output_path: str) -> None:
     logger.info("Loading regions from %s", regions_path)
     gdf = gpd.read_file(regions_path)
 
@@ -41,4 +41,4 @@ def plot_regions_equal_earth(regions_path: str, output_path: str) -> None:
 
 
 if __name__ == "__main__":
-    plot_regions_equal_earth(snakemake.input.regions, snakemake.output.pdf)
+    plot_regions_map(snakemake.input.regions, snakemake.output.pdf)
