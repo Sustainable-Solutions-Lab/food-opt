@@ -77,7 +77,7 @@ countries:
 # - AIA  # No regions (microstate)
 # - ALA  # No population
 - ALB
-- AND
+# - AND  # excluded: microstate
 - ARE
 - ARG
 - ARM
@@ -91,11 +91,11 @@ countries:
 - BDI
 - BEL
 - BEN
-- BES
+# - BES  # excluded: small overseas territory
 - BFA
 - BGD
 - BGR
-- BHR
+# - BHR  # excluded: desert city-state
 - BHS
 - BIH
 # - BLM  # No regions (microstate)
@@ -119,7 +119,7 @@ countries:
 - CMR
 - COD
 - COG
-- COK
+# - COK  # excluded: small island territory
 - COL
 - COM
 - CPV
@@ -127,19 +127,19 @@ countries:
 - CUB
 # - CUW  # No level-1 GADM data
 # - CXR  # No level-1 GADM data
-- CYM
+# - CYM  # excluded: small overseas territory
 - CYP
 - CZE
 - DEU
 - DJI
-- DMA
+# - DMA  # excluded: small island state
 - DNK
 - DOM
 - DZA
 - ECU
 - EGY
 - ERI
-- ESH
+# - ESH  # excluded: sparse desert territory
 - ESP
 - EST
 - ETH
@@ -147,8 +147,8 @@ countries:
 - FJI
 # - FLK  # No level-1 GADM data
 - FRA
-- FRO
-- FSM
+# - FRO  # excluded: small island territory
+# - FSM  # excluded: small island state
 - GAB
 - GBR
 - GEO
@@ -156,16 +156,16 @@ countries:
 - GHA
 # - GIB  # No level-1 GADM data
 - GIN
-- GLP
+# - GLP  # excluded: overseas department
 - GMB
 - GNB
 - GNQ
 - GRC
 - GRD
-- GRL
+# - GRL  # excluded: ice-dominated
 - GTM
 - GUF
-- GUM
+# - GUM  # excluded: small island territory
 - GUY
 # - HKG  # No level-1 GADM data
 # - HMD  # No level-1 GADM data
@@ -174,7 +174,7 @@ countries:
 - HTI
 - HUN
 - IDN
-- IMN
+# - IMN  # excluded: small island territory
 - IND
 # - IOT  # No level-1 GADM data
 - IRL
@@ -192,15 +192,15 @@ countries:
 - KGZ
 - KHM
 # - KIR  # No level-1 GADM data
-- KNA
+# - KNA  # excluded: small island state
 - KOR
-- KWT
+# - KWT  # excluded: desert city-state
 - LAO
 - LBN
 - LBR
 - LBY
-- LCA
-- LIE
+# - LCA  # excluded: small island state
+# - LIE  # excluded: microstate
 - LKA
 - LSO
 - LTU
@@ -221,17 +221,17 @@ countries:
 - MMR
 - MNE
 - MNG
-- MNP
+# - MNP  # excluded: small island territory
 - MOZ
 - MRT
-- MSR
-- MTQ
+# - MSR  # excluded: small island territory
+# - MTQ  # excluded: overseas department
 - MUS
 - MWI
 - MYS
-- MYT
+# - MYT  # excluded: overseas department
 - NAM
-- NCL
+# - NCL  # excluded: overseas territory
 - NER
 # - NFK  # No level-1 GADM data
 - NGA
@@ -248,7 +248,7 @@ countries:
 # - PCN  # No level-1 GADM data
 - PER
 - PHL
-- PLW
+# - PLW  # excluded: small island state
 - PNG
 - POL
 - PRI
@@ -256,25 +256,25 @@ countries:
 - PRT
 - PRY
 - PSE
-- PYF
-- QAT
-- REU
+# - PYF  # excluded: overseas territory
+# - QAT  # excluded: desert city-state
+# - REU  # excluded: overseas department
 - ROU
 - RUS
 - RWA
 - SAU
 - SDN
 - SEN
-- SGP
+# - SGP  # excluded: desert city-state (urban)
 # - SGS  # No level-1 GADM data
-- SHN
+# - SHN  # excluded: small island territory
 # - SJM  # No population
 - SLB
 - SLE
 - SLV
 # - SMR  # No regions (microstate)
 - SOM
-- SPM
+# - SPM  # excluded: small island territory
 - SRB
 - SSD
 - STP
@@ -284,9 +284,9 @@ countries:
 - SWE
 - SWZ
 # - SXM  # No level-1 GADM data
-- SYC
+# - SYC  # excluded: small island state
 - SYR
-- TCA
+# - TCA  # excluded: small island territory
 - TCD
 - TGO
 - THA
@@ -294,7 +294,7 @@ countries:
 # - TKL  # No regions (microstate)
 - TKM
 - TLS
-- TON
+# - TON  # excluded: small island state
 - TTO
 - TUN
 - TUR
@@ -308,14 +308,14 @@ countries:
 - USA
 - UZB
 # - VAT  # No level-1 GADM data
-- VCT
+# - VCT  # excluded: small island state
 - VEN
-- VGB
-- VIR
+# - VGB  # excluded: small island territory
+# - VIR  # excluded: small island territory
 - VNM
 - VUT
-- WLF
-- WSM
+# - WLF  # excluded: overseas territory
+# - WSM  # excluded: small island state
 - YEM
 - ZAF
 - ZMB

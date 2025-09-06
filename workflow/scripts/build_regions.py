@@ -226,6 +226,11 @@ if __name__ == "__main__":
 
     gdf = gdf.set_index("region", drop=True)
 
+    # Narrowing by configured countries
+    if "GID_0" not in gdf.columns:
+        raise ValueError("Expected GID_0 column with ISO3 country codes in GADM data")
+    gdf = gdf[gdf["GID_0"].isin(list(snakemake.params.countries))]
+
     gdf = cluster_regions(
         gdf,
         snakemake.params.n_regions,
