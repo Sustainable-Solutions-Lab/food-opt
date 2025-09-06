@@ -4,6 +4,8 @@
 
 import pandas as pd
 import geopandas as gpd
+import numpy as np
+from sklearn.cluster import KMeans
 import pypsa
 import logging
 
@@ -348,6 +350,132 @@ def add_food_nutrition_links(
         n.add("Link", names, p_nom_extendable=[True] * len(countries), **params)
 
 
+def add_crop_trade_hubs_and_links(
+    n: pypsa.Network,
+    config: dict,
+    regions_gdf: gpd.GeoDataFrame,
+    countries: list,
+    crop_list: list,
+) -> None:
+    """Add crop trading hubs and connect crop buses via hubs.
+
+    - Cluster all model regions' centroids (in Equal Earth projection) into K hubs.
+    - Add a per-crop bus at each hub centroid (to match crop carriers).
+    - Connect each country's crop bus to its nearest hub (bidirectional, extendable links).
+      Nearest hub is computed from the centroid of the dissolved country's regions.
+    - Fully connect the hub graph (bidirectional, extendable links).
+
+    Marginal cost is distance-dependent and controlled by config key
+    config["trade"]["crop_trade_marginal_cost_per_km"] with default 1e-4 per km.
+    Number of hubs from config["trade"]["crop_hubs"] with default 20.
+    """
+    trade_cfg = config.get("trade", {})
+    n_hubs = int(trade_cfg.get("crop_hubs", 20))
+    cost_per_km = float(trade_cfg.get("crop_trade_marginal_cost_per_km", 1e-4))
+
+    if len(regions_gdf) == 0 or len(crop_list) == 0 or len(countries) == 0:
+        logger.info("Skipping trade hubs: no regions/crops/countries available")
+        return
+
+    # Ensure CRS and project to an equal-area/earth projection for distance in meters
+    gdf = regions_gdf.copy()
+    gdf_ee = gdf.to_crs(6933)
+
+    # Region centroids (in meters) for clustering
+    cent = gdf_ee.geometry.centroid
+    X = np.column_stack([cent.x.values, cent.y.values])
+    k = min(max(1, n_hubs), len(X))
+    if k < n_hubs:
+        logger.info("Reducing hub count from %d to %d (regions=%d)", n_hubs, k, len(X))
+        n_hubs = k
+
+    # K-means clustering to get hub centers
+    km = KMeans(n_clusters=n_hubs, n_init=10, random_state=0)
+    km.fit_predict(X)
+    centers = km.cluster_centers_  # shape (n_hubs, 2)
+
+    # Add per-crop hub buses at these centers
+    hub_ids = list(range(n_hubs))
+    for crop in crop_list:
+        hub_bus_names = [f"hub_{h}_{crop}" for h in hub_ids]
+        hub_carriers = [f"crop_{crop}"] * n_hubs
+        n.add("Bus", hub_bus_names, carrier=hub_carriers)
+
+    # Compute per-country centroid from dissolved regions (projected)
+    gdf_countries = gdf_ee[gdf_ee["country"].isin(countries)].dissolve(
+        by="country", as_index=True
+    )
+    ccent = gdf_countries.geometry.centroid
+    C = np.column_stack([ccent.x.values, ccent.y.values])  # meters
+    # Map country -> nearest hub index
+    # Compute distances to all hubs (vectorized)
+    dch = ((C[:, None, :] - centers[None, :, :]) ** 2).sum(axis=2) ** 0.5  # meters
+    nearest_hub_idx = dch.argmin(axis=1)
+    nearest_hub_dist_km = dch[np.arange(len(C)), nearest_hub_idx] / 1000.0
+
+    country_index = gdf_countries.index.to_list()
+    country_to_hub = {c: int(h) for c, h in zip(country_index, nearest_hub_idx)}
+    country_to_dist_km = {
+        c: float(d) for c, d in zip(country_index, nearest_hub_dist_km)
+    }
+
+    # Connect each country's crop bus to its nearest hub with a single
+    # bidirectional link (p_nom_min = -inf)
+    valid_countries = [c for c in countries if c in country_to_hub]
+    for crop in crop_list:
+        if not valid_countries:
+            continue
+        names_from_c = [
+            f"trade_{crop}_{c}_hub{country_to_hub[c]}" for c in valid_countries
+        ]
+        names_from_hub = [
+            f"trade_{crop}_hub{country_to_hub[c]}_{c}" for c in valid_countries
+        ]
+        bus0 = [f"crop_{crop}_{c}" for c in valid_countries]
+        bus1 = [f"hub_{country_to_hub[c]}_{crop}" for c in valid_countries]
+        costs = [country_to_dist_km[c] * cost_per_km for c in valid_countries]
+        n.add(
+            "Link",
+            names_from_c,
+            bus0=bus0,
+            bus1=bus1,
+            marginal_cost=costs,
+            p_nom_extendable=True,
+        )
+        n.add(
+            "Link",
+            names_from_hub,
+            bus0=bus1,
+            bus1=bus0,
+            marginal_cost=costs,
+            p_nom_extendable=True,
+        )
+
+    # Fully connect hubs (complete graph), per crop, add two directed links per pair
+    if n_hubs >= 2:
+        H = centers
+        # Pairwise distances (km) for all ordered hub pairs (i != j)
+        D = np.sqrt(((H[:, None, :] - H[None, :, :]) ** 2).sum(axis=2)) / 1000.0
+        ii, jj = np.where(~np.eye(n_hubs, dtype=bool))
+        dists_km = D[ii, jj].tolist()
+
+        for crop in crop_list:
+            if len(ii) == 0:
+                continue
+            names = [f"trade_{crop}_hub{i}_to_hub{j}" for i, j in zip(ii, jj)]
+            bus0 = [f"hub_{i}_{crop}" for i in ii]
+            bus1 = [f"hub_{j}_{crop}" for j in jj]
+            costs = [d * cost_per_km for d in dists_km]
+            n.add(
+                "Link",
+                names,
+                bus0=bus0,
+                bus1=bus1,
+                marginal_cost=costs,
+                p_nom_extendable=True,
+            )
+
+
 def build_network(
     config: dict,
     crops: pd.DataFrame,
@@ -356,6 +484,7 @@ def build_network(
     nutrition: pd.DataFrame,
     yields_data: dict,
     regions: list,
+    regions_gdf: gpd.GeoDataFrame,
     region_to_country: pd.Series,
     countries: list,
     region_crop_areas: pd.Series,
@@ -389,6 +518,9 @@ def build_network(
     )
     add_macronutrient_loads(n, config, countries, population)
     add_food_nutrition_links(n, food_list, foods, food_groups, nutrition, countries)
+
+    # Add crop trading hubs and links (hierarchical trade network)
+    add_crop_trade_hubs_and_links(n, config, regions_gdf, countries, list(crop_list))
 
     return n
 
@@ -437,6 +569,14 @@ if __name__ == "__main__":
     population = pop_map.astype(float)
 
     region_to_country = regions_df.set_index("region")["country"]
+    # Warn if any configured countries are missing from regions
+    present_countries = set(region_to_country.unique())
+    missing_in_regions = [c for c in cfg_countries if c not in present_countries]
+    if missing_in_regions:
+        logger.warning(
+            "Configured countries missing from regions and may be disconnected: %s",
+            ", ".join(sorted(missing_in_regions)),
+        )
     # Keep only regions whose country is in configured countries
     region_to_country = region_to_country[region_to_country.isin(cfg_countries)]
 
@@ -454,6 +594,7 @@ if __name__ == "__main__":
         nutrition,
         yields_data,
         regions,
+        regions_df,
         region_to_country,
         cfg_countries,
         region_crop_areas,

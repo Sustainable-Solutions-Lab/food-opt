@@ -145,14 +145,6 @@ def solve_network(n: pypsa.Network) -> pypsa.Network:
     if hasattr(n, "objective"):
         logger.info("Objective value: %s", n.objective)
 
-    # Print some key results
-    if len(n.links_t.p0) > 0:
-        logger.info("Link flows:")
-        active_links = n.links_t.p0.loc["now"].abs() > 1e-6
-        for link in active_links[active_links].index:
-            flow = n.links_t.p0.loc["now", link]
-            logger.info("  %s: %.3f", link, flow)
-
     return n
 
 

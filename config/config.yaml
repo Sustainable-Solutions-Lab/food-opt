@@ -54,6 +54,10 @@ food_groups:
   oil:
     min_per_person_per_day: 25   # g/person/day (essential fats)
 
+trade:
+  crop_hubs: 20
+  crop_trade_marginal_cost_per_km: 1e-4
+
 aggregation:
   regions:
     type: "cluster"
@@ -68,7 +72,7 @@ countries:
 # - ABW  # No level-1 GADM data
 - AFG
 - AGO
-- AIA
+# - AIA  # No regions (microstate)
 # - ALA  # No population
 - ALB
 - AND
@@ -92,10 +96,10 @@ countries:
 - BHR
 - BHS
 - BIH
-- BLM
+# - BLM  # No regions (microstate)
 - BLR
 - BLZ
-- BMU
+# - BMU  # No regions (microstate)
 - BOL
 - BRA
 - BRB
@@ -146,7 +150,7 @@ countries:
 - GAB
 - GBR
 - GEO
-- GGY
+# - GGY  # Too small
 - GHA
 # - GIB  # No level-1 GADM data
 - GIN
@@ -178,7 +182,7 @@ countries:
 - ISR
 - ITA
 - JAM
-- JEY
+# - JEY  # No regions (microstate)
 - JOR
 - JPN
 - KAZ
@@ -208,7 +212,7 @@ countries:
 - MDG
 # - MDV  # No level-1 GADM data
 - MEX
-- MHL
+# - MHL  # No regions (microstate)
 - MKD
 - MLI
 - MLT
@@ -234,7 +238,7 @@ countries:
 - NLD
 - NOR
 - NPL
-- NRU
+# - NRU  # No regions (microstate)
 - NZL
 - OMN
 - PAK
@@ -266,7 +270,7 @@ countries:
 - SLB
 - SLE
 - SLV
-- SMR
+# - SMR  # No regions (microstate)
 - SOM
 - SPM
 - SRB
@@ -285,14 +289,14 @@ countries:
 - TGO
 - THA
 - TJK
-- TKL
+# - TKL  # No regions (microstate)
 - TKM
 - TLS
 - TON
 - TTO
 - TUN
 - TUR
-- TUV
+# - TUV  # No regions (microstate)
 - TWN
 - TZA
 - UGA
