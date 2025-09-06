@@ -474,9 +474,6 @@ def add_crop_trade_hubs_and_links(
             )
 
 
-## build_network removed (inlined below)
-
-
 if __name__ == "__main__":
     # Read crop data
     crops = pd.read_csv(snakemake.input.crops, index_col=["crop", "param"])

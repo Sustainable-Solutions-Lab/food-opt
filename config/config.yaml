@@ -19,20 +19,30 @@ emissions:
   ghg_price: 200 # USD/tCO2
 
 crops:
-- wheat
-- dryland rice
-- wetland rice
-- maize
-- soybean
-- white potato
-- tomato
-- barley
-- oat
-- sunflower
-- carrot
-- onion
-- cabbage
-- banana
+ - wheat
+ - dryland rice
+ - wetland rice
+ - maize
+ - soybean
+ - white potato
+ - tomato
+ - barley
+ - oat
+ - sunflower
+ - carrot
+ - onion
+ - cabbage
+ - banana
+ - cassava
+ - sweet potato
+ - yam
+ - sugarcane
+ - sugarbeet
+ - rapeseed
+ - groundnut
+ - rye
+ - dry pea
+ - chickpea
 
 macronutrients:
   carb:
@@ -58,7 +68,7 @@ food_groups:
 
 trade:
   crop_hubs: 20
-  crop_trade_marginal_cost_per_km: 1e-4
+  crop_trade_marginal_cost_per_km: 1e-2
 
 aggregation:
   regions:
