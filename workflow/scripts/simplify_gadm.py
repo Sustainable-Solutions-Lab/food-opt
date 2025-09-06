@@ -42,10 +42,10 @@ if __name__ == "__main__":
 
     # Simplify geometries
     gdf = gdf.to_crs("EPSG:6933")
-    min_area = snakemake.config["aggregation"]["simplify_min_area_km"] * 1e6
+    min_area = snakemake.params.simplify_min_area_km * 1e6
     gdf = _remove_small_islands(gdf, min_area)
     gdf.geometry = gdf.geometry.simplify_coverage(
-        tolerance=snakemake.config["aggregation"]["simplify_tolerance_km"] * 1e3
+        tolerance=snakemake.params.simplify_tolerance_km * 1e3
     )
     gdf = gdf.to_crs("EPSG:4326")
 

@@ -305,7 +305,7 @@ if __name__ == "__main__":
         snakemake.input.yields,
         snakemake.input.suitability,
         snakemake.input.regions,
-        snakemake.config["aggregation"]["resource_class_quantiles"],
+        snakemake.params.resource_class_quantiles,
     )
 
     # Save the aggregated yields to CSV

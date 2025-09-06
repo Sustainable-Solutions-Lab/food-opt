@@ -15,6 +15,9 @@ primary:
   fertilizer:
     limit: 1e9 # kg
 
+emissions:
+  ghg_price: 200 # USD/tCO2
+
 crops:
 - wheat
 - dryland rice
@@ -382,9 +385,11 @@ data:
       yam: yam
 
 solving:
-  # solver: highs
-  solver: gurobi
-  solver_options:
+  solver: highs
+  # solver: gurobi
+  options_gurobi:
     LogToConsole: 0
     OutputFlag: 1
     Method: 2
+  options_highs:
+    solver: "ipm"

@@ -39,6 +39,8 @@ rule all:
 rule prepare_population:
     input:
         population_gz="data/downloads/WPP_population.csv.gz",
+    params:
+        planning_horizon=config["planning_horizon"],
     output:
         f"processing/{name}/population.csv",
     script:
@@ -48,6 +50,9 @@ rule prepare_population:
 rule simplify_gadm:
     input:
         "data/downloads/gadm.gpkg",
+    params:
+        simplify_min_area_km=config["aggregation"]["simplify_min_area_km"],
+        simplify_tolerance_km=config["aggregation"]["simplify_tolerance_km"],
     output:
         "processing/shared/gadm-simplified.gpkg",
     script:
@@ -72,6 +77,8 @@ rule build_crop_yields:
         yields="data/downloads/gaez_yield_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
         suitability="data/downloads/gaez_suitability_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
         regions=f"processing/{name}/regions.geojson",
+    params:
+        resource_class_quantiles=config["aggregation"]["resource_class_quantiles"],
     output:
         os.path.join(
             "processing",
@@ -94,6 +101,8 @@ rule build_region_crop_areas:
     input:
         unpack(suitability_inputs),
         regions=f"processing/{name}/regions.geojson",
+    params:
+        crops=config["crops"],
     output:
         "processing/{name}/region_crop_areas.csv",
     script:
@@ -119,6 +128,13 @@ rule build_model:
         regions="processing/{name}/regions.geojson",
         region_crop_areas="processing/{name}/region_crop_areas.csv",
         population="processing/{name}/population.csv",
+    params:
+        crops=config["crops"],
+        countries=config["countries"],
+        primary=config["primary"],
+        food_groups=config["food_groups"],
+        macronutrients=config["macronutrients"],
+        trade=config["trade"],
     output:
         network="results/{name}/build/model.nc",
     script:
@@ -128,6 +144,13 @@ rule build_model:
 rule solve_model:
     input:
         network="results/{name}/build/model.nc",
+    params:
+        primary=config["primary"],
+        ghg_price=config["emissions"]["ghg_price"],
+        solver=config["solving"]["solver"],
+        solver_options=config["solving"].get(
+            f"options_{config['solving']['solver']}", {}
+        ),
     output:
         network="results/{name}/solved/model.nc",
     script:

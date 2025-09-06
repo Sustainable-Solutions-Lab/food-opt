@@ -8,11 +8,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def add_ghg_constraint(n: pypsa.Network, config: dict) -> None:
+def add_ghg_constraint(n: pypsa.Network, primary: dict) -> None:
     """Add greenhouse gas constraint (combining CO2 and CH4 using GWP)."""
-    if "ghg" in config.get("primary", {}):
+    if "ghg" in primary:
         logger.info("Adding greenhouse gas constraint...")
-        ghg_limit = float(config["primary"]["ghg"]["limit"])  # kg CO2-eq
+        ghg_limit = float(primary["ghg"]["limit"])  # kg CO2-eq
 
         # Get the linopy model
         m = n.model
@@ -45,7 +45,7 @@ def add_ghg_constraint(n: pypsa.Network, config: dict) -> None:
             logger.info("Total GHG limit: %.1f Gt CO2-eq", ghg_limit / 1e9)
 
 
-def add_ghg_objective(n: pypsa.Network, config: dict) -> None:
+def add_ghg_objective(n: pypsa.Network, ghg_price: float) -> None:
     """Add GHG emissions to the objective function."""
     logger.info("Adding GHG emissions to objective function...")
 
@@ -78,74 +78,48 @@ def add_ghg_objective(n: pypsa.Network, config: dict) -> None:
 
     # Add GHG emissions to objective if we have any
     if ghg_expression is not None:
-        # Get GHG weight from config (default to 1.0 if not specified)
-        ghg_weight = config.get("ghg_weight", 1.0)
-
         # Add to objective (minimizing GHG emissions)
-        m.objective = m.objective + ghg_weight * ghg_expression
-        logger.info("GHG weight in objective: %s", ghg_weight)
+        m.objective = m.objective + ghg_price * ghg_expression
+        logger.info("GHG weight in objective: %s", ghg_price)
 
 
-def solve_network(n: pypsa.Network) -> pypsa.Network:
-    """Solve the food systems optimization problem."""
-    logger.info("Solving network...")
-    logger.info("Network has %d links and %d stores", len(n.links), len(n.stores))
+if __name__ == "__main__":
+    n = pypsa.Network(snakemake.input.network)
 
     # Create the linopy model
     n.optimize.create_model()
 
     # Add GHG constraint if specified
-    add_ghg_constraint(n, snakemake.config)
+    add_ghg_constraint(n, snakemake.params.primary)
 
     # Add GHG emissions to objective function
-    add_ghg_objective(n, snakemake.config)
-
-    # Configure solver options from config
-    solver_name = snakemake.config.get("solving", {}).get("solver", "highs")
-    solver_options = snakemake.config.get("solving", {}).get("solver_options", {})
+    add_ghg_objective(n, float(snakemake.params.ghg_price))
 
     # Solve the model with configured solver
-    logger.info("Using solver: %s", solver_name)
     result = n.optimize.solve_model(
-        solver_name=solver_name, solver_options=solver_options
+        solver_name=snakemake.params.solver,
+        solver_options=snakemake.params.solver_options,
     )
 
     # Check for infeasibility and diagnose if needed
-    if result == ("warning", "infeasible") or result == (
+    if result == ("ok", "optimal"):
+        # Optimization successful
+        n.export_to_netcdf(snakemake.output.network)
+    elif result == ("warning", "infeasible") or result == (
         "warning",
         "infeasible_or_unbounded",
     ):
-        logger.error(
-            "Model is infeasible or unbounded! Computing infeasibility diagnosis..."
-        )
+        logger.error("Model is infeasible or unbounded!")
         try:
             # Try to compute and print infeasibilities (Gurobi only)
             if solver_name.lower() == "gurobi":
                 logger.error("Infeasible constraints:")
                 n.model.print_infeasibilities()
-                infeasible_constraints = n.model.compute_infeasibilities()
-                logger.error(
-                    "Number of infeasible constraints: %d", len(infeasible_constraints)
-                )
             else:
                 logger.error(
                     "Infeasibility diagnosis only available with Gurobi solver"
                 )
-                logger.error(
-                    "Consider switching to Gurobi in config for detailed infeasibility analysis"
-                )
         except Exception as e:
             logger.error("Could not compute infeasibilities: %s", e)
-
-        return None
     else:
-        logger.info("Solver result: %s", result)
-
-    return n
-
-
-if __name__ == "__main__":
-    n = pypsa.Network(snakemake.input.network)
-    n = solve_network(n)
-    if n:
-        n.export_to_netcdf(snakemake.output.network)
+        logger.error("Optimization unsuccessful: %s", result)

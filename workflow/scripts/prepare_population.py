@@ -7,7 +7,7 @@ Download and process UN WPP 2024 population totals by sex (CSV.gz).
 
 Uses the official TotalPopulationBySex dataset with ISO3_code included, filters to
 Variant == Medium and Sex == Both sexes, selects the planning horizon year from
-Snakemake config, and outputs iso3, country, year, population (persons).
+Snakemake params, and outputs iso3, country, year, population (persons).
 """
 
 import pandas as pd
@@ -21,7 +21,7 @@ if __name__ == "__main__":
         df = df[df["Variant"].astype(str).str.lower() == "medium"]
 
     # Filter to planning horizon year (PopTotal is total across sexes)
-    year = int(snakemake.config["planning_horizon"])
+    year = int(snakemake.params.planning_horizon)
     df = df[df["Time"] == year]
 
     # Keep rows with ISO3_code only (drop aggregates like regions without ISO3_code)

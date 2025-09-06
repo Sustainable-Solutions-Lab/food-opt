@@ -88,7 +88,7 @@ def add_carriers_and_buses(
 
 
 def add_primary_resources(
-    n: pypsa.Network, config: dict, region_crop_areas: pd.Series
+    n: pypsa.Network, primary_config: dict, region_crop_areas: pd.Series
 ) -> None:
     """Add stores for primary resources with their limits."""
     # Add stores for global resources
@@ -103,9 +103,7 @@ def add_primary_resources(
         bus=land_carrier,
         carrier="land",
         p_nom_extendable=True,
-        p_nom_max=(
-            config["primary"]["land"]["regional_limit"] * region_crop_areas.values
-        ),
+        p_nom_max=(primary_config["land"]["regional_limit"] * region_crop_areas.values),
     )
 
     # Add stores for emissions with costs to create objective
@@ -114,10 +112,7 @@ def add_primary_resources(
 
     # Set resource limits from config
     for resource in ["water", "fertilizer"]:
-        if resource in config["primary"]:
-            n.stores.at[resource, "e_nom_max"] = float(
-                config["primary"][resource]["limit"]
-            )
+        n.stores.at[resource, "e_nom_max"] = float(primary_config[resource]["limit"])
 
 
 def add_regional_crop_production_links(
@@ -173,7 +168,8 @@ def add_regional_crop_production_links(
         # Add links
         link_params = {
             "name": df.index,
-            "carrier": "crop_production",
+            # Use the crop's own carrier so no extra carrier is needed
+            "carrier": f"crop_{crop}",
             "bus0": df["region"].apply(lambda x: f"land_{x}"),
             "bus1": df["country"].apply(lambda c: f"crop_{crop}_{c}"),
             "efficiency": df["yield"],
@@ -230,17 +226,17 @@ def add_food_group_buses_and_loads(
     n: pypsa.Network,
     food_group_list: list,
     food_groups: pd.DataFrame,
-    config: dict,
+    food_groups_config: dict,
     countries: list,
     population: pd.Series,
 ) -> None:
     """Add carriers, buses, and loads for food groups defined in the CSV."""
     # Add loads for food groups with requirements
-    if "food_groups" in config:
+    if food_groups_config:
         logger.info("Adding food group loads based on nutrition requirements...")
         for group in food_group_list:
-            if group in config["food_groups"]:
-                group_config = config["food_groups"][group]
+            if group in food_groups_config:
+                group_config = food_groups_config[group]
                 if "min_per_person_per_day" in group_config:
                     days_per_year = 365
                     min_per_person_per_day = float(
@@ -269,14 +265,17 @@ def add_food_group_buses_and_loads(
 
 
 def add_macronutrient_loads(
-    n: pypsa.Network, config: dict, countries: list, population: pd.Series
+    n: pypsa.Network,
+    macronutrients_config: dict,
+    countries: list,
+    population: pd.Series,
 ) -> None:
     """Add per-country loads for macronutrients based on minimum requirements."""
-    if "macronutrients" in config:
+    if macronutrients_config:
         logger.info("Adding macronutrient loads per country based on requirements...")
         for nutrient in ["carb", "protein", "fat"]:
-            if nutrient in config["macronutrients"]:
-                nutrient_config = config["macronutrients"][nutrient]
+            if nutrient in macronutrients_config:
+                nutrient_config = macronutrients_config[nutrient]
                 if "min_per_person_per_day" in nutrient_config:
                     days_per_year = 365
                     min_per_person_per_day = float(
@@ -352,7 +351,7 @@ def add_food_nutrition_links(
 
 def add_crop_trade_hubs_and_links(
     n: pypsa.Network,
-    config: dict,
+    trade_config: dict,
     regions_gdf: gpd.GeoDataFrame,
     countries: list,
     crop_list: list,
@@ -365,13 +364,12 @@ def add_crop_trade_hubs_and_links(
       Nearest hub is computed from the centroid of the dissolved country's regions.
     - Fully connect the hub graph (bidirectional, extendable links).
 
-    Marginal cost is distance-dependent and controlled by config key
-    config["trade"]["crop_trade_marginal_cost_per_km"] with default 1e-4 per km.
-    Number of hubs from config["trade"]["crop_hubs"] with default 20.
+    Marginal cost is distance-dependent and controlled by
+    config["trade"]["crop_trade_marginal_cost_per_km"].
+    Number of hubs from config["trade"]["crop_hubs"].
     """
-    trade_cfg = config.get("trade", {})
-    n_hubs = int(trade_cfg.get("crop_hubs", 20))
-    cost_per_km = float(trade_cfg.get("crop_trade_marginal_cost_per_km", 1e-4))
+    n_hubs = int(trade_config["crop_hubs"])
+    cost_per_km = float(trade_config["crop_trade_marginal_cost_per_km"])
 
     if len(regions_gdf) == 0 or len(crop_list) == 0 or len(countries) == 0:
         logger.info("Skipping trade hubs: no regions/crops/countries available")
@@ -476,53 +474,7 @@ def add_crop_trade_hubs_and_links(
             )
 
 
-def build_network(
-    config: dict,
-    crops: pd.DataFrame,
-    foods: pd.DataFrame,
-    food_groups: pd.DataFrame,
-    nutrition: pd.DataFrame,
-    yields_data: dict,
-    regions: list,
-    regions_gdf: gpd.GeoDataFrame,
-    region_to_country: pd.Series,
-    countries: list,
-    region_crop_areas: pd.Series,
-    population: pd.Series,
-) -> pypsa.Network:
-    """Build the complete food systems optimization network."""
-    n = pypsa.Network()
-    n.set_snapshots(["now"])
-
-    # Read in crops from config, and propagate find which foods and food groups we have
-    crop_list = config["crops"]
-    food_list = foods.loc[foods["crop"].isin(crop_list), "food"].unique()
-    food_group_list = food_groups.loc[
-        food_groups["food"].isin(food_list), "group"
-    ].unique()
-
-    # Build network step by step
-    add_carriers_and_buses(n, crop_list, food_list, food_group_list, regions, countries)
-    add_primary_resources(n, config, region_crop_areas)
-    add_regional_crop_production_links(
-        n,
-        crop_list,
-        crops,
-        yields_data,
-        region_to_country,
-        set(countries),
-    )
-    add_food_conversion_links(n, food_list, foods, countries)
-    add_food_group_buses_and_loads(
-        n, food_group_list, food_groups, config, countries, population
-    )
-    add_macronutrient_loads(n, config, countries, population)
-    add_food_nutrition_links(n, food_list, foods, food_groups, nutrition, countries)
-
-    # Add crop trading hubs and links (hierarchical trade network)
-    add_crop_trade_hubs_and_links(n, config, regions_gdf, countries, list(crop_list))
-
-    return n
+## build_network removed (inlined below)
 
 
 if __name__ == "__main__":
@@ -538,9 +490,9 @@ if __name__ == "__main__":
     # Read nutrition data
     nutrition = pd.read_csv(snakemake.input.nutrition, index_col=["food", "nutrient"])
 
-    # Read yields data for each crop
+    # Read yields data for each configured crop
     yields_data = {}
-    for crop in snakemake.config["crops"]:
+    for crop in snakemake.params.crops:
         yields_key = f"{crop}_yield"
         yields_df = pd.read_csv(
             snakemake.input[yields_key], index_col=["region", "resource_class"]
@@ -560,7 +512,7 @@ if __name__ == "__main__":
     population_df = pd.read_csv(snakemake.input.population)
     # Expect columns: iso3, country, year, population
     # Select only configured countries and validate coverage
-    cfg_countries = list(snakemake.config.get("countries", []))
+    cfg_countries = list(snakemake.params.countries)
     pop_map = population_df.set_index("iso3")["population"].reindex(cfg_countries)
     missing = pop_map[pop_map.isna()].index.tolist()
     if missing:
@@ -585,20 +537,45 @@ if __name__ == "__main__":
     logger.debug("Food groups data:\n%s", food_groups.head())
     logger.debug("Nutrition data:\n%s", nutrition.head())
 
-    # Build the network
-    n = build_network(
-        snakemake.config,
+    # Build the network (inlined)
+    n = pypsa.Network()
+    n.set_snapshots(["now"])
+
+    crop_list = snakemake.params.crops
+    food_list = foods.loc[foods["crop"].isin(crop_list), "food"].unique()
+    food_group_list = food_groups.loc[
+        food_groups["food"].isin(food_list), "group"
+    ].unique()
+
+    add_carriers_and_buses(
+        n, crop_list, food_list, food_group_list, regions, cfg_countries
+    )
+    add_primary_resources(n, snakemake.params.primary, region_crop_areas)
+    add_regional_crop_production_links(
+        n,
+        crop_list,
         crops,
-        foods,
-        food_groups,
-        nutrition,
         yields_data,
-        regions,
-        regions_df,
         region_to_country,
+        set(cfg_countries),
+    )
+    add_food_conversion_links(n, food_list, foods, cfg_countries)
+    add_food_group_buses_and_loads(
+        n,
+        food_group_list,
+        food_groups,
+        snakemake.params.food_groups,
         cfg_countries,
-        region_crop_areas,
         population,
+    )
+    add_macronutrient_loads(
+        n, snakemake.params.macronutrients, cfg_countries, population
+    )
+    add_food_nutrition_links(n, food_list, foods, food_groups, nutrition, cfg_countries)
+
+    # Add crop trading hubs and links (hierarchical trade network)
+    add_crop_trade_hubs_and_links(
+        n, snakemake.params.trade, regions_df, cfg_countries, list(crop_list)
     )
 
     logger.info("Network summary:")

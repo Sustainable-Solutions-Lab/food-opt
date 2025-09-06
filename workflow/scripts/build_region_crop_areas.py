@@ -112,7 +112,7 @@ def calculate_region_areas(crop_files, regions_path):
 if __name__ == "__main__":
     # Get input files from snakemake
     crop_files = {
-        crop: getattr(snakemake.input, crop) for crop in snakemake.config["crops"]
+        crop: getattr(snakemake.input, crop) for crop in snakemake.params.crops
     }
 
     region_areas = calculate_region_areas(crop_files, snakemake.input.regions)
