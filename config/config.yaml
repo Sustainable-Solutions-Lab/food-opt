@@ -4,6 +4,8 @@
 
 name: "toy"
 
+planning_horizon: 2030
+
 primary:
   land:
     limit: 1e9 # ha
@@ -67,7 +69,7 @@ countries:
 - AFG
 - AGO
 - AIA
-- ALA
+# - ALA  # No population
 - ALB
 - AND
 - ARE
@@ -75,7 +77,7 @@ countries:
 - ARM
 - ASM
 # - ATA  # No level-1 GADM data
-- ATF
+# - ATF  # No population
 - ATG
 - AUS
 - AUT
@@ -260,7 +262,7 @@ countries:
 - SGP
 # - SGS  # No level-1 GADM data
 - SHN
-- SJM
+# - SJM  # No population
 - SLB
 - SLE
 - SLV
@@ -295,7 +297,7 @@ countries:
 - TZA
 - UGA
 - UKR
-- UMI
+# - UMI  # No population
 - URY
 - USA
 - UZB

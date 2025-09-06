@@ -16,44 +16,71 @@ def add_carriers_and_buses(
     food_list: list,
     food_group_list: list,
     regions: list,
-    yields_data: dict,
+    countries: list,
 ) -> None:
-    """Add all carriers and their corresponding buses to the network."""
+    """Add all carriers and their corresponding buses to the network.
+
+    - Regional land buses remain per-region.
+    - Crops, foods, food groups, and macronutrients are created per-country.
+    - Primary resources (water, fertilizer) and emissions (co2, ch4) stay global.
+    """
     # Regional land carriers and buses
     n.add("Carrier", "land", unit="ha")
     n.add("Bus", [f"land_{r}" for r in regions], carrier="land")
 
-    # Crops
-    for crop in crop_list:
-        crop_bus = f"crop_{crop}"
-        n.add("Carrier", crop_bus, unit="t")
-        n.add("Bus", crop_bus, carrier=crop_bus)
+    # Crops per country
+    crop_buses = [
+        f"crop_{crop}_{country}" for country in countries for crop in crop_list
+    ]
+    crop_carriers = [f"crop_{crop}" for country in countries for crop in crop_list]
+    if crop_buses:
+        n.add("Carrier", sorted(set(f"crop_{crop}" for crop in crop_list)), unit="t")
+        n.add("Bus", crop_buses, carrier=crop_carriers)
 
-    # Foods
-    for food in food_list:
-        food_bus = f"food_{food}"
-        n.add("Carrier", food_bus, unit="t")
-        n.add("Bus", food_bus, carrier=food_bus)
+    # Foods per country
+    food_buses = [
+        f"food_{food}_{country}" for country in countries for food in food_list
+    ]
+    food_carriers = [f"food_{food}" for country in countries for food in food_list]
+    if food_buses:
+        n.add("Carrier", sorted(set(f"food_{food}" for food in food_list)), unit="t")
+        n.add("Bus", food_buses, carrier=food_carriers)
 
-    # Food groups
-    for group in food_group_list:
-        group_bus = f"group_{group}"
-        n.add("Carrier", group_bus, unit="t")
-        n.add("Bus", group_bus, carrier=group_bus)
+    # Food groups per country
+    group_buses = [
+        f"group_{group}_{country}" for country in countries for group in food_group_list
+    ]
+    group_carriers = [
+        f"group_{group}" for country in countries for group in food_group_list
+    ]
+    if group_buses:
+        n.add(
+            "Carrier",
+            sorted(set(f"group_{group}" for group in food_group_list)),
+            unit="t",
+        )
+        n.add("Bus", group_buses, carrier=group_carriers)
 
-    # Primary resources and nutrients
-    primary_and_nutrients = [
+    # Macronutrients per country
+    nutrient_buses = [
+        f"{nut}_{country}"
+        for country in countries
+        for nut in ["carb", "protein", "fat"]
+    ]
+    nutrient_carriers = [
+        nut for country in countries for nut in ["carb", "protein", "fat"]
+    ]
+    if nutrient_buses:
+        n.add("Carrier", ["carb", "protein", "fat"], unit="t")
+        n.add("Bus", nutrient_buses, carrier=nutrient_carriers)
+
+    # Primary resources and emissions remain global
+    for carrier, unit in [
         ("water", "m^3"),
         ("fertilizer", "kg"),
         ("co2", "kg"),
         ("ch4", "kg"),
-        ("carb", "t"),
-        ("protein", "t"),
-        ("fat", "t"),
-    ]
-
-    # Add buses for non-regional carriers
-    for carrier, unit in primary_and_nutrients:
+    ]:
         n.add("Carrier", carrier, unit=unit)
         n.add("Bus", carrier, carrier=carrier)
 
@@ -67,14 +94,16 @@ def add_primary_resources(
         n.add("Store", carrier, bus=carrier, carrier=carrier)
         n.add("Generator", carrier, bus=carrier, carrier=carrier, p_nom_extendable=True)
 
-    land_carrier = "land_" + region_crop_areas.index
+    land_carrier = "land_" + region_crop_areas.index.astype(str)
     n.add(
         "Generator",
         land_carrier,
         bus=land_carrier,
         carrier="land",
         p_nom_extendable=True,
-        p_nom_max=region_crop_areas.values,
+        p_nom_max=(
+            config["primary"]["land"]["regional_limit"] * region_crop_areas.values
+        ),
     )
 
     # Add stores for emissions with costs to create objective
@@ -90,7 +119,12 @@ def add_primary_resources(
 
 
 def add_regional_crop_production_links(
-    n: pypsa.Network, crop_list: list, crops: pd.DataFrame, yields_data: dict
+    n: pypsa.Network,
+    crop_list: list,
+    crops: pd.DataFrame,
+    yields_data: dict,
+    region_to_country: pd.Series,
+    allowed_countries: set,
 ) -> None:
     """Add links for crop production per region and resource class."""
     for crop in crop_list:
@@ -99,7 +133,6 @@ def add_regional_crop_production_links(
             continue
 
         crop_data = crops.loc[crop]
-        crop_bus = f"crop_{crop}"
 
         # Get global production coefficients
         water_use = crop_data.loc["water", "value"]  # m^3/t
@@ -131,12 +164,16 @@ def add_regional_crop_production_links(
         # Filter out rows with zero suitable area
         df = df[(df["suitable_area"] > 0) & (df["yield"] > 0)]
 
+        # Map regions to countries and filter to allowed countries
+        df["country"] = df["region"].map(region_to_country)
+        df = df[df["country"].isin(allowed_countries)]
+
         # Add links
         link_params = {
             "name": df.index,
             "carrier": "crop_production",
             "bus0": df["region"].apply(lambda x: f"land_{x}"),
-            "bus1": crop_bus,
+            "bus1": df["country"].apply(lambda c: f"crop_{crop}_{c}"),
             "efficiency": df["yield"],
             "bus2": "water",
             "efficiency2": -water_use / df["yield"],
@@ -161,7 +198,7 @@ def add_regional_crop_production_links(
 
 
 def add_food_conversion_links(
-    n: pypsa.Network, food_list: list, foods: pd.DataFrame
+    n: pypsa.Network, food_list: list, foods: pd.DataFrame, countries: list
 ) -> None:
     """Add links for converting crops to foods."""
     for _, row in foods.iterrows():
@@ -169,21 +206,31 @@ def add_food_conversion_links(
             continue
         crop = row["crop"]
         food = row["food"]
-        factor = row["factor"]
-        link_name = f"convert_{crop}_to_{food.replace(' ', '_').replace('(', '').replace(')', '')}"
+        factor = float(row["factor"]) if pd.notna(row["factor"]) else 1.0
+        names = [
+            f"convert_{crop}_to_{food.replace(' ', '_').replace('(', '').replace(')', '')}_{c}"
+            for c in countries
+        ]
+        bus0 = [f"crop_{crop}_{c}" for c in countries]
+        bus1 = [f"food_{food}_{c}" for c in countries]
         n.add(
             "Link",
-            link_name,
-            bus0=f"crop_{crop}",  # Input: crop
-            bus1=f"food_{food}",  # Output: food
-            efficiency=factor,  # efficiency from crop to food
-            marginal_cost=0.01,
-            p_nom_extendable=True,
-        )  # Small cost to enable optimization
+            names,
+            bus0=bus0,
+            bus1=bus1,
+            efficiency=[factor] * len(countries),
+            marginal_cost=[0.01] * len(countries),
+            p_nom_extendable=[True] * len(countries),
+        )
 
 
 def add_food_group_buses_and_loads(
-    n: pypsa.Network, food_group_list: list, food_groups: pd.DataFrame, config: dict
+    n: pypsa.Network,
+    food_group_list: list,
+    food_groups: pd.DataFrame,
+    config: dict,
+    countries: list,
+    population: pd.Series,
 ) -> None:
     """Add carriers, buses, and loads for food groups defined in the CSV."""
     # Add loads for food groups with requirements
@@ -193,73 +240,64 @@ def add_food_group_buses_and_loads(
             if group in config["food_groups"]:
                 group_config = config["food_groups"][group]
                 if "min_per_person_per_day" in group_config:
-                    # Calculate total annual requirement
-                    population = config.get("population", 1000000)
                     days_per_year = 365
                     min_per_person_per_day = float(
                         group_config["min_per_person_per_day"]
                     )  # g/person/day
-                    total_annual_requirement = (
+                    names = [f"{group}_{c}" for c in countries]
+                    buses = [f"group_{group}_{c}" for c in countries]
+                    carriers = [f"group_{group}"] * len(countries)
+                    p_set = [
                         min_per_person_per_day
-                        * population
+                        * float(population[c])
                         * days_per_year
-                        / 1000000  # Convert g to tonnes
-                    )
+                        / 1_000_000.0
+                        for c in countries
+                    ]
+                    n.add("Load", names, bus=buses, carrier=carriers, p_set=p_set)
 
-                    n.add(
-                        "Load",
-                        group,
-                        bus=f"group_{group}",
-                        carrier=group,
-                        p_set=total_annual_requirement,
-                    )
-
-                    # Add an extensible store at the food group bus to store excess food
+                    store_names = [f"store_{group}_{c}" for c in countries]
                     n.add(
                         "Store",
-                        f"store_{group}",
-                        bus=f"group_{group}",
-                        carrier=f"group_{group}",
-                        e_nom_extendable=True,
+                        store_names,
+                        bus=buses,
+                        carrier=carriers,
+                        e_nom_extendable=[True] * len(countries),
                     )
 
 
-def add_macronutrient_loads(n: pypsa.Network, config: dict) -> None:
-    """Add loads for macronutrients based on minimum requirements."""
+def add_macronutrient_loads(
+    n: pypsa.Network, config: dict, countries: list, population: pd.Series
+) -> None:
+    """Add per-country loads for macronutrients based on minimum requirements."""
     if "macronutrients" in config:
-        logger.info("Adding macronutrient loads based on nutrition requirements...")
+        logger.info("Adding macronutrient loads per country based on requirements...")
         for nutrient in ["carb", "protein", "fat"]:
-            if nutrient in n.buses.index and nutrient in config["macronutrients"]:
+            if nutrient in config["macronutrients"]:
                 nutrient_config = config["macronutrients"][nutrient]
                 if "min_per_person_per_day" in nutrient_config:
-                    # Calculate total annual requirement
-                    population = config.get("population", 1000000)
                     days_per_year = 365
                     min_per_person_per_day = float(
                         nutrient_config["min_per_person_per_day"]
                     )  # g/person/day
-                    total_annual_requirement = (
+                    names = [f"{nutrient}_{c}" for c in countries]
+                    buses = names
+                    carriers = [nutrient] * len(countries)
+                    p_set = [
                         min_per_person_per_day
-                        * population
+                        * float(population[c])
                         * days_per_year
-                        / 1000000  # Convert g to tonnes
-                    )
-
-                    n.add(
-                        "Load",
-                        nutrient,
-                        bus=nutrient,
-                        carrier=nutrient,
-                        p_set=total_annual_requirement,
-                    )
-
-                    # Add an extensible store at the macronutrient bus to store excess nutrients
+                        / 1_000_000.0
+                        for c in countries
+                    ]
+                    n.add("Load", names, bus=buses, carrier=carriers, p_set=p_set)
+                    store_names = [f"store_{nutrient}_{c}" for c in countries]
                     n.add(
                         "Store",
-                        f"store_{nutrient}",
-                        bus=nutrient,
-                        carrier=nutrient,
-                        e_nom_extendable=True,
+                        store_names,
+                        bus=buses,
+                        carrier=carriers,
+                        e_nom_extendable=[True] * len(countries),
                     )
 
 
@@ -269,47 +307,45 @@ def add_food_nutrition_links(
     foods: pd.DataFrame,
     food_groups: pd.DataFrame,
     nutrition: pd.DataFrame,
+    countries: list,
 ) -> None:
-    """Add multilinks for converting foods to food groups and macronutrients."""
+    """Add multilinks per country for converting foods to groups and macronutrients."""
+    # Pre-index food_groups for lookup
+    food_to_group = food_groups.set_index("food")["group"].to_dict()
+
+    nutrients = list(nutrition.index.get_level_values("nutrient").unique())
     for food in food_list:
-        food_bus = f"food_{food}"
-        # Only process foods that exist in our network
-        if food_bus not in n.buses.index:
-            continue
+        group_val = food_to_group.get(food, None)
+        names = [
+            f"consume_{food.replace(' ', '_').replace('(', '').replace(')', '')}_{c}"
+            for c in countries
+        ]
+        bus0 = [f"food_{food}_{c}" for c in countries]
 
-        # Find food group for this food
-        food_group = None
-        food_group_row = food_groups[food_groups["food"] == food]
-        if not food_group_row.empty:
-            group_val = food_group_row.iloc[0]["group"]
-            if pd.notna(group_val) and group_val != "":
-                food_group = f"group_{group_val}"
+        # macronutrient outputs
+        out_bus_lists = []
+        eff_lists = []
+        for i, nutrient in enumerate(nutrients, start=1):
+            out_bus_lists.append([f"{nutrient}_{c}" for c in countries])
+            eff_val = (
+                float(nutrition.loc[(food, nutrient), "value"])
+                if (food, nutrient) in nutrition.index
+                else 0.0
+            )
+            eff_lists.append([eff_val] * len(countries))
 
-        link_name = (
-            f"consume_{food.replace(' ', '_').replace('(', '').replace(')', '')}"
-        )
+        params = {"bus0": bus0, "marginal_cost": [0.01] * len(countries)}
+        for i, (buses, effs) in enumerate(zip(out_bus_lists, eff_lists), start=1):
+            params[f"bus{i}"] = buses
+            params["efficiency" if i == 1 else f"efficiency{i}"] = effs
 
-        # Start with basic parameters
-        link_params = {
-            "bus0": food_bus,  # Input: food (primary input)
-            "marginal_cost": 0.01,  # Small cost to enable optimization
-        }
+        # optional food group output as last leg
+        if group_val is not None and pd.notna(group_val):
+            idx = len(nutrients) + 1
+            params[f"bus{idx}"] = [f"group_{group_val}_{c}" for c in countries]
+            params[f"efficiency{idx}"] = [1.0] * len(countries)
 
-        bus_idx = 1
-
-        # Add macronutrient outputs (all foods must have these)
-        for nutrient in nutrition.index.get_level_values("nutrient").unique():
-            link_params[f"bus{bus_idx}"] = nutrient
-            eff_param_name = "efficiency" if bus_idx == 1 else f"efficiency{bus_idx}"
-            link_params[eff_param_name] = nutrition.loc[(food, nutrient), "value"]
-            bus_idx += 1
-
-        # Add food group output if applicable
-        if food_group:
-            link_params[f"bus{bus_idx}"] = food_group
-            link_params[f"efficiency{bus_idx}"] = 1.0
-
-        n.add("Link", link_name, p_nom_extendable=True, **link_params)
+        n.add("Link", names, p_nom_extendable=[True] * len(countries), **params)
 
 
 def build_network(
@@ -320,7 +356,10 @@ def build_network(
     nutrition: pd.DataFrame,
     yields_data: dict,
     regions: list,
+    region_to_country: pd.Series,
+    countries: list,
     region_crop_areas: pd.Series,
+    population: pd.Series,
 ) -> pypsa.Network:
     """Build the complete food systems optimization network."""
     n = pypsa.Network()
@@ -334,20 +373,22 @@ def build_network(
     ].unique()
 
     # Build network step by step
-    add_carriers_and_buses(
-        n, crop_list, food_list, food_group_list, regions, yields_data
-    )
+    add_carriers_and_buses(n, crop_list, food_list, food_group_list, regions, countries)
     add_primary_resources(n, config, region_crop_areas)
     add_regional_crop_production_links(
         n,
         crop_list,
         crops,
         yields_data,
+        region_to_country,
+        set(countries),
     )
-    add_food_conversion_links(n, food_list, foods)
-    add_food_group_buses_and_loads(n, food_group_list, food_groups, config)
-    add_macronutrient_loads(n, config)
-    add_food_nutrition_links(n, food_list, foods, food_groups, nutrition)
+    add_food_conversion_links(n, food_list, foods, countries)
+    add_food_group_buses_and_loads(
+        n, food_group_list, food_groups, config, countries, population
+    )
+    add_macronutrient_loads(n, config, countries, population)
+    add_food_nutrition_links(n, food_list, foods, food_groups, nutrition, countries)
 
     return n
 
@@ -383,6 +424,22 @@ if __name__ == "__main__":
     region_crop_areas_df = pd.read_csv(snakemake.input.region_crop_areas)
     region_crop_areas = region_crop_areas_df.set_index("region")["cropland_area_ha"]
 
+    # Load population per country for planning horizon
+    population_df = pd.read_csv(snakemake.input.population)
+    # Expect columns: iso3, country, year, population
+    # Select only configured countries and validate coverage
+    cfg_countries = list(snakemake.config.get("countries", []))
+    pop_map = population_df.set_index("iso3")["population"].reindex(cfg_countries)
+    missing = pop_map[pop_map.isna()].index.tolist()
+    if missing:
+        raise ValueError("Missing population for countries: " + ", ".join(missing))
+    # population series indexed by country code (ISO3)
+    population = pop_map.astype(float)
+
+    region_to_country = regions_df.set_index("region")["country"]
+    # Keep only regions whose country is in configured countries
+    region_to_country = region_to_country[region_to_country.isin(cfg_countries)]
+
     logger.debug("Crops data:\n%s", crops.head(10))
     logger.debug("Foods data:\n%s", foods.head())
     logger.debug("Food groups data:\n%s", food_groups.head())
@@ -397,7 +454,10 @@ if __name__ == "__main__":
         nutrition,
         yields_data,
         regions,
+        region_to_country,
+        cfg_countries,
         region_crop_areas,
+        population,
     )
 
     logger.info("Network summary:")

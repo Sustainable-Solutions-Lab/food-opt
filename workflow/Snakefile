@@ -36,6 +36,15 @@ rule all:
         f"results/{name}/plots",
 
 
+rule prepare_population:
+    input:
+        population_gz="data/downloads/WPP_population.csv.gz",
+    output:
+        f"processing/{name}/population.csv",
+    script:
+        "scripts/prepare_population.py"
+
+
 rule simplify_gadm:
     input:
         "data/downloads/gadm.gpkg",
@@ -109,6 +118,7 @@ rule build_model:
         nutrition="data/nutrition.csv",
         regions="processing/{name}/regions.geojson",
         region_crop_areas="processing/{name}/region_crop_areas.csv",
+        population="processing/{name}/population.csv",
     output:
         network="results/{name}/build/model.nc",
     script:

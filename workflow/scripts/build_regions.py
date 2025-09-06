@@ -189,21 +189,19 @@ def cluster_regions(
         gdf = gdf.assign(_cluster=cluster_ids.astype(int))
 
     # Dissolve polygons by cluster id
-    dissolved = gdf.dissolve(by="_cluster", as_index=False)
+    # Keep only geometry and the minimal attributes needed to avoid duplicate columns.
+    keep_cols = [c for c in ["_cluster", "geometry"] if c in gdf.columns]
+    gdf_min = gdf[keep_cols].copy()
+    dissolved = gdf_min.dissolve(by="_cluster", as_index=False)
 
     # Assign unique region identifiers
     dissolved["region"] = [f"region{int(i):04d}" for i in dissolved["_cluster"]]
 
-    # Keep a representative country code if available
+    # Keep a representative country code if available, under a user-friendly name
     if "GID_0" in gdf.columns:
         # first country code within the cluster as representative
         rep_country = gdf.groupby("_cluster")["GID_0"].first()
-        dissolved = dissolved.merge(
-            rep_country.rename("GID_0"),
-            left_on="_cluster",
-            right_index=True,
-            how="left",
-        )
+        dissolved["country"] = dissolved["_cluster"].map(rep_country)
 
     dissolved = dissolved.set_index("region")
     dissolved = dissolved.drop(

@@ -43,3 +43,16 @@ rule download_gaez_suitability_data:
         url=lambda w: f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/{w.climate_model}/rcp{w.rcp}/{w.time_period}H/{config['data']['gaez']['suitability_var']}{w.input_management}{w.water_supply}{w.co2_fertilization}_{w.crop}.tif",
     shell:
         "wget -O {output} {params.url}"
+
+
+rule download_wpp_population:
+    output:
+        "data/downloads/WPP_population.csv.gz",
+    params:
+        url=(
+            "https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/CSV_FILES/WPP2024_TotalPopulationBySex.csv.gz"
+        ),
+    shell:
+        r"""
+        wget -O {output} "{params.url}"
+        """
