@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'source ~/.bashrc && conda activate food-opt && ruff check --fix . && ruff format .'"
+            "command": "uv run ruff check --fix . && uv run ruff format ."
           }
         ]
       }

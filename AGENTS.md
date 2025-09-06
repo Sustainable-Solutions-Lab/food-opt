@@ -24,8 +24,8 @@ For a longer overview and concrete file references, see `CLAUDE.md`.
 
 ## Core Principles
 
-- Minimal, surgical changes: Tackle the user’s request precisely; avoid drive‑by refactors.
 - Keep code concise: Prefer simple control flow; fail early on invalid external inputs.
+- Do your best to avoid over-engineering. If you see possibilities for simplifying, suggest improvements (but let the user approve of such drive-by refactors first).
 - Consistent style: Follow existing patterns in nearby files; don’t introduce new paradigms ad hoc.
 - Reproducibility: Use the Snakemake targets below to validate changes; don’t hand‑run ad hoc pipelines unless necessary.
 - No unused imports: The linter removes them automatically; only add imports when adding code that uses them.

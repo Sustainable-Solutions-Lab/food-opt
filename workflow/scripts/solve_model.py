@@ -141,10 +141,6 @@ def solve_network(n: pypsa.Network) -> pypsa.Network:
     else:
         logger.info("Solver result: %s", result)
 
-    logger.info("Optimization results:")
-    if hasattr(n, "objective"):
-        logger.info("Objective value: %s", n.objective)
-
     return n
 
 

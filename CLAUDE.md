@@ -8,6 +8,11 @@ SPDX-License-Identifier: CC-BY-4.0
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Coding style
+
+- Write concise code. Try to minimize the number of conditional statements and loops where-ever practical. Keep code structure simple.
+- Code should fail early. Don't write in a guarded style around internal data structures; only externally retrieved data needs to be sanity-checked carefully.
+
 ## Project Overview
 
 This is food-opt, a global food systems optimization model using linear programming to explore trade-offs between environmental sustainability and nutritional outcomes. The model is built using PyPSA (Python for Power System Analysis) as the optimization framework and Snakemake for workflow management.
@@ -53,12 +58,7 @@ uv run snakemake -j4 results/{config_name}/solved/model.nc
 ### Code Quality
 Linting and formatting is done using ruff, but this is applied automatically after every code change through a claude code hook and doesn't have to be done manually.
 
-## Configuration System
-
-The model uses a hierarchical configuration system:
-- `config/config.yaml` defines scenarios with name, resource limits, and crop selections
-- Results organized by config name in `results/{name}/` directories
-- Snakemake accesses config via `config["name"]` and nested parameters
+The linter will remove stray imports. Never modify a file only to add an import statement! This will be undone by the linter. Always add import statements only when also adding the code that needs them.
 
 ## Key Dependencies
 

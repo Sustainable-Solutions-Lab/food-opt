@@ -9,6 +9,7 @@ planning_horizon: 2030
 primary:
   land:
     limit: 1e9 # ha
+    regional_limit: 0.7 # fraction of each region's potential cropland that is made available.
   water:
     limit: 1e9 # m^3
   fertilizer:
@@ -29,8 +30,6 @@ crops:
 - onion
 - cabbage
 - banana
-
-population: 7000000000 # Approx world population
 
 macronutrients:
   carb:
@@ -383,7 +382,9 @@ data:
       yam: yam
 
 solving:
+  # solver: highs
   solver: gurobi
   solver_options:
-    LogToConsole: 1
+    LogToConsole: 0
     OutputFlag: 1
+    Method: 2
