@@ -335,6 +335,7 @@ data:
   gaez:
     climate_model: "NorESM1-M"
     time_period: "2020s" # "2020s", "2050s", "2080s"; these are 30 year averages from climate ensembles centered on the given decade.
+    actual_yield_year: "2010" # "2000", "2010"; year for actual historical yeilds
     rcp: "4p5" # "2p6", "4p5", "6p0", "8p5"
     input_management: "H" # "H" (High), "L" (Low)
     water_supply: "r" # "r" (rainfed), "i" (irrigated)

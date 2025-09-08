@@ -10,10 +10,14 @@ min_version("9.0")
 os.makedirs("data/downloads", exist_ok=True)
 
 
-include: "rules/retrieve.smk"
-
-
 configfile: "config/config.yaml"
+
+
+name = config["name"]
+
+
+include: "rules/retrieve.smk"
+include: "rules/plotting.smk"
 
 
 wildcard_constraints:
@@ -25,9 +29,6 @@ wildcard_constraints:
     water_supply=r"r|i",
     co2_fertilization=r"0*",
     crop=r"[a-z\w]+",
-
-
-name = config["name"]
 
 
 rule all:
@@ -83,7 +84,7 @@ rule build_regions:
 
 rule build_crop_yields:
     input:
-        yields="data/downloads/gaez_yield_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
+        yields="data/downloads/gaez_potential_yield_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
         suitability="data/downloads/gaez_suitability_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
         regions=f"processing/{name}/regions.geojson",
     params:
@@ -164,37 +165,3 @@ rule solve_model:
         network="results/{name}/solved/model.nc",
     script:
         "scripts/solve_model.py"
-
-
-rule plot_results:
-    input:
-        network="results/{name}/solved/model.nc",
-    output:
-        crop_pdf="results/{name}/plots/crop_production.pdf",
-        food_pdf="results/{name}/plots/food_production.pdf",
-        resource_pdf="results/{name}/plots/resource_usage.pdf",
-        crop_csv="results/{name}/plots/crop_production.csv",
-        food_csv="results/{name}/plots/food_production.csv",
-    params:
-        output_dir="results/{name}/plots",
-    script:
-        "scripts/plot_results.py"
-
-
-rule plot_regions_map:
-    input:
-        regions=f"processing/{name}/regions.geojson",
-    output:
-        pdf=f"results/{name}/plots/regions_map.pdf",
-    script:
-        "scripts/plot_regions_map.py"
-
-
-rule plot_crop_production_map:
-    input:
-        network=f"results/{name}/solved/model.nc",
-        regions=f"processing/{name}/regions.geojson",
-    output:
-        pdf=f"results/{name}/plots/crop_production_map.pdf",
-    script:
-        "scripts/plot_crop_production_map.py"
