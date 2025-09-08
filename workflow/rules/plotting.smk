@@ -58,3 +58,13 @@ rule plot_crop_production_map:
         pdf=f"results/{name}/plots/crop_production_map.pdf",
     script:
         "../scripts/plot_crop_production_map.py"
+
+
+rule plot_average_yield_gap_by_country:
+    input:
+        regions=f"processing/{name}/regions.geojson",
+        csv=f"processing/{name}/yield_gap_by_country_all_crops.csv",
+    output:
+        pdf=f"results/{name}/plots/yield_gap_by_country_average.pdf",
+    script:
+        "../scripts/plot_yield_gap_by_country_average.py"

@@ -19,30 +19,30 @@ emissions:
   ghg_price: 200 # USD/tCO2
 
 crops:
- - wheat
- - dryland rice
- - wetland rice
- - maize
- - soybean
- - white potato
- - tomato
- - barley
- - oat
- - sunflower
- - carrot
- - onion
- - cabbage
- - banana
- - cassava
- - sweet potato
- - yam
- - sugarcane
- - sugarbeet
- - rapeseed
- - groundnut
- - rye
- - dry pea
- - chickpea
+- wheat
+- dryland-rice
+- wetland-rice
+- maize
+- soybean
+- white-potato
+- tomato
+- barley
+- oat
+- sunflower
+- carrot
+- onion
+- cabbage
+- banana
+- cassava
+- sweet-potato
+- yam
+- sugarcane
+- sugarbeet
+- rapeseed
+- groundnut
+- rye
+- dry-pea
+- chickpea
 
 macronutrients:
   carb:
@@ -347,7 +347,7 @@ data:
       banana: ban
       buckwheat: bck
       barley: brl
-      biomass sorghum: bsg
+      biomass-sorghum: bsg
       cabbage: cab
       carrot: car
       chickpea: chk
@@ -359,31 +359,31 @@ data:
       cowpea: cow
       cassava: csv
       flax: flx
-      foxtail millet: fml
+      foxtail-millet: fml
       groundnut: grd
       gram: grm
       jatropha: jtr
       miscanthus: mis
       maize: mze
-      silage maize: mzs
-      napier grass: nap
+      silage-maize: mzs
+      napier-grass: nap
       oat: oat
-      oil palm: olp
+      oil-palm: olp
       olive: olv
       onion: oni
-      dry pea: pea
+      dry-pea: pea
       phaseolus bean: phb
       pigeonpea: pig
-      pearl millet: pml
-      dryland rice: rcd
-      reed canary grass: rcg
-      wetland rice: rcw
+      pearl-millet: pml
+      dryland-rice: rcd
+      reed-canary grass: rcg
+      wetland-rice: rcw
       rapeseed: rsd
       rubber: rub
       rye: rye
       sunflower: sfl
       soybean: soy
-      sweet potato: spo
+      sweet-potato: spo
       sorghum: srg
       sugarbeet: sub
       sugarcane: suc
@@ -392,8 +392,31 @@ data:
       tobacco: tob
       tomato: tom
       wheat: whe
-      white potato: wpo
+      white-potato: wpo
       yam: yam
+    actual_yield_crops:
+    # GAEZ only has actual yields for the following crops
+    - ban
+    - brl
+    - cot
+    - grd
+    - mze
+    - olp
+    - olv
+    - rsd
+    - srg
+    - soy
+    - sub
+    - suc
+    - sfl
+    - tob
+    - rcw
+    - whe
+    # GAEZ also has aggregate actual yields for millet, other cereals, potato & sweet potato and pulses. We ignore those here for simplicity
+    # - fml pml
+    # - oat rye
+    # - wpo spo
+    # - chk pea cow grm phb pig
 
 solving:
   solver: highs
