@@ -54,6 +54,15 @@ rule download_gaez_actual_yield_data:
         "wget -O {output} {params.url}"
 
 
+rule download_gaez_irrigated_cropland_data:
+    output:
+        "data/downloads/gaez_irrigated_cropland_share.tif",
+    params:
+        url="https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/LR/wat/GLCSv11_12_5m.tif",
+    shell:
+        "wget -O {output} {params.url}"
+
+
 rule download_wpp_population:
     output:
         "data/downloads/WPP_population.csv.gz",

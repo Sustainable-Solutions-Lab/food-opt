@@ -26,7 +26,7 @@ wildcard_constraints:
     time_period=r"2020s|2050s|2080s",
     rcp=r"[0-9]p[0-9]",
     input_management=r"H|L",
-    water_supply=r"r|i",
+    water_supply=r"r|g|s|d",
     co2_fertilization=r"0*",
     crop=r"[a-z\-\w]+",
 
@@ -82,50 +82,175 @@ rule build_regions:
         "scripts/build_regions.py"
 
 
-rule build_crop_yields:
+## Resource classes computed once for all crops and water supplies
+def _class_inputs_for_yield_max(wildcards):
+    gaez = config["data"]["gaez"]
+    files = [
+        f"data/downloads/gaez_potential_yield_{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_r_{gaez['co2_fertilization']}_{gaez['crops'][crop]}.tif"
+        for crop in config["crops"]
+    ]
+    # Add irrigated yields where available
+    avail_path = checkpoints.detect_irrigated_availability.get(name=name).output[0]
+    import csv
+    with open(avail_path) as f:
+        for row in csv.DictReader(f):
+            types = row.get("irrig_types", "")
+            if not types:
+                continue
+            t = types.split(";")[0]
+            crop = row["crop"]
+            files.append(
+                f"data/downloads/gaez_potential_yield_{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_{t}_{gaez['co2_fertilization']}_{gaez['crops'][crop]}.tif"
+            )
+    return files
+
+
+rule compute_resource_classes:
     input:
-        yields="data/downloads/gaez_potential_yield_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
-        suitability="data/downloads/gaez_suitability_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
+        yields=_class_inputs_for_yield_max,
         regions=f"processing/{name}/regions.geojson",
     params:
         resource_class_quantiles=config["aggregation"]["resource_class_quantiles"],
     output:
-        os.path.join(
-            "processing",
-            name,
-            "crop_yields/{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.csv",
-        ),
+        classes=f"processing/{name}/resource_classes.nc",
     script:
-        "scripts/build_crop_yields.py"
+        "scripts/compute_resource_classes.py"
 
 
-def suitability_inputs(wildcards):
+def _irrig_type_for_crop(crop_code: str) -> str:
+    import csv
+
+    path = checkpoints.detect_irrigated_availability.get(name=name).output[0]
+    with open(path) as f:
+        rows = {
+            row["code"]: row["irrig_types"].split(";") if row["irrig_types"] else []
+            for row in csv.DictReader(f)
+        }
+    available = rows.get(crop_code, [])
+    for t in ["g", "s", "d"]:
+        if t in available:
+            return t
+    raise ValueError(f"No irrigated types available for crop code {crop_code}")
+
+
+def _suitability_rainfed_inputs(wildcards):
     gaez = config["data"]["gaez"]
-    return {
-        crop: f"data/downloads/gaez_suitability_{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_{gaez['water_supply']}_{gaez['co2_fertilization']}_{gaez['crops'][crop]}.tif"
+    return [
+        f"data/downloads/gaez_suitability_{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_r_{gaez['co2_fertilization']}_{gaez['crops'][crop]}.tif"
         for crop in config["crops"]
-    }
+    ]
 
 
-rule build_region_crop_areas:
+def _suitability_irrigated_inputs(wildcards):
+    gaez = config["data"]["gaez"]
+    avail_path = checkpoints.detect_irrigated_availability.get(name=name).output[0]
+    import csv
+    files = []
+    with open(avail_path) as f:
+        for row in csv.DictReader(f):
+            if not row.get("irrig_types"):
+                continue
+            t = row["irrig_types"].split(";")[0]
+            crop = row["crop"]
+            code = gaez["crops"][crop]
+            files.append(
+                f"data/downloads/gaez_suitability_{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_{t}_{gaez['co2_fertilization']}_{code}.tif"
+            )
+    return files
+
+
+rule aggregate_class_areas:
     input:
-        unpack(suitability_inputs),
+        classes=f"processing/{name}/resource_classes.nc",
+        sr=_suitability_rainfed_inputs,
+        si=_suitability_irrigated_inputs,
+        irrigated_share="data/downloads/gaez_irrigated_cropland_share.tif",
         regions=f"processing/{name}/regions.geojson",
     params:
-        crops=config["crops"],
+        land_limit_dataset=config["aggregation"].get("land_limit_dataset", "suitability"),
     output:
-        "processing/{name}/region_crop_areas.csv",
+        f"processing/{name}/land_area_by_class.csv",
     script:
-        "scripts/build_region_crop_areas.py"
+        "scripts/aggregate_class_areas.py"
+
+
+def _yield_and_suitability_for_crop(w):
+    gaez = config["data"]["gaez"]
+    # Here, the {crop} wildcard is the crop code (e.g., 'whe')
+    code = w.crop
+    if w.water_supply == "r":
+        y = f"data/downloads/gaez_potential_yield_{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_r_{gaez['co2_fertilization']}_{code}.tif"
+        s = f"data/downloads/gaez_suitability_{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_r_{gaez['co2_fertilization']}_{code}.tif"
+    else:
+        t = _irrig_type_for_crop(code)
+        y = f"data/downloads/gaez_potential_yield_{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_{t}_{gaez['co2_fertilization']}_{code}.tif"
+        s = f"data/downloads/gaez_suitability_{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_{t}_{gaez['co2_fertilization']}_{code}.tif"
+    return {"yield_raster": y, "suitability_raster": s}
+
+
+rule build_crop_yields_from_classes:
+    input:
+        unpack(_yield_and_suitability_for_crop),
+        classes=f"processing/{name}/resource_classes.nc",
+        regions=f"processing/{name}/regions.geojson",
+    output:
+        f"processing/{name}/crop_yields/{config['data']['gaez']['climate_model']}_{config['data']['gaez']['time_period']}_{config['data']['gaez']['rcp']}_{config['data']['gaez']['input_management']}_{{water_supply}}_{config['data']['gaez']['co2_fertilization']}_{{crop}}.csv",
+    wildcard_constraints:
+        water_supply=r"i|r",
+    script:
+        "scripts/build_crop_yields_from_classes.py"
+
+
+# Detect which crops have irrigated (i) data available (single CSV output)
+checkpoint detect_irrigated_availability:
+    params:
+        gaez=config["data"]["gaez"],
+        crops=config["crops"],
+        require_suitability=config["aggregation"].get(
+            "land_limit_dataset", "suitability"
+        )
+        == "suitability",
+    output:
+        f"processing/{name}/irrigated_available_crops.csv",
+    script:
+        "scripts/detect_irrigated_availability.py"
+
+
+    # Region-level cropland area aggregation removed in favor of class-level areas
 
 
 def yield_inputs(wildcards):
     gaez = config["data"]["gaez"]
-    return {
-        crop
-        + "_yield": f"processing/{name}/crop_yields/{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_{gaez['water_supply']}_{gaez['co2_fertilization']}_{gaez['crops'][crop]}.csv"
-        for crop in config["crops"]
-    }
+    files = {}
+
+    # Always include rainfed for all crops
+    for crop in config["crops"]:
+        key = f"{crop}_yield_r"
+        files[key] = (
+            f"processing/{name}/crop_yields/{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_r_{gaez['co2_fertilization']}_{gaez['crops'][crop]}.csv"
+        )
+
+    # Determine irrigated crops: from config or via checkpoint detection
+    irr_cfg = config.get("irrigation", {}).get("irrigated_crops", "auto")
+    if irr_cfg == "auto":
+        avail_path = checkpoints.detect_irrigated_availability.get(name=name).output[0]
+        with open(avail_path) as f:
+            import csv
+
+            reader = csv.DictReader(f)
+            irrigated_crops = [
+                row["crop"] for row in reader if row.get("irrig_types", "")
+            ]
+    else:
+        irrigated_crops = list(irr_cfg)
+
+    for crop in irrigated_crops:
+        key = f"{crop}_yield_i"
+        files[key] = (
+            f"processing/{name}/crop_yields/{gaez['climate_model']}_{gaez['time_period']}_{gaez['rcp']}_{gaez['input_management']}_i_{gaez['co2_fertilization']}_{gaez['crops'][crop]}.csv"
+        )
+
+    return files
 
 
 def yield_gap_raster_inputs(wildcards):
@@ -155,6 +280,7 @@ rule yield_gap_by_country:
 
 def yield_gap_country_csvs(wildcards):
     # Per-crop country CSVs produced by rule yield_gap_by_country
+    gaez = config["data"]["gaez"]
     return [
         f"processing/{name}/yield_gap_by_country_{crop}.csv"
         for crop in config["crops"]
@@ -180,7 +306,7 @@ rule build_model:
         food_groups="data/food_groups.csv",
         nutrition="data/nutrition.csv",
         regions="processing/{name}/regions.geojson",
-        region_crop_areas="processing/{name}/region_crop_areas.csv",
+        land_area_by_class="processing/{name}/land_area_by_class.csv",
         population="processing/{name}/population.csv",
     params:
         crops=config["crops"],
@@ -193,6 +319,9 @@ rule build_model:
         network="results/{name}/build/model.nc",
     script:
         "scripts/build_model.py"
+
+
+## Resource classes are prerequisites for downstream yield aggregation
 
 
 rule solve_model:

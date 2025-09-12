@@ -79,6 +79,10 @@ aggregation:
   simplify_tolerance_km: 5
   simplify_min_area_km: 25
   resource_class_quantiles: [0.25, 0.5, 0.75]
+  # Crop land-use limitation source used when aggregating yields by region/resource class.
+  # - "suitability": limit area using GAEZ suitability rasters per water supply (irrigated/rainfed)
+  # - "irrigated": limit area using the irrigated cropland share (for irrigated) and its complement (for rainfed)
+  land_limit_dataset: "suitability"
 
 countries:
 # - ABW  # No level-1 GADM data
@@ -417,6 +421,13 @@ data:
     # - oat rye
     # - wpo spo
     # - chk pea cow grm phb pig
+
+irrigation:
+  # Which model crops are allowed to have irrigated production.
+  # Options:
+  # - a list of crop names (as in 'crops' above)
+  # - the string "auto" to detect availability by probing the GAEZ endpoints
+  irrigated_crops: "auto"
 
 solving:
   solver: highs

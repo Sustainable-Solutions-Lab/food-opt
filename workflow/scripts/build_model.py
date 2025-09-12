@@ -17,7 +17,6 @@ def add_carriers_and_buses(
     crop_list: list,
     food_list: list,
     food_group_list: list,
-    regions: list,
     countries: list,
 ) -> None:
     """Add all carriers and their corresponding buses to the network.
@@ -26,9 +25,8 @@ def add_carriers_and_buses(
     - Crops, foods, food groups, and macronutrients are created per-country.
     - Primary resources (water, fertilizer) and emissions (co2, ch4) stay global.
     """
-    # Regional land carriers and buses
+    # Land carrier (class-level buses are added later)
     n.add("Carrier", "land", unit="ha")
-    n.add("Bus", [f"land_{r}" for r in regions], carrier="land")
 
     # Crops per country
     crop_buses = [
@@ -87,24 +85,14 @@ def add_carriers_and_buses(
         n.add("Bus", carrier, carrier=carrier)
 
 
-def add_primary_resources(
-    n: pypsa.Network, primary_config: dict, region_crop_areas: pd.Series
-) -> None:
+def add_primary_resources(n: pypsa.Network, primary_config: dict) -> None:
     """Add stores for primary resources with their limits."""
     # Add stores for global resources
     for carrier in ["water", "fertilizer"]:
         n.add("Store", carrier, bus=carrier, carrier=carrier)
         n.add("Generator", carrier, bus=carrier, carrier=carrier, p_nom_extendable=True)
 
-    land_carrier = "land_" + region_crop_areas.index.astype(str)
-    n.add(
-        "Generator",
-        land_carrier,
-        bus=land_carrier,
-        carrier="land",
-        p_nom_extendable=True,
-        p_nom_max=(primary_config["land"]["regional_limit"] * region_crop_areas.values),
-    )
+    # Region-level land limit removed; replaced by class-level land pools
 
     # Add stores for emissions with costs to create objective
     n.add("Store", "co2", bus="co2", carrier="co2", e_nom_extendable=True)
@@ -123,7 +111,13 @@ def add_regional_crop_production_links(
     region_to_country: pd.Series,
     allowed_countries: set,
 ) -> None:
-    """Add links for crop production per region and resource class."""
+    """Add links for crop production per region/resource class and water supply.
+
+    Expects yields_data to contain per-crop DataFrames for both water supplies
+    with keys f"{crop}_yield_i" and f"{crop}_yield_r".
+    Output links produce into the same crop bus per country; link names encode
+    supply type (i/r) and resource class.
+    """
     for crop in crop_list:
         if crop not in crops.index.get_level_values(0):
             logger.warning("Crop '%s' not found in crops data, skipping", crop)
@@ -143,56 +137,68 @@ def add_regional_crop_production_links(
         if "ch4" in crop_data.index:
             ch4_emission = crop_data.loc["ch4", "value"]  # kg/t
 
-        # Get regional yields data for this crop
-        crop_yields = yields_data[f"{crop}_yield"]
+        # Process both water supplies
+        for ws in ["i", "r"]:
+            key = f"{crop}_yield_{ws}"
+            if key not in yields_data:
+                logger.warning("Missing yields for %s (%s), skipping", crop, ws)
+                continue
+            crop_yields = yields_data[key].copy()
 
-        # Add a "name" column to crop_yields following this: f"produce_{crop}_{region}_class{resource_class}"
-        crop_yields["name"] = crop_yields.index.map(
-            lambda x: f"produce_{crop}_{x[0]}_class{x[1]}"
-        )
+            # Add a unique name per link including water supply and class
+            crop_yields["name"] = crop_yields.index.map(
+                lambda x: f"produce_{crop}_{'irrigated' if ws=='i' else 'rainfed'}_{x[0]}_class{x[1]}"
+            )
 
-        # Make index levels columns
-        df = crop_yields.reset_index()
+            # Make index levels columns
+            df = crop_yields.reset_index()
 
-        # Set index to "name"
-        df.set_index("name", inplace=True)
-        df.index.name = None
+            # Set index to "name"
+            df.set_index("name", inplace=True)
+            df.index.name = None
 
-        # Filter out rows with zero suitable area
-        df = df[(df["suitable_area"] > 0) & (df["yield"] > 0)]
+            # Filter out rows with zero suitable area or zero yield
+            df = df[(df["suitable_area"] > 0) & (df["yield"] > 0)]
 
-        # Map regions to countries and filter to allowed countries
-        df["country"] = df["region"].map(region_to_country)
-        df = df[df["country"].isin(allowed_countries)]
+            # Map regions to countries and filter to allowed countries
+            df["country"] = df["region"].map(region_to_country)
+            df = df[df["country"].isin(allowed_countries)]
 
-        # Add links
-        link_params = {
-            "name": df.index,
-            # Use the crop's own carrier so no extra carrier is needed
-            "carrier": f"crop_{crop}",
-            "bus0": df["region"].apply(lambda x: f"land_{x}"),
-            "bus1": df["country"].apply(lambda c: f"crop_{crop}_{c}"),
-            "efficiency": df["yield"],
-            "bus2": "water",
-            "efficiency2": -water_use / df["yield"],
-            "bus3": "fertilizer",
-            "efficiency3": -fert_use / df["yield"],
-            "marginal_cost": 0.01,
-            "p_nom_max": df["suitable_area"],
-            "p_nom_extendable": True,
-        }
+            if df.empty:
+                continue
 
-        # Add emission outputs if they exist
-        if co2_emission > 0:
-            link_params["bus4"] = "co2"
-            link_params["efficiency4"] = co2_emission / df["yield"]
+            # Add links
+            # Connect to class-level land bus per region/resource class and water supply
+            link_params = {
+                "name": df.index,
+                # Use the crop's own carrier so no extra carrier is needed
+                "carrier": f"crop_{crop}",
+                "bus0": df.apply(
+                    lambda r: f"land_{r['region']}_class{int(r['resource_class'])}_{'i' if ws=='i' else 'r'}",
+                    axis=1,
+                ),
+                "bus1": df["country"].apply(lambda c: f"crop_{crop}_{c}"),
+                "efficiency": df["yield"],
+                "bus2": "water",
+                "efficiency2": -water_use / df["yield"],
+                "bus3": "fertilizer",
+                "efficiency3": -fert_use / df["yield"],
+                "marginal_cost": 0.01,
+                "p_nom_max": df["suitable_area"],
+                "p_nom_extendable": True,
+            }
 
-        if ch4_emission > 0:
-            bus_idx = 5 if co2_emission > 0 else 4
-            link_params[f"bus{bus_idx}"] = "ch4"
-            link_params[f"efficiency{bus_idx}"] = ch4_emission / df["yield"]
+            # Add emission outputs if they exist
+            if co2_emission > 0:
+                link_params["bus4"] = "co2"
+                link_params["efficiency4"] = co2_emission / df["yield"]
 
-        n.add("Link", **link_params)
+            if ch4_emission > 0:
+                bus_idx = 5 if co2_emission > 0 else 4
+                link_params[f"bus{bus_idx}"] = "ch4"
+                link_params[f"efficiency{bus_idx}"] = ch4_emission / df["yield"]
+
+            n.add("Link", **link_params)
 
 
 def add_food_conversion_links(
@@ -487,23 +493,38 @@ if __name__ == "__main__":
     # Read nutrition data
     nutrition = pd.read_csv(snakemake.input.nutrition, index_col=["food", "nutrient"])
 
-    # Read yields data for each configured crop
+    # Read yields data for each configured crop and water supply (skip missing)
     yields_data = {}
     for crop in snakemake.params.crops:
-        yields_key = f"{crop}_yield"
-        yields_df = pd.read_csv(
-            snakemake.input[yields_key], index_col=["region", "resource_class"]
-        )
-        yields_data[yields_key] = yields_df
-        logger.info("Loaded yields for %s: %d regions/classes", crop, len(yields_df))
+        for ws in ["i", "r"]:
+            yields_key = f"{crop}_yield_{ws}"
+            try:
+                path = snakemake.input[yields_key]
+            except AttributeError:
+                logger.info(
+                    "Missing yields input for %s (%s), skipping",
+                    crop,
+                    "irrigated" if ws == "i" else "rainfed",
+                )
+                continue
+            yields_df = pd.read_csv(path, index_col=["region", "resource_class"])
+            yields_data[yields_key] = yields_df
+            logger.info(
+                "Loaded yields for %s (%s): %d rows",
+                crop,
+                "irrigated" if ws == "i" else "rainfed",
+                len(yields_df),
+            )
 
     # Read regions
     regions_df = gpd.read_file(snakemake.input.regions)
-    regions = regions_df["region"].tolist()
 
-    # Load region crop areas
-    region_crop_areas_df = pd.read_csv(snakemake.input.region_crop_areas)
-    region_crop_areas = region_crop_areas_df.set_index("region")["cropland_area_ha"]
+    # Load class-level land areas
+    land_class_df = pd.read_csv(snakemake.input.land_area_by_class)
+    # Expect columns: region, water_supply, resource_class, area_ha
+    land_class_df = land_class_df.set_index(
+        ["region", "water_supply", "resource_class"]
+    ).sort_index()
 
     # Load population per country for planning horizon
     population_df = pd.read_csv(snakemake.input.population)
@@ -544,10 +565,23 @@ if __name__ == "__main__":
         food_groups["food"].isin(food_list), "group"
     ].unique()
 
-    add_carriers_and_buses(
-        n, crop_list, food_list, food_group_list, regions, cfg_countries
+    add_carriers_and_buses(n, crop_list, food_list, food_group_list, cfg_countries)
+    add_primary_resources(n, snakemake.params.primary)
+
+    # Add class-level land buses and generators (shared pools), replacing region-level caps
+    # Apply same regional_limit factor per class pool
+    reg_limit = float(snakemake.params.primary["land"]["regional_limit"])
+    # Build all unique class buses
+    bus_names = [f"land_{r}_class{int(k)}_{ws}" for (r, ws, k) in land_class_df.index]
+    n.add("Bus", bus_names, carrier=["land"] * len(bus_names))
+    n.add(
+        "Generator",
+        bus_names,
+        bus=bus_names,
+        carrier=["land"] * len(bus_names),
+        p_nom_extendable=[True] * len(bus_names),
+        p_nom_max=(reg_limit * land_class_df["area_ha"]).values,
     )
-    add_primary_resources(n, snakemake.params.primary, region_crop_areas)
     add_regional_crop_production_links(
         n,
         crop_list,

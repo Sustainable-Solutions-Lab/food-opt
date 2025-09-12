@@ -21,7 +21,7 @@ rule plot_yield_gap:
     input:
         unpack(yield_gap_inputs),
     output:
-        pdf=("results/" + "{name}" + "/plots/yield_gap_{crop}.pdf"),
+        pdf=f"results/{name}/plots/yield_gap_{{crop}}.pdf",
     script:
         "../scripts/plot_yield_gap.py"
 
