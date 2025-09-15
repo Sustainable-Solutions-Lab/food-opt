@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
 SPDX-License-Identifier: GPL-3.0-or-later
 """
 
-import csv
+import pandas as pd
 import subprocess
 from pathlib import Path
 
@@ -33,13 +33,12 @@ def url_ok(url: str) -> bool:
 if __name__ == "__main__":
     gaez = snakemake.params.gaez  # type: ignore[name-defined]
     crops = snakemake.params.crops  # type: ignore[name-defined]
-    require_suit = snakemake.params.require_suitability  # type: ignore[name-defined]
 
     rows: list[dict] = []
-    types = ["g", "s", "d"]  # gravity, sprinkler, drip (as available)
+    types = ["i", "g", "s", "d"]  # irrigation, gravity, sprinkler, drip (as available)
     for crop in crops:
         code = gaez["crops"][crop]
-        avail_types: list[str] = []
+        available: dict[str, int] = {t: 0 for t in types}
         for t in types:
             url_y = (
                 f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/"
@@ -53,14 +52,20 @@ if __name__ == "__main__":
             )
             y_ok = url_ok(url_y)
             s_ok = url_ok(url_s)
-            if y_ok and (s_ok or not require_suit):
-                avail_types.append(t)
+            if y_ok and s_ok:
+                available[t] = 1
 
-        rows.append({"crop": crop, "code": code, "irrig_types": ";".join(avail_types)})
+        # First available in the order defined above, or "none" if none
+        first = next((t for t in types if available[t]), "none")
+        rows.append(
+            {
+                "crop": crop,
+                "code": code,
+                **available,
+                "first_available": first,
+            }
+        )
 
     out_path = Path(snakemake.output[0])  # type: ignore[name-defined]
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["crop", "code", "irrig_types"])
-        writer.writeheader()
-        writer.writerows(rows)
+    pd.DataFrame(rows).to_csv(out_path, index=False)

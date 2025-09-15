@@ -13,6 +13,7 @@ from exactextract.raster import NumPyRasterSource
 import xarray as xr
 
 from raster_utils import calculate_all_cell_areas, scale_fraction
+import pandas as pd
 
 
 def read_raster_float(path: str):
@@ -37,14 +38,29 @@ if __name__ == "__main__":
     yield_path: str = snakemake.input.yield_raster  # type: ignore[name-defined]
     suit_path: str = snakemake.input.suitability_raster  # type: ignore[name-defined]
     regions_path: str = snakemake.input.regions  # type: ignore[name-defined]
+    crop_code: str = snakemake.wildcards.crop  # type: ignore[name-defined]
+    conv_csv: str | None = getattr(snakemake.input, "yield_unit_conversions", None)  # type: ignore[attr-defined]
 
     # Load classes
     ds = xr.load_dataset(classes_nc)
     class_labels = ds["resource_class"].values.astype(np.int16)
 
     # Load rasters
-    y_kgpha, y_src = read_raster_float(yield_path)
-    y_tpha = y_kgpha / 1000.0
+    y_raw, y_src = read_raster_float(yield_path)
+    # Determine conversion factor from CSV (default 0.001 t per kg)
+    factor = 0.001
+    if conv_csv:
+        try:
+            df_conv = pd.read_csv(conv_csv, comment="#")
+            df_conv = df_conv.set_index("code")
+            if crop_code in df_conv.index and pd.notna(
+                df_conv.at[crop_code, "factor_to_t_per_ha"]
+            ):
+                factor = float(df_conv.at[crop_code, "factor_to_t_per_ha"])
+        except Exception:
+            # Fall back to default if the table cannot be read
+            factor = 0.001
+    y_tpha = y_raw * factor
     s_raw, _ = read_raster_float(suit_path)
     s_frac = scale_fraction(s_raw)
 

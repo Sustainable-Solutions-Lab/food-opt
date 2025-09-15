@@ -147,7 +147,7 @@ def add_regional_crop_production_links(
 
             # Add a unique name per link including water supply and class
             crop_yields["name"] = crop_yields.index.map(
-                lambda x: f"produce_{crop}_{'irrigated' if ws=='i' else 'rainfed'}_{x[0]}_class{x[1]}"
+                lambda x: f"produce_{crop}_{'irrigated' if ws == 'i' else 'rainfed'}_{x[0]}_class{x[1]}"
             )
 
             # Make index levels columns
@@ -174,7 +174,7 @@ def add_regional_crop_production_links(
                 # Use the crop's own carrier so no extra carrier is needed
                 "carrier": f"crop_{crop}",
                 "bus0": df.apply(
-                    lambda r: f"land_{r['region']}_class{int(r['resource_class'])}_{'i' if ws=='i' else 'r'}",
+                    lambda r: f"land_{r['region']}_class{int(r['resource_class'])}_{'i' if ws == 'i' else 'r'}",
                     axis=1,
                 ),
                 "bus1": df["country"].apply(lambda c: f"crop_{crop}_{c}"),
@@ -501,7 +501,7 @@ if __name__ == "__main__":
             try:
                 path = snakemake.input[yields_key]
             except AttributeError:
-                logger.info(
+                logger.warning(
                     "Missing yields input for %s (%s), skipping",
                     crop,
                     "irrigated" if ws == "i" else "rainfed",

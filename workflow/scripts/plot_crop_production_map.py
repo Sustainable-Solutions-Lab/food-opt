@@ -23,26 +23,30 @@ logger = logging.getLogger(__name__)
 def _extract_crop_by_region(n: pypsa.Network) -> pd.DataFrame:
     """Return dataframe with index=region, columns=crop, values=tonnes.
 
-    Uses produce_{crop}_{region}_class{resource_class} links and sums over classes.
+    Compatible with link names like:
+    - produce_{crop}_{region}_class{resource_class}  (legacy)
+    - produce_{crop}_{irrigated|rainfed}_{region}_class{resource_class}  (current)
+    Region is derived robustly from bus0: land_{region}_class{k}_{i|r}.
     """
     data: Dict[Tuple[str, str], float] = {}
-    links = [link for link in n.links.index if link.startswith("produce_")]
+    links = [link for link in n.links.index if str(link).startswith("produce_")]
     if not links:
         return pd.DataFrame()
 
     for link in links:
-        # Expect: produce_{crop}_{region}_class{class}
-        parts = link.split("_")
-        if len(parts) < 3:
-            # Best-effort: treat the second token as region if present
-            crop = parts[0].replace("produce", "").strip("_") or parts[0]
-            region = parts[1] if len(parts) > 1 else "unknown"
-        else:
-            crop = parts[1]
-            region = parts[2]
+        parts = str(link).split("_")
+        crop = parts[1] if len(parts) >= 2 else "unknown"
+        # Derive region from bus0 to avoid ambiguity with ws tokens
+        try:
+            bus0 = n.links.at[link, "bus0"]
+            bparts = str(bus0).split("_")
+            # Expect: land_{region}_class{k}_{ws}
+            region = bparts[1] if len(bparts) >= 2 else "unknown"
+        except Exception:
+            # Fallback to legacy parsing: third token as region
+            region = parts[2] if len(parts) >= 3 else "unknown"
 
-        # Output at bus1 is crop production (t)
-        flow = float(n.links_t.p1.loc["now", link])
+        flow = float(n.links_t.p1.loc["now", link])  # t at crop bus
         data[(region, crop)] = data.get((region, crop), 0.0) + abs(flow)
 
     if not data:
