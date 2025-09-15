@@ -60,6 +60,17 @@ rule plot_crop_production_map:
         "../scripts/plot_crop_production_map.py"
 
 
+rule plot_cropland_fraction_map:
+    input:
+        network=f"results/{name}/solved/model.nc",
+        regions=f"processing/{name}/regions.geojson",
+        land_area_by_class=f"processing/{name}/land_area_by_class.csv",
+    output:
+        pdf=f"results/{name}/plots/cropland_fraction_map.pdf",
+    script:
+        "../scripts/plot_cropland_fraction_map.py"
+
+
 rule plot_average_yield_gap_by_country:
     input:
         regions=f"processing/{name}/regions.geojson",

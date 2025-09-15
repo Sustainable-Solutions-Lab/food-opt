@@ -47,6 +47,7 @@ rule all:
         # maps
         f"results/{name}/plots/regions_map.pdf",
         f"results/{name}/plots/crop_production_map.pdf",
+        f"results/{name}/plots/cropland_fraction_map.pdf",
 
 
 rule prepare_population:
