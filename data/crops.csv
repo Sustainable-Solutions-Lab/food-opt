@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+# SPDX-License-Identifier: PDDL-1.0
+#
+# Mock data
+crop,param,unit,value,description
+wheat,water,m^3/t,1350,Blue water footprint
+wheat,fertilizer,kg/t,45,N+P+K fertilizer inputs
+wheat,co2,kg/t,740,GHG emissions from production
+dryland-rice,water,m^3/t,2500,High water needs for flooded fields
+dryland-rice,fertilizer,kg/t,65,Higher fertilizer intensity
+dryland-rice,ch4,kg/t,110,Methane from flooded fields
+dryland-rice,co2,kg/t,890,GHG emissions including CH4
+maize,water,m^3/t,1220,Blue+green water footprint
+maize,fertilizer,kg/t,85,High fertilizer input crop
+maize,co2,kg/t,650,GHG emissions from production
+soybean,water,m^3/t,2145,High water footprint
+soybean,fertilizer,kg/t,25,N-fixing
+soybean,co2,kg/t,520,Lower emissions due to N-fixation
+white-potato,water,m^3/t,250,Relatively water efficient
+white-potato,fertilizer,kg/t,35,Moderate fertilizer needs
+white-potato,co2,kg/t,380,Lower emissions per tonne
+apple,water,m^3/t,700,Moderate water footprint
+apple,fertilizer,kg/t,15,Low fertilizer requirements
+apple,co2,kg/t,320,Lower emissions for perennial
+tomato,water,m^3/t,180,Efficient greenhouse production
+tomato,fertilizer,kg/t,25,Moderate fertilizer needs
+tomato,co2,kg/t,290,Relatively low emissions
+barley,water,m^3/t,1300,Similar to wheat
+barley,fertilizer,kg/t,40,Moderate fertilizer needs
+barley,co2,kg/t,700,Similar to wheat emissions
+oat,water,m^3/t,1400,Higher water needs
+oat,fertilizer,kg/t,35,Lower fertilizer requirements
+oat,co2,kg/t,650,Moderate emissions
+sunflower,water,m^3/t,3000,High water footprint for oil
+sunflower,fertilizer,kg/t,50,Moderate fertilizer needs
+sunflower,co2,kg/t,580,Oil crop emissions
+beans,water,m^3/t,1800,Moderate water footprint
+beans,fertilizer,kg/t,15,N-fixing
+beans,co2,kg/t,420,Lower due to N-fixation
+peanut,water,m^3/t,2800,High water footprint
+peanut,fertilizer,kg/t,20,N-fixing legume
+peanut,co2,kg/t,480,Moderate emissions
+carrot,water,m^3/t,280,Water efficient vegetable
+carrot,fertilizer,kg/t,30,Moderate fertilizer needs
+carrot,co2,kg/t,340,Low emissions vegetable
+onion,water,m^3/t,300,Moderate water needs
+onion,fertilizer,kg/t,40,Higher N requirements
+onion,co2,kg/t,360,Moderate emissions
+cabbage,water,m^3/t,220,Water efficient
+cabbage,fertilizer,kg/t,45,Higher nutrient needs
+cabbage,co2,kg/t,310,Low emissions vegetable
+banana,water,m^3/t,800,Moderate water footprint
+banana,fertilizer,kg/t,60,High K requirements
+banana,co2,kg/t,450,Moderate tropical emissions
+cassava,water,m^3/t,250,Moderate water needs
+cassava,fertilizer,kg/t,20,Low fertilizer needs
+cassava,co2,kg/t,300,Moderate emissions per tonne
+sweet-potato,water,m^3/t,200,Water efficient tuber
+sweet-potato,fertilizer,kg/t,15,Low fertilizer needs
+sweet-potato,co2,kg/t,200,Low emissions per tonne
+yam,water,m^3/t,300,Moderate water needs
+yam,fertilizer,kg/t,20,Moderate fertilizer needs
+yam,co2,kg/t,250,Moderate emissions per tonne
+rye,water,m^3/t,1000,Lower water than wheat
+rye,fertilizer,kg/t,35,Moderate fertilizer needs
+rye,co2,kg/t,650,Similar to wheat emissions
+rapeseed,water,m^3/t,3000,High water footprint for oil
+rapeseed,fertilizer,kg/t,60,High nutrient needs
+rapeseed,co2,kg/t,700,Oil crop emissions
+groundnut,water,m^3/t,3000,High water footprint
+groundnut,fertilizer,kg/t,20,N-fixing legume
+groundnut,co2,kg/t,500,Moderate emissions
+dry-pea,water,m^3/t,1500,Moderate water needs
+dry-pea,fertilizer,kg/t,15,N-fixing legume
+dry-pea,co2,kg/t,400,Lower emissions due to N-fixation
+chickpea,water,m^3/t,1400,Moderate water needs
+chickpea,fertilizer,kg/t,15,N-fixing legume
+chickpea,co2,kg/t,380,Lower emissions due to N-fixation
+sugarcane,water,m^3/t,150,High water-use efficiency per tonne
+sugarcane,fertilizer,kg/t,60,High nutrient needs
+sugarcane,co2,kg/t,500,Processing and field emissions
+sugarbeet,water,m^3/t,100,Efficient water use per tonne
+sugarbeet,fertilizer,kg/t,50,High nutrient needs
+sugarbeet,co2,kg/t,450,Processing and field emissions

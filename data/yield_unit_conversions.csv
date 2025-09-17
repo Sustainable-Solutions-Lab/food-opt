@@ -1,0 +1,25 @@
+#
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: PDDL-1.0
+#
+# Per-crop yield unit conversions for GAEZ potential yields.
+#
+# GAEZ documentation notes unit inconsistencies:
+# - Most crops: kg dry weight per hectare (→ t/ha factor = 0.001).
+# - Alfalfa, miscanthus, napier grass, reed canary grass (and pasture grasses/legumes):
+#   units are in 10 kg dry weight per hectare (→ t/ha factor = 10 / 1000 = 0.01).
+# - Sugar beet and sugarcane: kg sugar per hectare (use 0.001 to convert to t sugar/ha).
+# - Olive and oil palm: kg oil per hectare (use 0.001 to convert to t oil/ha).
+# - Cotton: kg lint per hectare (use 0.001 to convert to t lint/ha).
+#
+# This table overrides the per-crop conversion to t/ha used when aggregating yields.
+# Column definitions:
+# - code: GAEZ crop code (as used in file names and Snakefile wildcards)
+# - factor_to_t_per_ha: multiply raw raster value by this factor to obtain t/ha
+# - note: optional human-readable note
+code,factor_to_t_per_ha,note
+alf,0.01,alfalfa in 10 kg/ha units
+mis,0.01,miscanthus in 10 kg/ha units
+nap,0.01,napier grass in 10 kg/ha units
+rcg,0.01,reed canary grass in 10 kg/ha units

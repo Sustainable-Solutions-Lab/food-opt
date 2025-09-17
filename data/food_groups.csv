@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+# SPDX-License-Identifier: PDDL-1.0
+food,group
+flour (white),grain
+flour (wholemeal),whole grain
+rice,grain
+maize,grain
+soy,legume
+potato,starchy vegetable
+apple,fruit
+tomato,vegetable
+barley (hulled),whole grain
+oat,whole grain
+sunflower oil,oil
+carrot,vegetable
+onion,vegetable
+cabbage,vegetable
+banana,fruit
+cassava,starchy vegetable
+sweet potato,starchy vegetable
+yam,starchy vegetable
+rye,whole grain
+rapeseed oil,oil
+groundnut,legume
+dry pea,legume
+chickpea,legume
+cattle meat,animal protein
+pig meat,animal protein
+chicken meat,animal protein
+dairy,dairy
+eggs,animal protein

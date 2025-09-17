@@ -1,0 +1,92 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+# SPDX-License-Identifier: PDDL-1.0
+#
+# Mock data
+food,nutrient,unit,value
+flour (white),carb,g/100g,76
+flour (white),protein,g/100g,10
+flour (white),fat,g/100g,1
+flour (wholemeal),carb,g/100g,72
+flour (wholemeal),protein,g/100g,13
+flour (wholemeal),fat,g/100g,2
+rice,carb,g/100g,80
+rice,protein,g/100g,7
+rice,fat,g/100g,1
+maize,carb,g/100g,74
+maize,protein,g/100g,9
+maize,fat,g/100g,5
+soy,carb,g/100g,30
+soy,protein,g/100g,36
+soy,fat,g/100g,20
+potato,carb,g/100g,17
+potato,protein,g/100g,2
+potato,fat,g/100g,0
+apple,carb,g/100g,14
+apple,protein,g/100g,0
+apple,fat,g/100g,0
+tomato,carb,g/100g,4
+tomato,protein,g/100g,1
+tomato,fat,g/100g,0
+barley (hulled),carb,g/100g,73
+barley (hulled),protein,g/100g,12
+barley (hulled),fat,g/100g,2
+oat,carb,g/100g,66
+oat,protein,g/100g,17
+oat,fat,g/100g,7
+sunflower oil,carb,g/100g,0
+sunflower oil,protein,g/100g,0
+sunflower oil,fat,g/100g,100
+carrot,carb,g/100g,10
+carrot,protein,g/100g,1
+carrot,fat,g/100g,0
+onion,carb,g/100g,9
+onion,protein,g/100g,1
+onion,fat,g/100g,0
+cabbage,carb,g/100g,6
+cabbage,protein,g/100g,1
+cabbage,fat,g/100g,0
+banana,carb,g/100g,23
+banana,protein,g/100g,1
+banana,fat,g/100g,0
+cassava,carb,g/100g,38
+cassava,protein,g/100g,1
+cassava,fat,g/100g,0
+sweet potato,carb,g/100g,20
+sweet potato,protein,g/100g,2
+sweet potato,fat,g/100g,0
+yam,carb,g/100g,28
+yam,protein,g/100g,2
+yam,fat,g/100g,0
+rye,carb,g/100g,76
+rye,protein,g/100g,10
+rye,fat,g/100g,2
+rapeseed oil,carb,g/100g,0
+rapeseed oil,protein,g/100g,0
+rapeseed oil,fat,g/100g,100
+groundnut,carb,g/100g,16
+groundnut,protein,g/100g,26
+groundnut,fat,g/100g,49
+dry pea,carb,g/100g,60
+dry pea,protein,g/100g,25
+dry pea,fat,g/100g,2
+chickpea,carb,g/100g,60
+chickpea,protein,g/100g,19
+chickpea,fat,g/100g,6
+cattle meat,carb,g/100g,0
+cattle meat,protein,g/100g,26
+cattle meat,fat,g/100g,15
+pig meat,carb,g/100g,0
+pig meat,protein,g/100g,23
+pig meat,fat,g/100g,20
+chicken meat,carb,g/100g,0
+chicken meat,protein,g/100g,27
+chicken meat,fat,g/100g,6
+dairy,carb,g/100g,5
+dairy,protein,g/100g,3
+dairy,fat,g/100g,3
+eggs,carb,g/100g,1
+eggs,protein,g/100g,13
+eggs,fat,g/100g,11
+sugar,carb,g/100g,100
+sugar,protein,g/100g,0
+sugar,fat,g/100g,0

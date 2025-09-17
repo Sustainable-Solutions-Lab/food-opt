@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+# SPDX-License-Identifier: PDDL-1.0
+#
+# Mock data
+product,feed_type,efficiency,notes
+cattle meat,ruminant,0.18,Mock 5.5 t feed per tonne carcass weight
+pig meat,monogastric,0.33,Mock 3.0 t feed per tonne carcass weight
+chicken meat,monogastric,0.40,Mock 2.5 t feed per tonne dressed weight
+dairy,ruminant,0.85,Mock 1.2 t feed per tonne milk equivalent
+eggs,monogastric,0.45,Mock 2.2 t feed per tonne eggs

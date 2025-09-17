@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+# SPDX-License-Identifier: PDDL-1.0
+#
+# Mock data
+crop,feed_type,efficiency,notes
+wheat,ruminant,0.80,Mock digestible fraction of cereal grain for feed
+wheat,monogastric,0.80,Mock digestible fraction of cereal grain for feed
+dryland-rice,ruminant,0.78,Mock value aligned with polished rice feed use
+dryland-rice,monogastric,0.78,Mock value aligned with polished rice feed use
+wetland-rice,ruminant,0.78,Mock value aligned with polished rice feed use
+wetland-rice,monogastric,0.78,Mock value aligned with polished rice feed use
+maize,ruminant,0.85,Mock value for grain maize digestibility
+maize,monogastric,0.85,Mock value for grain maize digestibility
+soybean,ruminant,0.90,Mock protein-rich concentrate digestibility
+soybean,monogastric,0.90,Mock protein-rich concentrate digestibility
+white-potato,ruminant,0.65,Mock energy yield from root crops for feed
+white-potato,monogastric,0.65,Mock energy yield from root crops for feed
+tomato,ruminant,0.30,Mock processing by-product suitability for feed
+tomato,monogastric,0.30,Mock processing by-product suitability for feed
+barley,ruminant,0.82,Mock value for hulled barley digestibility
+barley,monogastric,0.82,Mock value for hulled barley digestibility
+oat,ruminant,0.80,Mock value for oat digestibility
+oat,monogastric,0.80,Mock value for oat digestibility
+sunflower,ruminant,0.70,Mock value for oilseed meal digestibility
+sunflower,monogastric,0.70,Mock value for oilseed meal digestibility
+carrot,ruminant,0.55,Mock value for vegetable by-product feed use
+carrot,monogastric,0.55,Mock value for vegetable by-product feed use
+onion,ruminant,0.40,Mock value for vegetable by-product feed use
+onion,monogastric,0.40,Mock value for vegetable by-product feed use
+cabbage,ruminant,0.45,Mock value for vegetable by-product feed use
+cabbage,monogastric,0.45,Mock value for vegetable by-product feed use
+banana,ruminant,0.50,Mock value for fruit by-product feed use
+banana,monogastric,0.50,Mock value for fruit by-product feed use
+cassava,ruminant,0.75,Mock value for starchy root feed conversion
+cassava,monogastric,0.75,Mock value for starchy root feed conversion
+sweet-potato,ruminant,0.72,Mock value for starchy root feed conversion
+sweet-potato,monogastric,0.72,Mock value for starchy root feed conversion
+yam,ruminant,0.70,Mock value for starchy root feed conversion
+yam,monogastric,0.70,Mock value for starchy root feed conversion
+sugarcane,ruminant,0.35,Mock value for fodder cane digestibility
+sugarcane,monogastric,0.35,Mock value for fodder cane digestibility
+sugarbeet,ruminant,0.38,Mock value for beet pulp digestibility
+sugarbeet,monogastric,0.38,Mock value for beet pulp digestibility
+rapeseed,ruminant,0.72,Mock value for oilseed meal digestibility
+rapeseed,monogastric,0.72,Mock value for oilseed meal digestibility
+groundnut,ruminant,0.78,Mock value for oilseed meal digestibility
+groundnut,monogastric,0.78,Mock value for oilseed meal digestibility
+rye,ruminant,0.79,Mock value for rye digestibility
+rye,monogastric,0.79,Mock value for rye digestibility
+dry-pea,ruminant,0.83,Mock value for pulse digestibility
+dry-pea,monogastric,0.83,Mock value for pulse digestibility
+chickpea,ruminant,0.83,Mock value for pulse digestibility
+chickpea,monogastric,0.83,Mock value for pulse digestibility
+alfalfa,ruminant,0.88,Mock value for forage digestibility
+alfalfa,monogastric,0.88,Mock value assuming same digestibility for now
+biomass-sorghum,ruminant,0.60,Mock value for lignocellulosic forage digestibility
+biomass-sorghum,monogastric,0.60,Mock value assuming same digestibility for now
+silage-maize,ruminant,0.82,Mock value for silage digestibility
+silage-maize,monogastric,0.82,Mock value assuming same digestibility for now
