@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Plot an Equal Earth map of resource classes by grid cell."""
+"""Plot a Plate Carrée map of resource classes by grid cell."""
 
 import logging
 from pathlib import Path
@@ -106,7 +106,7 @@ def plot_resource_classes_map(
     fig, ax = plt.subplots(
         figsize=(12, 6),
         dpi=150,
-        subplot_kw={"projection": ccrs.EqualEarth()},
+        subplot_kw={"projection": ccrs.PlateCarree()},
     )
     ax.set_facecolor("#f7f9fb")
 
