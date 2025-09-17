@@ -10,6 +10,11 @@ set -euo pipefail
 
 MEM_MAX=${SMK_MEM_MAX:-10G}
 
+# Run with local cache and tmp directories so coding agents don't have to write outside the project dir.
+mkdir -p "$PWD/.cache" "$PWD/.tmp"
+export XDG_CACHE_HOME=$PWD/.cache
+export TMPDIR=$PWD/.tmp
+
 if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1; then
   exec systemd-run --user --scope -p MemoryMax="${MEM_MAX}" -p MemorySwapMax=0 \
     uv run snakemake "$@"
