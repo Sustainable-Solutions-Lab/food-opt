@@ -49,17 +49,6 @@ rule all:
         f"results/{name}/plots/cropland_fraction_map.pdf",
 
 
-rule retrieve_faostat_prices:
-    input:
-        mapping="data/faostat_item_map.csv",
-    params:
-        crops=config["crops"],
-    output:
-        prices=f"processing/{name}/faostat_prices.csv",
-    script:
-        "scripts/retrieve_faostat_prices.py"
-
-
 rule prepare_population:
     input:
         population_gz="data/downloads/WPP_population.csv.gz",

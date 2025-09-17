@@ -1,6 +1,3 @@
-# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
-# SPDX-License-Identifier: PDDL-1.0
-#
 # Mock data
 food,nutrient,unit,value
 flour (white),carb,g/100g,76

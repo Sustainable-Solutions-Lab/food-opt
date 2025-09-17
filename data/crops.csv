@@ -1,6 +1,3 @@
-# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
-# SPDX-License-Identifier: PDDL-1.0
-#
 # Mock data
 crop,param,unit,value,description
 wheat,water,m^3/t,1350,Blue water footprint

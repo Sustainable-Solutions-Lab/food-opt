@@ -27,6 +27,17 @@ rule extract_adm1:
         """
 
 
+rule retrieve_faostat_prices:
+    input:
+        mapping="data/faostat_item_map.csv",
+    params:
+        crops=config["crops"],
+    output:
+        prices=f"processing/{name}/faostat_prices.csv",
+    script:
+        "../scripts/retrieve_faostat_prices.py"
+
+
 rule download_gaez_potential_yield_data:
     output:
         "data/downloads/gaez_potential_yield_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",

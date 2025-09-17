@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import functools
 import pandas as pd
 import geopandas as gpd
 import numpy as np
@@ -655,23 +656,25 @@ def add_crop_trade_hubs_and_links(
 
 
 if __name__ == "__main__":
+    read_csv = functools.partial(pd.read_csv, comment="#")
+
     # Read crop data
-    crops = pd.read_csv(snakemake.input.crops, index_col=["crop", "param"])
+    crops = read_csv(snakemake.input.crops, index_col=["crop", "param"])
 
     # Read food conversion data
-    foods = pd.read_csv(snakemake.input.foods)
+    foods = read_csv(snakemake.input.foods)
 
     # Read food groups data
-    food_groups = pd.read_csv(snakemake.input.food_groups)
+    food_groups = read_csv(snakemake.input.food_groups)
 
     # Read nutrition data
-    nutrition = pd.read_csv(snakemake.input.nutrition, index_col=["food", "nutrient"])
+    nutrition = read_csv(snakemake.input.nutrition, index_col=["food", "nutrient"])
 
     # Read feed conversion data (crop -> feed pools)
-    feed_conversion = pd.read_csv(snakemake.input.feed_conversion)
+    feed_conversion = read_csv(snakemake.input.feed_conversion)
 
     # Read feed requirements for animal products (feed pools -> foods)
-    feed_to_products = pd.read_csv(snakemake.input.feed_to_products)
+    feed_to_products = read_csv(snakemake.input.feed_to_products)
 
     # Read yields data for each configured crop and water supply (skip missing)
     yields_data = {}
@@ -687,7 +690,7 @@ if __name__ == "__main__":
                     "irrigated" if ws == "i" else "rainfed",
                 )
                 continue
-            yields_df = pd.read_csv(path, index_col=["region", "resource_class"])
+            yields_df = read_csv(path, index_col=["region", "resource_class"])
             yields_data[yields_key] = yields_df
             logger.info(
                 "Loaded yields for %s (%s): %d rows",
@@ -700,14 +703,14 @@ if __name__ == "__main__":
     regions_df = gpd.read_file(snakemake.input.regions)
 
     # Load class-level land areas
-    land_class_df = pd.read_csv(snakemake.input.land_area_by_class)
+    land_class_df = read_csv(snakemake.input.land_area_by_class)
     # Expect columns: region, water_supply, resource_class, area_ha
     land_class_df = land_class_df.set_index(
         ["region", "water_supply", "resource_class"]
     ).sort_index()
 
     # Load population per country for planning horizon
-    population_df = pd.read_csv(snakemake.input.population)
+    population_df = read_csv(snakemake.input.population)
     # Expect columns: iso3, country, year, population
     # Select only configured countries and validate coverage
     cfg_countries = list(snakemake.params.countries)
@@ -736,7 +739,7 @@ if __name__ == "__main__":
     logger.debug("Nutrition data:\n%s", nutrition.head())
 
     # Read FAOSTAT prices (USD/tonne) and build crop->price mapping
-    prices_df = pd.read_csv(snakemake.input.prices)
+    prices_df = read_csv(snakemake.input.prices)
     # Expect columns: crop, faostat_item, n_obs, price_usd_per_tonne
     crop_prices = prices_df.set_index("crop")["price_usd_per_tonne"].astype(float)
 

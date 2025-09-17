@@ -87,9 +87,6 @@ def _fetch_with_faostat(items: list[str]) -> pd.DataFrame:
     return df[cols].copy()
 
 
-# No REST fallback by design: we rely on the faostat client per requirements.
-
-
 def fetch_prices(items: list[str]) -> pd.DataFrame:
     """Fetch FAOSTAT USD/tonne producer prices for given item labels.
 
@@ -113,7 +110,7 @@ def main():
     mapping_path: str = str(snakemake.input.mapping)  # type: ignore[name-defined]
     out_path: str = str(snakemake.output.prices)  # type: ignore[name-defined]
 
-    map_df = pd.read_csv(mapping_path)
+    map_df = pd.read_csv(mapping_path, comment="#")
     if not {"crop", "faostat_item"}.issubset(map_df.columns):
         raise ValueError("Mapping file must have columns: crop, faostat_item")
 

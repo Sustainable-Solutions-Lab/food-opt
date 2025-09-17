@@ -12,4 +12,6 @@ gurobi.log
 /uv.lock
 vendor
 /.codex/
-/.xdg-cache/
+/.cache/
+/.tmp/
+

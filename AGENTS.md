@@ -29,6 +29,8 @@ For a longer overview and concrete file references, see `CLAUDE.md`.
 - Consistent style: Follow existing patterns in nearby files; don’t introduce new paradigms ad hoc.
 - Reproducibility: Use the Snakemake targets below to validate changes; don’t hand‑run ad hoc pipelines unless necessary.
 - No unused imports: The linter removes them automatically; only add imports when adding code that uses them.
+- Do not add `from __future__ import annotations`; type checkers and tooling already expect
+  runtime string annotations, so this import is unnecessary and should be avoided.
 - Documentation-first interfaces: If you change a script’s inputs/outputs, update inline docstrings and any referenced docs/config keys.
 - Mock data: Several CSVs ship with placeholder values to keep the workflow runnable (`README.md` lists them). When touching those files, state clearly that values are mock and confirm with the user before treating them as final data.
 
