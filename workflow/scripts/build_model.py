@@ -389,8 +389,25 @@ def add_crop_trade_hubs_and_links(
     n_hubs = int(trade_config["crop_hubs"])
     cost_per_km = float(trade_config["crop_trade_marginal_cost_per_km"])
 
-    if len(regions_gdf) == 0 or len(crop_list) == 0 or len(countries) == 0:
-        logger.info("Skipping trade hubs: no regions/crops/countries available")
+    if len(regions_gdf) == 0 or len(countries) == 0:
+        logger.info("Skipping trade hubs: no regions/countries available")
+        return
+
+    if len(crop_list) == 0:
+        logger.info("Skipping trade hubs: no crops configured")
+        return
+
+    non_tradable = {str(crop) for crop in trade_config.get("non_tradable_crops", [])}
+    tradable_crops = [crop for crop in crop_list if crop not in non_tradable]
+    skipped = sorted(non_tradable.intersection(set(crop_list)))
+    if skipped:
+        logger.info(
+            "Skipping trade network for non-tradable crops: %s",
+            ", ".join(skipped),
+        )
+
+    if not tradable_crops:
+        logger.info("Skipping trade hubs: no tradable crops available")
         return
 
     # Ensure CRS and project to an equal-area/earth projection for distance in meters
@@ -412,7 +429,7 @@ def add_crop_trade_hubs_and_links(
 
     # Add per-crop hub buses at these centers
     hub_ids = list(range(n_hubs))
-    for crop in crop_list:
+    for crop in tradable_crops:
         hub_bus_names = [f"hub_{h}_{crop}" for h in hub_ids]
         hub_carriers = [f"crop_{crop}"] * n_hubs
         n.add("Bus", hub_bus_names, carrier=hub_carriers)
@@ -438,7 +455,7 @@ def add_crop_trade_hubs_and_links(
     # Connect each country's crop bus to its nearest hub with a single
     # bidirectional link (p_nom_min = -inf)
     valid_countries = [c for c in countries if c in country_to_hub]
-    for crop in crop_list:
+    for crop in tradable_crops:
         if not valid_countries:
             continue
         names_from_c = [
@@ -475,7 +492,7 @@ def add_crop_trade_hubs_and_links(
         ii, jj = np.where(~np.eye(n_hubs, dtype=bool))
         dists_km = D[ii, jj].tolist()
 
-        for crop in crop_list:
+        for crop in tradable_crops:
             if len(ii) == 0:
                 continue
             names = [f"trade_{crop}_hub{i}_to_hub{j}" for i, j in zip(ii, jj)]
