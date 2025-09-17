@@ -7,12 +7,15 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import cartopy.crs as ccrs
+from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 import geopandas as gpd
 import matplotlib
 
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import pypsa
@@ -103,19 +106,21 @@ def plot_crop_production_pies(
     if gdf.crs is None:
         logger.warning("Input CRS missing; assuming EPSG:4326 (WGS84)")
         gdf = gdf.set_crs(4326, allow_override=True)
+    else:
+        gdf = gdf.to_crs(4326)
 
-    # Equal Earth projection via PROJ
-    ee_crs = "+proj=eqearth"
-    gdf_ee = gdf.to_crs(ee_crs)
+    if "region" not in gdf.columns:
+        raise ValueError("Regions GeoDataFrame must contain a 'region' column")
+
+    gdf = gdf.set_index("region", drop=False)
+    gdf_eq = gdf.to_crs("+proj=eqearth")
 
     # Compute crop production by region (only regions that have links)
     by_region = _extract_crop_by_region(n)
 
     # Prepare indices
-    if "region" not in gdf_ee.columns:
-        raise ValueError("Regions GeoDataFrame must contain a 'region' column")
-    gdf_ee = gdf_ee.set_index("region", drop=False)
-    model_regions = gdf_ee.index
+    gdf_eq = gdf_eq.set_index("region", drop=False)
+    model_regions = gdf.index
     present_regions = by_region.index if not by_region.empty else pd.Index([])
     missing_regions = model_regions.difference(present_regions)
     # Filter by_region to modeled regions only
@@ -135,20 +140,36 @@ def plot_crop_production_pies(
     out = Path(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    fig, ax = plt.subplots(figsize=(13, 6.5), dpi=150)
+    fig, ax = plt.subplots(
+        figsize=(13, 6.5),
+        dpi=150,
+        subplot_kw={"projection": ccrs.EqualEarth()},
+    )
 
-    # Base map: light shading
-    gdf_ee.plot(ax=ax, linewidth=0.3, edgecolor="#666666", facecolor="#e6eef2")
-    ax.set_axis_off()
+    ax.set_facecolor("#f7f9fb")
+    ax.set_global()
+
+    plate = ccrs.PlateCarree()
+
+    ax.add_geometries(
+        gdf.geometry,
+        crs=plate,
+        facecolor="#e6eef2",
+        edgecolor="#666666",
+        linewidth=0.3,
+        zorder=1,
+    )
 
     # Hatch overlay for regions without production links
     if len(missing_regions) > 0:
-        gdf_ee.loc[missing_regions].plot(
-            ax=ax,
+        ax.add_geometries(
+            gdf.loc[missing_regions].geometry,
+            crs=plate,
             facecolor="#f0f0f0",
             edgecolor="#666666",
             linewidth=0.3,
             hatch="..",
+            zorder=1.5,
         )
 
     # Draw pies for regions that have production links
@@ -161,13 +182,13 @@ def plot_crop_production_pies(
 
         totals = by_region.sum(axis=1)
         if totals.max() > 0:
-            xmin, ymin, xmax, ymax = gdf_ee.total_bounds
+            xmin, ymin, xmax, ymax = gdf_eq.total_bounds
             width = xmax - xmin
             height = ymax - ymin
             r_max = 0.03 * max(width, height)
             radii = (np.sqrt(totals / totals.max()) * r_max).fillna(0.0)
 
-            centroids = gdf_ee.geometry.representative_point()
+            centroids = gdf_eq.geometry.representative_point()
             for region in by_region.index:
                 point = centroids.loc[region]
                 x, y = point.x, point.y
@@ -233,6 +254,34 @@ def plot_crop_production_pies(
             frameon=True,
         )
 
+    for name, spine in ax.spines.items():
+        if name == "geo":
+            spine.set_visible(True)
+            spine.set_linewidth(0.5)
+            spine.set_edgecolor("#555555")
+            spine.set_alpha(0.7)
+        else:
+            spine.set_visible(False)
+
+    gl = ax.gridlines(
+        draw_labels=True,
+        crs=plate,
+        linewidth=0.35,
+        color="#888888",
+        alpha=0.45,
+        linestyle="--",
+    )
+    gl.xlocator = mticker.FixedLocator(np.arange(-180, 181, 30))
+    gl.ylocator = mticker.FixedLocator(np.arange(-60, 61, 15))
+    gl.xformatter = LongitudeFormatter(number_format=".0f")
+    gl.yformatter = LatitudeFormatter(number_format=".0f")
+    gl.xlabel_style = {"size": 8, "color": "#555555"}
+    gl.ylabel_style = {"size": 8, "color": "#555555"}
+    gl.top_labels = False
+    gl.right_labels = False
+
+    ax.set_xlabel("Longitude", fontsize=8, color="#555555")
+    ax.set_ylabel("Latitude", fontsize=8, color="#555555")
     ax.set_title("Crop Production by Region")
     plt.tight_layout()
     fig.savefig(out, bbox_inches="tight", dpi=300)

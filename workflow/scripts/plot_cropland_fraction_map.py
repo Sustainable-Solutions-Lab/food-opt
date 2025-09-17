@@ -26,11 +26,15 @@ Notes:
 
 from pathlib import Path
 import logging
+
+import cartopy.crs as ccrs
+from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
 import geopandas as gpd
 import matplotlib
 
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import pypsa
@@ -81,8 +85,9 @@ def main() -> None:
     gdf = gpd.read_file(regions_path)
     if gdf.crs is None:
         gdf = gdf.set_crs(4326, allow_override=True)
+    else:
+        gdf = gdf.to_crs(4326)
     gdf = gdf.set_index("region", drop=False)
-    gdf_ee = gdf.to_crs("+proj=eqearth")
 
     # Used cropland area from solved network
     used_ha = _used_cropland_area_by_region(n)
@@ -103,52 +108,91 @@ def main() -> None:
         frac = (used_ha / total_ha).replace([np.inf, -np.inf], np.nan)
     frac = frac.clip(lower=0.0, upper=1.0)
 
-    gdf_ee = gdf_ee.copy()
-    gdf_ee["cropland_used_ha"] = used_ha.values
-    gdf_ee["land_total_ha"] = total_ha.values
-    gdf_ee["cropland_fraction"] = frac.values
+    gdf = gdf.copy()
+    gdf["cropland_used_ha"] = used_ha.values
+    gdf["land_total_ha"] = total_ha.values
+    gdf["cropland_fraction"] = frac.values
 
     out_pdf.parent.mkdir(parents=True, exist_ok=True)
 
-    # Plot
-    fig, ax = plt.subplots(figsize=(13, 6.5))
-    ax.set_axis_off()
+    fig, ax = plt.subplots(
+        figsize=(13, 6.5),
+        dpi=150,
+        subplot_kw={"projection": ccrs.EqualEarth()},
+    )
+    ax.set_facecolor("#f7f9fb")
+    ax.set_global()
 
-    # Base map
-    gdf_ee.plot(ax=ax, linewidth=0.3, edgecolor="#666666", facecolor="#f5f7f9")
+    plate = ccrs.PlateCarree()
 
-    # Valid fraction regions
-    valid = gdf_ee[~gdf_ee["cropland_fraction"].isna()]
+    ax.add_geometries(
+        gdf.geometry,
+        crs=plate,
+        facecolor="#f5f7f9",
+        edgecolor="#666666",
+        linewidth=0.3,
+        zorder=1,
+    )
+
+    valid = gdf[~gdf["cropland_fraction"].isna()]
     if not valid.empty:
         vmin, vmax = 0.0, 0.5
         cmap = plt.get_cmap("YlGn")
-        coll = valid.plot(
-            ax=ax,
-            column="cropland_fraction",
-            cmap=cmap,
-            vmin=vmin,
-            vmax=vmax,
-            linewidth=0.3,
-            edgecolor="#666666",
-            legend=False,
-        )
-        # Add colorbar
-        sm = plt.cm.ScalarMappable(norm=plt.Normalize(vmin=vmin, vmax=vmax), cmap=cmap)
+        norm = plt.Normalize(vmin=vmin, vmax=vmax)
+        for geom, value in zip(valid.geometry, valid["cropland_fraction"]):
+            ax.add_geometries(
+                [geom],
+                crs=plate,
+                facecolor=cmap(norm(value)),
+                edgecolor="#666666",
+                linewidth=0.3,
+                zorder=2,
+            )
+        sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array([])
-        cbar = fig.colorbar(sm, ax=ax, fraction=0.035, pad=0.02)
+        cbar = fig.colorbar(sm, ax=ax, fraction=0.032, pad=0.02)
         cbar.set_label("Cropland / total model land area")
 
-    # Hatch regions with zero total area (undefined fraction)
-    zero_total = gdf_ee[gdf_ee["land_total_ha"] <= 0]
+    zero_total = gdf[gdf["land_total_ha"] <= 0]
     if not zero_total.empty:
-        zero_total.plot(
-            ax=ax,
+        ax.add_geometries(
+            zero_total.geometry,
+            crs=plate,
             facecolor="#f0f0f0",
             edgecolor="#666666",
             linewidth=0.3,
             hatch="//",
+            zorder=2.5,
         )
 
+    for name, spine in ax.spines.items():
+        if name == "geo":
+            spine.set_visible(True)
+            spine.set_linewidth(0.5)
+            spine.set_edgecolor("#555555")
+            spine.set_alpha(0.7)
+        else:
+            spine.set_visible(False)
+
+    gl = ax.gridlines(
+        draw_labels=True,
+        crs=plate,
+        linewidth=0.35,
+        color="#888888",
+        alpha=0.45,
+        linestyle="--",
+    )
+    gl.xlocator = mticker.FixedLocator(np.arange(-180, 181, 30))
+    gl.ylocator = mticker.FixedLocator(np.arange(-60, 61, 15))
+    gl.xformatter = LongitudeFormatter(number_format=".0f")
+    gl.yformatter = LatitudeFormatter(number_format=".0f")
+    gl.xlabel_style = {"size": 8, "color": "#555555"}
+    gl.ylabel_style = {"size": 8, "color": "#555555"}
+    gl.top_labels = False
+    gl.right_labels = False
+
+    ax.set_xlabel("Longitude", fontsize=8, color="#555555")
+    ax.set_ylabel("Latitude", fontsize=8, color="#555555")
     ax.set_title("Cropland Fraction by Region")
     plt.tight_layout()
     fig.savefig(out_pdf, bbox_inches="tight", dpi=300)
@@ -157,7 +201,7 @@ def main() -> None:
     # Optional CSV sidecar for reference
     csv_out = out_pdf.with_suffix("")
     csv_out = csv_out.parent / f"{csv_out.name}_by_region.csv"
-    gdf_ee[["region", "cropland_used_ha", "land_total_ha", "cropland_fraction"]].to_csv(
+    gdf[["region", "cropland_used_ha", "land_total_ha", "cropland_fraction"]].to_csv(
         csv_out, index=False
     )
     logger.info("Saved cropland fraction map to %s and CSV to %s", out_pdf, csv_out)

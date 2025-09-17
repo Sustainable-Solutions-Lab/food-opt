@@ -35,6 +35,16 @@ rule plot_regions_map:
         "../scripts/plot_regions_map.py"
 
 
+rule plot_resource_classes_map:
+    input:
+        classes=f"processing/{name}/resource_classes.nc",
+        regions=f"processing/{name}/regions.geojson",
+    output:
+        pdf=f"results/{name}/plots/resource_classes_map.pdf",
+    script:
+        "../scripts/plot_resource_classes_map.py"
+
+
 rule plot_results:
     input:
         network="results/{name}/solved/model.nc",
