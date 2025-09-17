@@ -84,6 +84,7 @@ def _draw_pie(
             facecolor=colors[i],
             edgecolor="white",
             linewidth=0.4,
+            alpha=0.85,
         )
         ax.add_patch(wedge)
     # subtle outline
@@ -185,7 +186,7 @@ def plot_crop_production_pies(
             xmin, ymin, xmax, ymax = gdf_eq.total_bounds
             width = xmax - xmin
             height = ymax - ymin
-            r_max = 0.03 * max(width, height)
+            r_max = 0.024 * max(width, height)
             radii = (np.sqrt(totals / totals.max()) * r_max).fillna(0.0)
 
             centroids = gdf_eq.geometry.representative_point()
@@ -202,41 +203,51 @@ def plot_crop_production_pies(
                 handles=handles,
                 title="Crops",
                 loc="lower left",
-                bbox_to_anchor=(0.01, 0.02),
+                bbox_to_anchor=(0.15, 0.03),
                 fontsize=8,
                 title_fontsize=9,
                 frameon=True,
+                borderpad=0.8,
+                labelspacing=0.6,
+                handletextpad=0.6,
             )
+            legend1._legend_box.align = "left"
             ax.add_artist(legend1)
 
-            # Legend: pie size scale
-            ref_vals = np.linspace(totals.max() / 5.0, totals.max(), 3)
-            ref_r = np.sqrt(ref_vals / totals.max()) * r_max
-            x0 = xmax - 0.06 * width
-            y0 = ymax - 0.1 * height
-            for i, (rv, rr) in enumerate(zip(ref_vals, ref_r)):
-                circ = mpatches.Circle(
-                    (x0, y0 - i * 1.5 * r_max),
-                    radius=float(rr),
-                    facecolor="#d0d7de",
-                    edgecolor="#555555",
-                    linewidth=0.5,
+            # Legend: pie size scale using scatter handles for consistent sizing
+            ref_fracs = np.array([0.25, 0.5, 1.0])
+            ref_vals = np.unique(totals.max() * ref_fracs)
+            # Scale to reasonable handle area in points^2
+            handle_scale = 900.0
+            size_handles = [
+                ax.scatter(
+                    [],
+                    [],
+                    s=float((val / totals.max()) * handle_scale),
+                    facecolors="#d0d7de",
+                    edgecolors="#555555",
+                    linewidths=0.6,
                     alpha=0.7,
                 )
-                ax.add_patch(circ)
-                ax.text(
-                    x0 + 1.2 * r_max,
-                    y0 - i * 1.5 * r_max,
-                    f"{rv:,.0f} t",
-                    va="center",
-                    fontsize=8,
-                )
-            ax.text(
-                x0,
-                y0 - 1.5 * r_max * len(ref_vals) + 0.01 * height,
-                "Pie size ∝ total crop production",
+                for val in ref_vals
+            ]
+            size_labels = [f"{val:,.0f} t" for val in ref_vals]
+            legend2 = ax.legend(
+                size_handles,
+                size_labels,
+                title="Pie size ∝ total production",
+                loc="lower left",
+                bbox_to_anchor=(0.6, 0.03),
                 fontsize=8,
+                title_fontsize=9,
+                frameon=True,
+                scatterpoints=1,
+                handlelength=1.5,
+                borderpad=0.8,
+                labelspacing=2,
             )
+            legend2._legend_box.align = "left"
+            ax.add_artist(legend2)
 
     # Legend: hatched regions indicating no production links
     if len(missing_regions) > 0:
