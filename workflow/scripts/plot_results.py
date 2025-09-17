@@ -104,39 +104,7 @@ def plot_crop_production(crop_production: pd.Series, output_dir: Path) -> None:
     logger.info("Crop production plot saved to %s", out)
 
 
-def plot_food_production(food_production: pd.Series, output_dir: Path) -> None:
-    """Create bar plot for food production; always writes a PDF."""
-    ser = food_production.fillna(0.0).astype(float)
-    ser = ser[ser > 0]
-    ser = ser.sort_values(ascending=False)
-
-    plt.figure(figsize=(14, 8))
-    if len(ser) == 0:
-        plt.text(0.5, 0.5, "No food production found", ha="center", va="center")
-        plt.axis("off")
-    else:
-        plt.bar(range(len(ser)), ser.values)
-        max_value = ser.max()
-        for i, (food, value) in enumerate(ser.items()):
-            plt.text(
-                i,
-                value + max_value * 0.01,
-                f"{value:.1e}",
-                ha="center",
-                va="bottom",
-                fontsize=8,
-            )
-        plt.xlabel("Food Products")
-        plt.ylabel("Production (tonnes)")
-        plt.xticks(range(len(ser)), ser.index, rotation=45, ha="right")
-        plt.grid(True, alpha=0.3)
-    plt.title("Food Production by Type")
-    plt.tight_layout()
-
-    out = output_dir / "food_production.pdf"
-    plt.savefig(out, bbox_inches="tight", dpi=300)
-    plt.close()
-    logger.info("Food production plot saved to %s", out)
+## Removed: food production plot (slow and cluttered)
 
 
 def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
@@ -144,25 +112,42 @@ def plot_resource_usage(n: pypsa.Network, output_dir: Path) -> None:
     resources = ["land", "water", "fertilizer"]
     resource_usage = {}
 
+    def _snapshot_series(attr: str) -> pd.Series:
+        table = getattr(n.links_t, attr, None)
+        if table is None or "now" not in table.index:
+            return pd.Series(dtype=float)
+        return table.loc["now"]
+
+    p0_now = _snapshot_series("p0")
+    p2_now = _snapshot_series("p2")
+    p3_now = _snapshot_series("p3")
+
+    links = n.links
+    has_bus2 = "bus2" in links.columns and "efficiency2" in links.columns
+    has_bus3 = "bus3" in links.columns and "efficiency3" in links.columns
+
     for resource in resources:
-        # Calculate total resource consumption from links
-        total_flow = 0
-        for link_name in n.links.index:
-            link = n.links.loc[link_name]
-            # Check if this link consumes this resource (resource is input bus0)
-            if resource == link.get("bus0", ""):
-                flow = n.links_t.p0.loc["now", link_name]
-                total_flow += abs(flow)
-            # Check resource inputs via bus2 (negative efficiency means input)
-            elif resource == link.get("bus2", "") and link.get("efficiency2", 0) < 0:
-                if "p2" in n.links_t:
-                    flow = n.links_t.p2.loc["now", link_name]
-                    total_flow += abs(flow)
-            # Check resource inputs via bus3 (negative efficiency means input)
-            elif resource == link.get("bus3", "") and link.get("efficiency3", 0) < 0:
-                if "p3" in n.links_t:
-                    flow = n.links_t.p3.loc["now", link_name]
-                    total_flow += abs(flow)
+        total_flow = 0.0
+
+        bus0_idx = links.index[links["bus0"] == resource]
+        if not p0_now.empty and len(bus0_idx) > 0:
+            total_flow += p0_now.reindex(bus0_idx, fill_value=0.0).abs().sum()
+
+        if has_bus2 and not p2_now.empty:
+            mask2 = (links["bus2"] == resource) & (
+                links["efficiency2"].fillna(0.0) < 0.0
+            )
+            bus2_idx = links.index[mask2]
+            if len(bus2_idx) > 0:
+                total_flow += p2_now.reindex(bus2_idx, fill_value=0.0).abs().sum()
+
+        if has_bus3 and not p3_now.empty:
+            mask3 = (links["bus3"] == resource) & (
+                links["efficiency3"].fillna(0.0) < 0.0
+            )
+            bus3_idx = links.index[mask3]
+            if len(bus3_idx) > 0:
+                total_flow += p3_now.reindex(bus3_idx, fill_value=0.0).abs().sum()
 
         resource_usage[resource] = total_flow
 
@@ -215,13 +200,13 @@ if __name__ == "__main__":
     crop_production = extract_crop_production(n)
     logger.info("Found %d crops with production data", len(crop_production))
 
-    logger.info("Extracting food production data...")
+    logger.info("Extracting food production data (for CSV)...")
     food_production = extract_food_production(n)
     logger.info("Found %d foods with production data", len(food_production))
 
     # Create plots
     plot_crop_production(crop_production, output_dir)
-    plot_food_production(food_production, output_dir)
+    # Skipped food production PDF on purpose
     plot_resource_usage(n, output_dir)
 
     # Save summary data as CSV for reference (always write files)

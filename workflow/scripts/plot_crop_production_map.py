@@ -124,6 +124,14 @@ def plot_crop_production_pies(
             model_regions.intersection(present_regions)
         ).fillna(0.0)
 
+        # Keep only crops with meaningful production and order by total output
+        crop_totals = by_region.sum(axis=0).sort_values(ascending=False)
+        crop_totals = crop_totals[crop_totals >= 10_000.0]
+        if crop_totals.empty:
+            by_region = by_region.iloc[:, 0:0]
+        else:
+            by_region = by_region.loc[:, crop_totals.index]
+
     out = Path(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
 

@@ -40,7 +40,6 @@ rule all:
         f"results/{name}/solved/model.nc",
         # results plots
         f"results/{name}/plots/crop_production.pdf",
-        f"results/{name}/plots/food_production.pdf",
         f"results/{name}/plots/resource_usage.pdf",
         f"results/{name}/plots/crop_production.csv",
         f"results/{name}/plots/food_production.csv",

@@ -40,7 +40,6 @@ rule plot_results:
         network="results/{name}/solved/model.nc",
     output:
         crop_pdf="results/{name}/plots/crop_production.pdf",
-        food_pdf="results/{name}/plots/food_production.pdf",
         resource_pdf="results/{name}/plots/resource_usage.pdf",
         crop_csv="results/{name}/plots/crop_production.csv",
         food_csv="results/{name}/plots/food_production.csv",
