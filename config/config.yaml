@@ -55,6 +55,14 @@ macronutrients:
   fat:
     min_per_person_per_day: 65   # g/person/day (20-35% of calories)
 
+animal_products:
+  include:
+  - cattle meat
+  - pig meat
+  - chicken meat
+  - dairy
+  - eggs
+
 food_groups:
   whole grain:
     min_per_person_per_day: 170  # g/person/day (WHO recommendations)

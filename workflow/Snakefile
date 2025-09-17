@@ -48,6 +48,7 @@ rule all:
         f"results/{name}/plots/crop_production_map.pdf",
         f"results/{name}/plots/cropland_fraction_map.pdf",
 
+
 rule retrieve_faostat_prices:
     input:
         mapping="data/faostat_item_map.csv",
@@ -258,6 +259,8 @@ rule build_model:
         unpack(yield_inputs),
         crops="data/crops.csv",
         foods="data/foods.csv",
+        feed_conversion="data/feed_conversion.csv",
+        feed_to_products="data/feed_to_animal_products.csv",
         food_groups="data/food_groups.csv",
         nutrition="data/nutrition.csv",
         regions="processing/{name}/regions.geojson",
@@ -270,6 +273,7 @@ rule build_model:
         primary=config["primary"],
         food_groups=config["food_groups"],
         macronutrients=config["macronutrients"],
+        animal_products=config["animal_products"],
         trade=config["trade"],
     output:
         network="results/{name}/build/model.nc",

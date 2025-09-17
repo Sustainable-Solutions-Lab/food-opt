@@ -68,6 +68,17 @@ The model integrates multiple global datasets:
 - **Global Burden of Disease**: Dietary risk factors and health impacts
 - **Global Dietary Database**: Population dietary intake estimates
 
+## Mock Data
+
+Some CSV files currently ship with illustrative placeholder numbers that enable
+the workflow to run end-to-end until vetted datasets are incorporated. These
+include `data/foods.csv`, `data/food_groups.csv`, `data/nutrition.csv`,
+`data/feed_conversion.csv`, and `data/feed_to_animal_products.csv`. Values in
+these files are not meant for analysis—replace them with sourced data before
+drawing conclusions. The Snakemake rules assume that the corresponding config
+sections exist; missing entries will raise errors to highlight incomplete
+scenario specifications.
+
 ## Getting Started
 
 ### Prerequisites

@@ -74,6 +74,14 @@ def add_carriers_and_buses(
         n.add("Carrier", ["carb", "protein", "fat"], unit="t")
         n.add("Bus", nutrient_buses, carrier=nutrient_carriers)
 
+    # Feed carriers per country (ruminant-wide and monogastric-only pools)
+    feed_types = ["ruminant", "monogastric"]
+    feed_buses = [f"feed_{ft}_{country}" for country in countries for ft in feed_types]
+    feed_carriers = [f"feed_{ft}" for country in countries for ft in feed_types]
+    if feed_buses:
+        n.add("Carrier", sorted(set(feed_carriers)), unit="t")
+        n.add("Bus", feed_buses, carrier=feed_carriers)
+
     # Primary resources and emissions remain global
     for carrier, unit in [
         ("water", "m^3"),
@@ -236,6 +244,143 @@ def add_food_conversion_links(
             bus1=bus1,
             efficiency=[factor] * len(countries),
             marginal_cost=[0.01] * len(countries),
+            p_nom_extendable=[True] * len(countries),
+        )
+
+
+def add_crop_to_feed_links(
+    n: pypsa.Network,
+    crop_list: list,
+    feed_conversion: pd.DataFrame,
+    countries: list,
+) -> None:
+    """Add links that turn crops into feed for ruminants and monogastrics."""
+
+    if feed_conversion.empty:
+        logger.info("No feed conversion data provided; skipping crop→feed links")
+        return
+
+    df = feed_conversion.copy()
+    if "feed_type" not in df.columns or "efficiency" not in df.columns:
+        raise ValueError(
+            "feed_conversion must contain feed_type and efficiency columns"
+        )
+
+    df["feed_type"] = df["feed_type"].str.strip().str.lower()
+    valid_types = {"ruminant", "monogastric"}
+    invalid_types = sorted(set(df["feed_type"]) - valid_types)
+    if invalid_types:
+        logger.warning(
+            "Ignoring unsupported feed types in feed_conversion: %s",
+            ", ".join(invalid_types),
+        )
+        df = df[df["feed_type"].isin(valid_types)]
+
+    for crop in crop_list:
+        crop_rows = df[df["crop"] == crop]
+        if crop_rows.empty:
+            logger.warning("No feed conversion data for crop '%s', skipping", crop)
+            continue
+
+        for _, row in crop_rows.iterrows():
+            efficiency = float(row["efficiency"])
+            if not np.isfinite(efficiency) or efficiency <= 0:
+                logger.warning(
+                    "Invalid feed efficiency %.3f for crop '%s' (%s), skipping",
+                    efficiency,
+                    crop,
+                    row["feed_type"],
+                )
+                continue
+
+            feed_suffix = (
+                "ruminant" if row["feed_type"] == "ruminant" else "monogastric"
+            )
+            names = [
+                f"convert_{crop}_to_{feed_suffix}_feed_{country}"
+                for country in countries
+            ]
+            bus0 = [f"crop_{crop}_{country}" for country in countries]
+            bus1 = [f"feed_{feed_suffix}_{country}" for country in countries]
+            n.add(
+                "Link",
+                names,
+                bus0=bus0,
+                bus1=bus1,
+                efficiency=[efficiency] * len(countries),
+                marginal_cost=[0.01] * len(countries),
+                p_nom_extendable=[True] * len(countries),
+            )
+
+
+def add_feed_to_animal_product_links(
+    n: pypsa.Network,
+    animal_products: list,
+    feed_requirements: pd.DataFrame,
+    countries: list,
+) -> None:
+    """Add links that convert feed pools into animal products."""
+
+    if not animal_products:
+        logger.info("No animal products configured; skipping feed→animal links")
+        return
+
+    if feed_requirements.empty:
+        logger.warning("Animal products configured but feed requirement data is empty")
+        return
+
+    df = feed_requirements.copy()
+    if "feed_type" not in df.columns or "efficiency" not in df.columns:
+        raise ValueError(
+            "feed_to_animal_products must contain feed_type and efficiency columns"
+        )
+
+    df["feed_type"] = df["feed_type"].str.strip().str.lower()
+    df["product"] = df["product"].str.strip()
+    df = df[df["product"].isin(animal_products)]
+    if df.empty:
+        logger.warning(
+            "No feed requirement data for configured animal products: %s",
+            ", ".join(sorted(animal_products)),
+        )
+        return
+
+    valid_types = {"ruminant", "monogastric"}
+    invalid_types = sorted(set(df["feed_type"]) - valid_types)
+    if invalid_types:
+        logger.warning(
+            "Ignoring unsupported feed types in feed_to_animal_products: %s",
+            ", ".join(invalid_types),
+        )
+        df = df[df["feed_type"].isin(valid_types)]
+
+    for _, row in df.iterrows():
+        efficiency = float(row["efficiency"])
+        if not np.isfinite(efficiency) or efficiency <= 0:
+            logger.warning(
+                "Invalid feed efficiency %.3f for product '%s' (%s), skipping",
+                efficiency,
+                row["product"],
+                row["feed_type"],
+            )
+            continue
+
+        feed_suffix = "ruminant" if row["feed_type"] == "ruminant" else "monogastric"
+        product = row["product"]
+        clean_name = product.replace(" ", "_").replace("(", "").replace(")", "")
+        names = [
+            f"produce_{clean_name}_from_{feed_suffix}_{country}"
+            for country in countries
+        ]
+        bus0 = [f"feed_{feed_suffix}_{country}" for country in countries]
+        bus1 = [f"food_{product}_{country}" for country in countries]
+        n.add(
+            "Link",
+            names,
+            bus0=bus0,
+            bus1=bus1,
+            efficiency=[efficiency] * len(countries),
+            marginal_cost=[0.02] * len(countries),
             p_nom_extendable=[True] * len(countries),
         )
 
@@ -522,6 +667,12 @@ if __name__ == "__main__":
     # Read nutrition data
     nutrition = pd.read_csv(snakemake.input.nutrition, index_col=["food", "nutrient"])
 
+    # Read feed conversion data (crop -> feed pools)
+    feed_conversion = pd.read_csv(snakemake.input.feed_conversion)
+
+    # Read feed requirements for animal products (feed pools -> foods)
+    feed_to_products = pd.read_csv(snakemake.input.feed_to_products)
+
     # Read yields data for each configured crop and water supply (skip missing)
     yields_data = {}
     for crop in snakemake.params.crops:
@@ -594,7 +745,11 @@ if __name__ == "__main__":
     n.set_snapshots(["now"])
 
     crop_list = snakemake.params.crops
-    food_list = foods.loc[foods["crop"].isin(crop_list), "food"].unique()
+    animal_products_cfg = snakemake.params.animal_products
+    animal_product_list = list(animal_products_cfg["include"])
+
+    base_food_list = foods.loc[foods["crop"].isin(crop_list), "food"].unique().tolist()
+    food_list = sorted(set(base_food_list).union(animal_product_list))
     food_group_list = food_groups.loc[
         food_groups["food"].isin(food_list), "group"
     ].unique()
@@ -625,7 +780,11 @@ if __name__ == "__main__":
         set(cfg_countries),
         crop_prices,
     )
+    add_crop_to_feed_links(n, crop_list, feed_conversion, cfg_countries)
     add_food_conversion_links(n, food_list, foods, cfg_countries)
+    add_feed_to_animal_product_links(
+        n, animal_product_list, feed_to_products, cfg_countries
+    )
     add_food_group_buses_and_loads(
         n,
         food_group_list,
