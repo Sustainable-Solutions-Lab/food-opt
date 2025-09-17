@@ -64,8 +64,10 @@ if __name__ == "__main__":
     reg_da = xr.DataArray(region_raster, dims=("y", "x"))
 
     # Vectorized per-region quantiles and class assignment
-    finite_y = xr.where(np.isfinite(y_da), y_da, np.nan)
-    reg_quantiles = finite_y.groupby(reg_da).quantile(quantiles)
+    # Ignore cells with zero/negative potential yield so desert pixels
+    # do not collapse the quantile bins.
+    positive_y = xr.where((y_da > 0) & np.isfinite(y_da), y_da, np.nan)
+    reg_quantiles = positive_y.groupby(reg_da).quantile(quantiles)
     thresholds = reg_quantiles.sel(group=reg_da).reset_coords(drop=True)
 
     class_da = xr.full_like(y_da, np.nan, dtype=float)
