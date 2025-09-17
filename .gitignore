@@ -11,3 +11,6 @@ data/*
 **/__pycache__
 gurobi.log
 /uv.lock
+vendor
+/.codex/
+/.xdg-cache/
