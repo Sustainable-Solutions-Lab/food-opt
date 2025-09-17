@@ -110,6 +110,7 @@ def add_regional_crop_production_links(
     yields_data: dict,
     region_to_country: pd.Series,
     allowed_countries: set,
+    crop_prices_usd_per_t: pd.Series,
 ) -> None:
     """Add links for crop production per region/resource class and water supply.
 
@@ -167,6 +168,15 @@ def add_regional_crop_production_links(
             if df.empty:
                 continue
 
+            # Price for this crop (USD/tonne); if missing, warn and use 0
+            price = float(crop_prices_usd_per_t.get(crop, float("nan")))
+            if not np.isfinite(price):
+                logger.warning(
+                    "No FAOSTAT price for crop '%s'; defaulting marginal_cost to 0",
+                    crop,
+                )
+                price = 0.0
+
             # Add links
             # Connect to class-level land bus per region/resource class and water supply
             link_params = {
@@ -183,7 +193,9 @@ def add_regional_crop_production_links(
                 "efficiency2": -water_use / df["yield"],
                 "bus3": "fertilizer",
                 "efficiency3": -fert_use / df["yield"],
-                "marginal_cost": 0.01,
+                # Link marginal_cost is per unit of bus0 flow (ha). To apply a
+                # cost per tonne on bus1, multiply by efficiency (t/ha).
+                "marginal_cost": price * df["yield"],
                 "p_nom_max": df["suitable_area"],
                 "p_nom_extendable": True,
             }
@@ -555,6 +567,11 @@ if __name__ == "__main__":
     logger.debug("Food groups data:\n%s", food_groups.head())
     logger.debug("Nutrition data:\n%s", nutrition.head())
 
+    # Read FAOSTAT prices (USD/tonne) and build crop->price mapping
+    prices_df = pd.read_csv(snakemake.input.prices)
+    # Expect columns: crop, faostat_item, n_obs, price_usd_per_tonne
+    crop_prices = prices_df.set_index("crop")["price_usd_per_tonne"].astype(float)
+
     # Build the network (inlined)
     n = pypsa.Network()
     n.set_snapshots(["now"])
@@ -589,6 +606,7 @@ if __name__ == "__main__":
         yields_data,
         region_to_country,
         set(cfg_countries),
+        crop_prices,
     )
     add_food_conversion_links(n, food_list, foods, cfg_countries)
     add_food_group_buses_and_loads(

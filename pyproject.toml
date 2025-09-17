@@ -28,6 +28,7 @@ dependencies = [
     "snakemake-storage-plugin-http",
     "pycountry>=24.6.1",
     "scikit-learn>=1.4",
+    "faostat",
 ]
 
 [project.optional-dependencies]
