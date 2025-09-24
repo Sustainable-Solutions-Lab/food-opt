@@ -13,11 +13,13 @@ license = "GPL-3.0-or-later"
 requires-python = ">=3.12"
 dependencies = [
     "snakemake>=9.0",
-    "pypsa @ git+https://github.com/koen-vg/PyPSA.git@food-opt",
+    "linopy",
+    "pypsa",
     "seaborn",
     "numpy",
     "pandas>=2.1",
     "matplotlib",
+    "cartopy",
     "networkx",
     "geopandas",
     "shapely>=2.1",
@@ -72,3 +74,16 @@ force-sort-within-sections = true
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.uv]
+cache-dir = "./.uv-cache"
+
+[tool.uv.workspace]
+members = [
+    "vendor/PyPSA",
+    "vendor/linopy",
+]
+
+[tool.uv.sources]
+pypsa = { workspace = true }
+linopy = { workspace = true }
