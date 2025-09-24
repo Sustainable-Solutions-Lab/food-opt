@@ -74,6 +74,20 @@ rule download_gaez_irrigated_cropland_data:
         "wget -O {output} {params.url}"
 
 
+# TODO: license. Different variations?
+rule download_grassland_yield_data:
+    output:
+        "data/downloads/grassland_yield_historical.nc4",
+    params:
+        # See https://data.isimip.org/search/crop/mgr/variable/yield/irrigation/noirr/
+        url="https://files.isimip.org/ISIMIP2a/OutputData/agriculture/LPJmL/watch/historical/lpjml_watch_nobc_hist_co2_yield-mgr-noirr-default_global_annual_1971_2001.nc4",
+        # The following is a future projection, but not about yields but primary productivity
+        # See https://data.isimip.org/search/simulation_round/ISIMIP2b/sector/biomes/model/lpjml/pft/mgr-rainfed/
+        # url="https://files.isimip.org/ISIMIP2b/OutputData/biomes/LPJmL/gfdl-esm2m/future/lpjml_gfdl-esm2m_ewembi_rcp26_2005soc_2005co2_gpp-mgr-irrigated_global_annual_2006_2099.nc4",
+    shell:
+        "wget -O {output} {params.url}"
+
+
 rule download_wpp_population:
     output:
         "data/downloads/WPP_population.csv.gz",
