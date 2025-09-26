@@ -59,6 +59,28 @@ rule plot_results:
         "../scripts/plot_results.py"
 
 
+rule plot_health_impacts:
+    input:
+        network="results/{name}/solved/model.nc",
+        regions=f"processing/{name}/regions.geojson",
+        risk_breakpoints=f"processing/{name}/health/risk_breakpoints.csv",
+        health_cluster_cause=f"processing/{name}/health/cluster_cause_baseline.csv",
+        health_cause_log=f"processing/{name}/health/cause_log_breakpoints.csv",
+        health_cluster_summary=f"processing/{name}/health/cluster_summary.csv",
+        health_clusters=f"processing/{name}/health/country_clusters.csv",
+        food_risk_map="data/health/food_to_risk_factor.csv",
+        population=f"processing/{name}/population.csv",
+    params:
+        ghg_price=config["emissions"]["ghg_price"],
+    output:
+        breakdown_pdf="results/{name}/plots/objective_breakdown.pdf",
+        breakdown_csv="results/{name}/plots/objective_breakdown.csv",
+        health_map_pdf="results/{name}/plots/health_risk_map.pdf",
+        health_map_csv="results/{name}/plots/health_risk_by_region.csv",
+    script:
+        "../scripts/plot_health_impacts.py"
+
+
 rule plot_crop_production_map:
     input:
         network=f"results/{name}/solved/model.nc",
