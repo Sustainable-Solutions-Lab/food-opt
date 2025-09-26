@@ -2,8 +2,77 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import pypsa
 import logging
+import math
+from collections import defaultdict
+
+import pandas as pd
+import pypsa
+import xarray as xr
+
+from pypsa._options import options
+from pypsa.optimization.optimize import _optimize_guard
+
+HEALTH_AUX_MAP: dict[int, set[str]] = {}
+
+
+def _register_health_variable(m: "linopy.Model", name: str) -> None:
+    aux = HEALTH_AUX_MAP.setdefault(id(m), set())
+    aux.add(name)
+
+
+def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list[str]:
+    """Add SOS2 or binary fallback depending on solver support."""
+
+    if solver_name.lower() != "highs":
+        m.add_sos_constraints(variable, sos_type=2, sos_dim=sos_dim)
+        return []
+
+    coords = variable.coords[sos_dim]
+    n_points = len(coords)
+    if n_points <= 1:
+        return []
+
+    other_dims = [dim for dim in variable.dims if dim != sos_dim]
+
+    interval_dim = f"{sos_dim}_interval"
+    suffix = 1
+    while interval_dim in variable.dims:
+        interval_dim = f"{sos_dim}_interval{suffix}"
+        suffix += 1
+
+    interval_index = pd.Index(range(n_points - 1), name=interval_dim)
+    binary_coords = [variable.coords[d] for d in other_dims] + [interval_index]
+
+    base_name = f"{variable.name}_segment" if variable.name else "health_segment"
+    existing = set(getattr(m.variables, "data", {}))
+    binary_name = base_name
+    counter = 1
+    while binary_name in existing:
+        binary_name = f"{base_name}_{counter}"
+        counter += 1
+
+    binaries = m.add_variables(coords=binary_coords, binary=True, name=binary_name)
+
+    m.add_constraints(binaries.sum(interval_dim) == 1)
+
+    for idx in range(n_points):
+        rhs_terms = []
+        if idx > 0:
+            rhs_terms.append(binaries.isel({interval_dim: idx - 1}))
+        if idx < n_points - 1:
+            rhs_terms.append(binaries.isel({interval_dim: idx}))
+        if not rhs_terms:
+            continue
+
+        rhs = rhs_terms[0]
+        if len(rhs_terms) == 2:
+            rhs = rhs_terms[0] + rhs_terms[1]
+
+        m.add_constraints(variable.isel({sos_dim: idx}) <= rhs)
+
+    return [binary_name]
+
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +152,287 @@ def add_ghg_objective(n: pypsa.Network, ghg_price: float) -> None:
         logger.info("GHG weight in objective: %s", ghg_price)
 
 
+def sanitize_identifier(value: str) -> str:
+    return (
+        value.replace(" ", "_")
+        .replace("(", "")
+        .replace(")", "")
+        .replace("/", "_")
+        .replace("-", "_")
+    )
+
+
+def sanitize_food_name(food: str) -> str:
+    return sanitize_identifier(food)
+
+
+def add_health_objective(
+    n: pypsa.Network,
+    risk_breakpoints_path: str,
+    cluster_cause_path: str,
+    cause_log_path: str,
+    cluster_summary_path: str,
+    clusters_path: str,
+    food_map_path: str,
+    population_totals_path: str,
+    solver_name: str,
+) -> None:
+    """Add SOS2-based health costs with log-linear aggregation."""
+
+    m = n.model
+
+    risk_breakpoints = pd.read_csv(risk_breakpoints_path)
+    cluster_cause = pd.read_csv(cluster_cause_path)
+    cause_log_breakpoints = pd.read_csv(cause_log_path)
+    cluster_summary = pd.read_csv(cluster_summary_path)
+    cluster_map = pd.read_csv(clusters_path)
+    population_totals = pd.read_csv(population_totals_path)
+
+    food_map = pd.read_csv(
+        food_map_path,
+        comment="#",
+        names=["food", "risk_factor", "share"],
+    )
+
+    food_map["sanitized"] = food_map["food"].apply(sanitize_food_name)
+    food_map = food_map.set_index("sanitized")
+
+    cluster_lookup = cluster_map.set_index("country_iso3")["health_cluster"].to_dict()
+    cluster_population_baseline = cluster_summary.set_index("health_cluster")[
+        "population_persons"
+    ].to_dict()
+    cluster_value_per_yll = cluster_summary.set_index("health_cluster")[
+        "value_per_yll_usd_per_yll"
+    ].to_dict()
+
+    cluster_cause_metadata = cluster_cause.set_index(["health_cluster", "cause"])
+
+    population_totals = population_totals.dropna(subset=["iso3", "population"]).copy()
+    population_totals["iso3"] = population_totals["iso3"].astype(str).str.upper()
+    population_map = population_totals.set_index("iso3")["population"].to_dict()
+
+    cluster_population_planning: dict[int, float] = defaultdict(float)
+    for iso3, cluster in cluster_lookup.items():
+        value = float(population_map.get(iso3, 0.0))
+        if value <= 0:
+            continue
+        cluster_population_planning[int(cluster)] += value
+
+    cluster_population: dict[int, float] = {}
+    for cluster, baseline_pop in cluster_population_baseline.items():
+        planning_pop = cluster_population_planning.get(int(cluster), 0.0)
+        if planning_pop > 0:
+            cluster_population[int(cluster)] = planning_pop
+        else:
+            cluster_population[int(cluster)] = float(baseline_pop)
+
+    risk_breakpoints = risk_breakpoints.sort_values(
+        ["risk_factor", "intake_g_per_day", "cause"]
+    )
+    cause_log_breakpoints = cause_log_breakpoints.sort_values(["cause", "log_rr_total"])
+
+    p = m.variables["Link-p"].sel(snapshot="now")
+
+    terms_by_key: dict[tuple[int, str], list[tuple[float, object]]] = defaultdict(list)
+
+    for link_name in p.coords["name"].values:
+        if not isinstance(link_name, str) or not link_name.startswith("consume_"):
+            continue
+        base, _, country = link_name.rpartition("_")
+        if not base.startswith("consume_") or len(country) != 3:
+            continue
+        sanitized_food = base[len("consume_") :]
+        if sanitized_food not in food_map.index:
+            continue
+        risk_factor = food_map.at[sanitized_food, "risk_factor"]
+        share = float(food_map.at[sanitized_food, "share"])
+        if share <= 0:
+            continue
+        cluster = cluster_lookup.get(country)
+        if cluster is None:
+            continue
+        population = float(cluster_population.get(cluster, 0.0))
+        if population <= 0:
+            continue
+        coeff = share * 1_000_000.0 / (365.0 * population)
+        var = p.sel(name=link_name)
+        terms_by_key[(int(cluster), str(risk_factor))].append((coeff, var))
+
+    if not terms_by_key:
+        logger.info("No consumption links map to health risk factors; skipping")
+        return
+
+    risk_data = {}
+    for risk, grp in risk_breakpoints.groupby("risk_factor"):
+        intakes = pd.Index(sorted(grp["intake_g_per_day"].unique()), name="intake")
+        if intakes.empty:
+            continue
+        pivot = (
+            grp.pivot_table(
+                index="intake_g_per_day",
+                columns="cause",
+                values="log_rr",
+                aggfunc="first",
+            )
+            .reindex(intakes, axis=0)
+            .sort_index()
+        )
+        risk_data[risk] = {"intakes": intakes, "log_rr": pivot}
+
+    cause_breakpoint_data = {
+        cause: df.sort_values("log_rr_total")
+        for cause, df in cause_log_breakpoints.groupby("cause")
+    }
+
+    log_rr_totals: Dict[tuple[int, str], object] = {}
+
+    for (cluster, risk), terms in terms_by_key.items():
+        risk_table = risk_data.get(risk)
+        if risk_table is None or not terms:
+            continue
+
+        coords = risk_table["intakes"]
+        if len(coords) == 0:
+            continue
+
+        lambda_name = f"health_lambda_c{cluster}_r{sanitize_identifier(risk)}"
+        _register_health_variable(m, lambda_name)
+        lambdas = m.add_variables(
+            lower=0,
+            upper=1,
+            coords=[coords],
+            name=lambda_name,
+        )
+        aux_names = _add_sos2_with_fallback(
+            m,
+            lambdas,
+            sos_dim="intake",
+            solver_name=solver_name,
+        )
+        for aux_name in aux_names:
+            _register_health_variable(m, aux_name)
+        m.add_constraints(
+            lambdas.sum() == 1,
+            name=f"health_convexity_c{cluster}_r{sanitize_identifier(risk)}",
+        )
+
+        coeff_intake = xr.DataArray(
+            coords.values, coords={"intake": coords.values}, dims=["intake"]
+        )
+        intake_expr = m.linexpr((coeff_intake, lambdas)).sum("intake")
+        flow_expr = m.linexpr(*terms)
+        m.add_constraints(
+            flow_expr == intake_expr,
+            name=f"health_intake_balance_c{cluster}_r{sanitize_identifier(risk)}",
+        )
+
+        log_rr_matrix = risk_table["log_rr"]
+        for cause in log_rr_matrix.columns:
+            values = log_rr_matrix[cause].to_numpy()
+            coeff_log = xr.DataArray(
+                values, coords={"intake": coords.values}, dims=["intake"]
+            )
+            contrib = m.linexpr((coeff_log, lambdas)).sum("intake")
+            key = (cluster, cause)
+            if key in log_rr_totals:
+                log_rr_totals[key] = log_rr_totals[key] + contrib
+            else:
+                log_rr_totals[key] = contrib
+
+    constant_objective = 0.0
+    objective_expr = None
+
+    for (cluster, cause), row in cluster_cause_metadata.iterrows():
+        cluster = int(cluster)
+        cause = str(cause)
+        value_per_yll = float(cluster_value_per_yll[cluster])
+        yll_base = float(row.get("yll_base", 0.0))
+        if value_per_yll == 0 or not math.isfinite(value_per_yll):
+            continue
+        if yll_base == 0 or not math.isfinite(yll_base):
+            continue
+
+        log_rr_total_ref = float(row.get("log_rr_total_ref", 0.0))
+        rr_ref = math.exp(log_rr_total_ref)
+
+        total_expr = log_rr_totals.get((cluster, cause), m.linexpr(0.0))
+        cause_bp = cause_breakpoint_data[cause]
+
+        coords = pd.Index(cause_bp["log_rr_total"].values, name="log_total")
+        sanitized_cause = sanitize_identifier(cause)
+
+        if len(coords) == 1:
+            raise ValueError(
+                "Need at least two breakpoints for piecewise linear approximation"
+            )
+
+        lambda_total_name = f"health_lambda_total_c{cluster}_cause{sanitized_cause}"
+        _register_health_variable(m, lambda_total_name)
+        lambda_total = m.add_variables(
+            lower=0,
+            upper=1,
+            coords=[coords],
+            name=lambda_total_name,
+        )
+        m.add_constraints(
+            lambda_total.sum() == 1,
+            name=f"health_total_convexity_c{cluster}_cause{sanitized_cause}",
+        )
+
+        aux_names = _add_sos2_with_fallback(
+            m,
+            lambda_total,
+            sos_dim="log_total",
+            solver_name=solver_name,
+        )
+        for aux_name in aux_names:
+            _register_health_variable(m, aux_name)
+
+        coeff_log_total = xr.DataArray(
+            coords.values,
+            coords={"log_total": coords.values},
+            dims=["log_total"],
+        )
+        log_interp = m.linexpr((coeff_log_total, lambda_total)).sum("log_total")
+        coeff_rr = xr.DataArray(
+            cause_bp["rr_total"].values,
+            coords={"log_total": coords.values},
+            dims=["log_total"],
+        )
+        rr_interp = m.linexpr((coeff_rr, lambda_total)).sum("log_total")
+        m.add_constraints(
+            log_interp == total_expr,
+            name=f"health_total_balance_c{cluster}_cause{sanitized_cause}",
+        )
+        rr_expr = rr_interp
+
+        coeff = value_per_yll * yll_base
+        scaled_expr = rr_expr * (coeff / rr_ref)
+        objective_expr = (
+            scaled_expr if objective_expr is None else objective_expr + scaled_expr
+        )
+        constant_objective -= coeff
+
+    if objective_expr is not None or constant_objective != 0.0:
+        health_expr = objective_expr if objective_expr is not None else m.linexpr(0.0)
+        if constant_objective != 0.0:
+            if "objective_constant" in m.variables:
+                const_var = m.variables["objective_constant"]
+                const_var.lower = const_var.lower + constant_objective
+                const_var.upper = const_var.upper + constant_objective
+            else:
+                const_var = m.add_variables(
+                    lower=constant_objective,
+                    upper=constant_objective,
+                    name="objective_constant",
+                )
+            health_expr = health_expr + const_var
+        m.objective = m.objective + health_expr
+        logger.info("Added health cost objective")
+    else:
+        logger.info("No health objective terms added (missing overlaps)")
+
+
 if __name__ == "__main__":
     n = pypsa.Network(snakemake.input.network)
 
@@ -95,31 +445,57 @@ if __name__ == "__main__":
     # Add GHG emissions to objective function
     add_ghg_objective(n, float(snakemake.params.ghg_price))
 
-    # Solve the model with configured solver
-    result = n.optimize.solve_model(
-        solver_name=snakemake.params.solver,
-        solver_options=snakemake.params.solver_options,
+    solver_name = snakemake.params.solver
+    solver_options = snakemake.params.solver_options or {}
+
+    # Add health impacts to the objective if data is available
+    add_health_objective(
+        n,
+        snakemake.input.health_risk_breakpoints,
+        snakemake.input.health_cluster_cause,
+        snakemake.input.health_cause_log,
+        snakemake.input.health_cluster_summary,
+        snakemake.input.health_clusters,
+        snakemake.input.food_risk_map,
+        snakemake.input.population,
+        solver_name,
     )
 
-    # Check for infeasibility and diagnose if needed
-    if result == ("ok", "optimal"):
-        # Optimization successful
-        n.export_to_netcdf(snakemake.output.network)
-    elif result == ("warning", "infeasible") or result == (
-        "warning",
-        "infeasible_or_unbounded",
-    ):
-        logger.error("Model is infeasible or unbounded!")
+    status, condition = n.model.solve(
+        solver_name=solver_name,
+        **solver_options,
+    )
+    result = (status, condition)
+
+    if status == "ok":
+        aux_names = HEALTH_AUX_MAP.pop(id(n.model), set())
+        variables_container = n.model.variables
+        removed = {}
+        for name in aux_names:
+            if name in variables_container.data:
+                removed[name] = variables_container.data.pop(name)
+
         try:
-            # Try to compute and print infeasibilities (Gurobi only)
-            if solver_name.lower() == "gurobi":
+            n.optimize.assign_solution()
+            n.optimize.assign_duals(False)
+            n.optimize.post_processing()
+        finally:
+            if removed:
+                variables_container.data.update(removed)
+
+        if options.debug.runtime_verification:
+            _optimize_guard(n)
+
+        n.export_to_netcdf(snakemake.output.network)
+    elif condition in {"infeasible", "infeasible_or_unbounded"}:
+        logger.error("Model is infeasible or unbounded!")
+        if solver_name == "gurobi":
+            try:
                 logger.error("Infeasible constraints:")
                 n.model.print_infeasibilities()
-            else:
-                logger.error(
-                    "Infeasibility diagnosis only available with Gurobi solver"
-                )
-        except Exception as e:
-            logger.error("Could not compute infeasibilities: %s", e)
+            except Exception as exc:
+                logger.error("Could not compute infeasibilities: %s", exc)
+        else:
+            logger.error("Infeasibility diagnosis only available with Gurobi solver")
     else:
         logger.error("Optimization unsuccessful: %s", result)

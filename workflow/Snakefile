@@ -55,8 +55,11 @@ rule prepare_population:
         population_gz="data/downloads/WPP_population.csv.gz",
     params:
         planning_horizon=config["planning_horizon"],
+        countries=config["countries"],
+        health_reference_year=config["health"]["reference_year"],
     output:
-        f"processing/{name}/population.csv",
+        population=f"processing/{name}/population.csv",
+        population_age=f"processing/{name}/population_age.csv",
     script:
         "scripts/prepare_population.py"
 
@@ -85,6 +88,29 @@ rule build_regions:
         "processing/{name}/regions.geojson",
     script:
         "scripts/build_regions.py"
+
+
+rule prepare_health_costs:
+    input:
+        regions="processing/{name}/regions.geojson",
+        diet="data/health/raw/diet_05282021.csv",
+        rr_int="data/health/raw/RR_int_05282021.csv",
+        rr_max="data/health/raw/RR_max_05282021.csv",
+        dr="data/health/raw/dr_05282021.csv",
+        population="processing/{name}/population_age.csv",
+        life_table="data/health/raw/lftable_05282021.csv",
+        vsl="data/health/raw/VSL_reg_10182021.csv",
+    params:
+        countries=config["countries"],
+        health=config["health"],
+    output:
+        risk_breakpoints="processing/{name}/health/risk_breakpoints.csv",
+        cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
+        cause_log="processing/{name}/health/cause_log_breakpoints.csv",
+        cluster_summary="processing/{name}/health/cluster_summary.csv",
+        clusters="processing/{name}/health/country_clusters.csv",
+    script:
+        "scripts/prepare_health_costs.py"
 
 
 # Different types of irrigation are available for different crops in
@@ -274,6 +300,13 @@ rule build_model:
 rule solve_model:
     input:
         network="results/{name}/build/model.nc",
+        health_risk_breakpoints="processing/{name}/health/risk_breakpoints.csv",
+        health_cluster_cause="processing/{name}/health/cluster_cause_baseline.csv",
+        health_cause_log="processing/{name}/health/cause_log_breakpoints.csv",
+        health_cluster_summary="processing/{name}/health/cluster_summary.csv",
+        health_clusters="processing/{name}/health/country_clusters.csv",
+        food_risk_map="data/health/food_to_risk_factor.csv",
+        population="processing/{name}/population.csv",
     params:
         primary=config["primary"],
         ghg_price=config["emissions"]["ghg_price"],

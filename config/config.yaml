@@ -85,6 +85,24 @@ trade:
   - biomass-sorghum
   - silage-maize
 
+health:
+  region_clusters: 30
+  reference_year: 2018
+  intake_grid_step: 10
+  log_rr_points: 10
+  # value_of_statistical_life: "regional" to use DIA regional values, or a
+  # numeric constant in USD to override
+  value_of_statistical_life: 10_000_000
+  risk_factors:
+  - fruits
+  - vegetables
+  - nuts_seeds
+  - legumes
+  - fish
+  - red_meat
+  - prc_meat
+  - whole_grains
+
 aggregation:
   regions:
     type: "cluster"

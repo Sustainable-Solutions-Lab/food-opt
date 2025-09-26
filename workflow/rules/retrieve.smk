@@ -75,15 +75,18 @@ rule download_gaez_irrigated_cropland_data:
 
 
 # TODO: license. Different variations?
+
+# See https://data.isimip.org/search/crop/mgr/variable/yield/irrigation/noirr/
+
+
+# The following is a future projection, but not about yields but primary productivity
+# See https://data.isimip.org/search/simulation_round/ISIMIP2b/sector/biomes/model/lpjml/pft/mgr-rainfed/
+# url="https://files.isimip.org/ISIMIP2b/OutputData/biomes/LPJmL/gfdl-esm2m/future/lpjml_gfdl-esm2m_ewembi_rcp26_2005soc_2005co2_gpp-mgr-irrigated_global_annual_2006_2099.nc4",
 rule download_grassland_yield_data:
     output:
         "data/downloads/grassland_yield_historical.nc4",
     params:
-        # See https://data.isimip.org/search/crop/mgr/variable/yield/irrigation/noirr/
         url="https://files.isimip.org/ISIMIP2a/OutputData/agriculture/LPJmL/watch/historical/lpjml_watch_nobc_hist_co2_yield-mgr-noirr-default_global_annual_1971_2001.nc4",
-        # The following is a future projection, but not about yields but primary productivity
-        # See https://data.isimip.org/search/simulation_round/ISIMIP2b/sector/biomes/model/lpjml/pft/mgr-rainfed/
-        # url="https://files.isimip.org/ISIMIP2b/OutputData/biomes/LPJmL/gfdl-esm2m/future/lpjml_gfdl-esm2m_ewembi_rcp26_2005soc_2005co2_gpp-mgr-irrigated_global_annual_2006_2099.nc4",
     shell:
         "wget -O {output} {params.url}"
 
@@ -93,7 +96,7 @@ rule download_wpp_population:
         "data/downloads/WPP_population.csv.gz",
     params:
         url=(
-            "https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/CSV_FILES/WPP2024_TotalPopulationBySex.csv.gz"
+            "https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/CSV_FILES/WPP2024_Population1JanuaryByAge5GroupSex_Medium.csv.gz"
         ),
     shell:
         r"""

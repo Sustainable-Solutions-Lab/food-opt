@@ -39,3 +39,10 @@ Brief descriptions of key external datasets used by this project, with links and
 - Version/format: 2024 Revision; `WPP2024_TotalPopulationBySex.csv.gz` (CSV, Medium variant) downloaded from the WPP Download Center.
 - License/terms (summary): UN population data is made available under the Creative Commons Attribution 3.0 IGO license (CC BY 3.0 IGO)
   - See copyright notice at the bottom of https://population.un.org/wpp/downloads
+
+## DIA Health Impact Inputs (Diet Impact Assessment)
+
+- Description: Epidemiological inputs used by the Diet Impact Assessment (DIA) model to translate dietary exposures into health burdens. We copy a minimal subset covering dietary risk relative-risk schedules, baseline consumption, mortality, demographic structure, life tables, and regional values of a statistical life year.
+- Source repository: https://github.com/marco-spr/WHO-DIA
+- Version/format: CSV snapshots dated 2021-05-28 (diet, risk schedules, demographics) and 2021-10-18 (VSL region table).
+- License/terms (summary): Whole repository licensed under the GPL-3.0
