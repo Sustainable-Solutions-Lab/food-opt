@@ -37,6 +37,7 @@ class HealthInputs:
     clusters: pd.DataFrame
     food_map: pd.DataFrame
     population: pd.DataFrame
+    cluster_risk_baseline: pd.DataFrame
 
 
 @dataclass
@@ -316,6 +317,80 @@ def compute_health_results(n: pypsa.Network, inputs: HealthInputs) -> HealthResu
     )
 
 
+def compute_baseline_risk_costs(inputs: HealthInputs) -> pd.DataFrame:
+    (
+        risk_tables,
+        cause_tables,
+        _food_lookup,
+        _cluster_lookup,
+        value_per_yll,
+        _cluster_population,
+    ) = _prepare_health_inputs(inputs)
+
+    baseline = inputs.cluster_risk_baseline.assign(
+        health_cluster=lambda df: df["health_cluster"].astype(int),
+        risk_factor=lambda df: df["risk_factor"].astype(str),
+    )
+    baseline_intake = {
+        (int(row.health_cluster), str(row.risk_factor)): float(
+            row.baseline_intake_g_per_day
+        )
+        for row in baseline.itertuples(index=False)
+    }
+
+    cluster_cause = inputs.cluster_cause.assign(
+        health_cluster=lambda df: df["health_cluster"].astype(int)
+    )
+
+    records: list[dict[str, float | int | str]] = []
+
+    for (cluster, cause), row in cluster_cause.set_index(
+        [
+            "health_cluster",
+            "cause",
+        ]
+    ).iterrows():
+        cluster = int(cluster)
+        value = float(value_per_yll.get(cluster, 0.0))
+        yll_base = float(row.get("yll_base", 0.0))
+        if value <= 0 or yll_base <= 0:
+            continue
+        coeff = value * yll_base
+
+        contributions: dict[str, float] = {}
+        total_log = 0.0
+
+        for risk, table in risk_tables.items():
+            if cause not in table.columns:
+                continue
+            xs = table.index.to_numpy(dtype=float)
+            if xs.size == 0:
+                continue
+            ys = table[cause].to_numpy(dtype=float)
+            intake_value = float(baseline_intake.get((cluster, risk), 0.0))
+            contribution = float(np.interp(intake_value, xs, ys))
+            contributions[risk] = contribution
+            total_log += contribution
+
+        if not contributions or abs(total_log) <= 1e-12:
+            continue
+
+        for risk, contribution in contributions.items():
+            share = contribution / total_log if total_log != 0 else 0.0
+            records.append(
+                {
+                    "cluster": cluster,
+                    "risk_factor": risk,
+                    "cost": coeff * share,
+                }
+            )
+
+    result = pd.DataFrame(records)
+    if not result.empty:
+        result["cluster"] = result["cluster"].astype(int)
+    return result.reset_index(drop=True)
+
+
 def compute_system_costs(n: pypsa.Network) -> pd.Series:
     costs = n.statistics.system_cost(groupby=objective_category)
     if isinstance(costs, pd.DataFrame):
@@ -384,15 +459,16 @@ def plot_cost_breakdown(series: pd.Series, output_path: Path) -> None:
 
 
 def build_cluster_risk_tables(
-    health: HealthResults,
+    risk_costs_df: pd.DataFrame,
+    cluster_population: Mapping[int, float],
 ) -> tuple[dict[str, dict[int, float]], dict[str, dict[int, float]]]:
-    if health.risk_costs.empty:
+    if risk_costs_df.empty:
         return {}, {}
 
-    risk_costs = health.risk_costs.copy()
+    risk_costs = risk_costs_df.copy()
     risk_costs["cluster"] = risk_costs["cluster"].astype(int)
 
-    populations = pd.Series(health.cluster_population, name="population")
+    populations = pd.Series(cluster_population, name="population")
     risk_costs = risk_costs.merge(
         populations.rename_axis("cluster").reset_index(), on="cluster", how="left"
     )
@@ -416,6 +492,9 @@ def plot_health_map(
     per_capita_by_risk: Mapping[str, Mapping[int, float]],
     output_path: Path,
     top_risks: Iterable[str],
+    *,
+    diverging: bool = True,
+    value_label: str = "Health cost per capita (USD)",
 ) -> None:
     risks = list(top_risks)
     if not risks:
@@ -457,13 +536,20 @@ def plot_health_map(
         )
 
         values = data["value"].dropna()
-        if values.empty:
-            vmin, vmax = -1.0, 1.0
+        if diverging:
+            if values.empty:
+                vmin, vmax = -1.0, 1.0
+            else:
+                vmin, vmax = values.min(), values.max()
+            bound = max(abs(vmin), abs(vmax), 1e-6)
+            norm = mcolors.TwoSlopeNorm(vmin=-bound, vcenter=0, vmax=bound)
+            cmap = matplotlib.cm.get_cmap("RdBu_r")
         else:
-            vmin, vmax = values.min(), values.max()
-        bound = max(abs(vmin), abs(vmax), 1e-6)
-        norm = mcolors.TwoSlopeNorm(vmin=-bound, vcenter=0, vmax=bound)
-        cmap = matplotlib.cm.get_cmap("RdBu_r")
+            vmax = float(values.max()) if not values.empty else 1.0
+            if not np.isfinite(vmax) or vmax <= 0:
+                vmax = 1.0
+            norm = mcolors.Normalize(vmin=0.0, vmax=vmax)
+            cmap = matplotlib.cm.get_cmap("Blues")
 
         ax.set_facecolor("#f7f9fb")
         ax.set_global()
@@ -503,7 +589,7 @@ def plot_health_map(
 
         sm = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
         cbar = fig.colorbar(sm, ax=ax, orientation="horizontal", pad=0.05, shrink=0.75)
-        cbar.ax.set_xlabel("Health cost per capita (USD)", fontsize=8)
+        cbar.ax.set_xlabel(value_label, fontsize=8)
         cbar.ax.tick_params(labelsize=7)
 
         ax.set_title(risk.replace("_", " ").title(), fontsize=11)
@@ -559,6 +645,7 @@ def main() -> None:
             names=["food", "risk_factor", "share"],
         ),
         population=pd.read_csv(snakemake.input.population),
+        cluster_risk_baseline=pd.read_csv(snakemake.input.health_cluster_risk_baseline),
     )
 
     health_results = compute_health_results(n, health_inputs)
@@ -592,7 +679,9 @@ def main() -> None:
     (
         cost_by_risk,
         per_capita_by_risk,
-    ) = build_cluster_risk_tables(health_results)
+    ) = build_cluster_risk_tables(
+        health_results.risk_costs, health_results.cluster_population
+    )
 
     regions_gdf = gpd.read_file(snakemake.input.regions)  # type: ignore[attr-defined]
     if regions_gdf.crs is None:
@@ -623,7 +712,15 @@ def main() -> None:
         top_risks = list(per_capita_by_risk.keys())[:3]
 
     map_pdf = Path(snakemake.output.health_map_pdf)
-    plot_health_map(regions_gdf, cluster_lookup, per_capita_by_risk, map_pdf, top_risks)
+    plot_health_map(
+        regions_gdf,
+        cluster_lookup,
+        per_capita_by_risk,
+        map_pdf,
+        top_risks,
+        diverging=True,
+        value_label="Health cost per capita (USD)",
+    )
     logger.info("Saved health risk map to %s", map_pdf)
 
     region_table = build_health_region_table(
@@ -634,6 +731,54 @@ def main() -> None:
     )
     region_table.to_csv(Path(snakemake.output.health_map_csv), index=False)
     logger.info("Wrote regional health table to %s", snakemake.output.health_map_csv)
+
+    # Baseline health burden maps
+    baseline_risk_costs = compute_baseline_risk_costs(health_inputs)
+    (
+        baseline_cost_by_risk,
+        baseline_per_capita_by_risk,
+    ) = build_cluster_risk_tables(
+        baseline_risk_costs,
+        health_results.cluster_population,
+    )
+
+    baseline_totals = (
+        baseline_risk_costs.groupby("risk_factor")["cost"].sum()
+        if not baseline_risk_costs.empty
+        else pd.Series(dtype=float)
+    )
+    if not baseline_totals.empty:
+        baseline_top = baseline_totals.reindex(
+            baseline_totals.abs().sort_values(ascending=False).index
+        ).index[: min(3, len(baseline_totals))]
+    else:
+        baseline_top = list(baseline_per_capita_by_risk.keys())[:3]
+
+    baseline_map_pdf = Path(snakemake.output.health_baseline_map_pdf)
+    plot_health_map(
+        regions_gdf,
+        cluster_lookup,
+        baseline_per_capita_by_risk,
+        baseline_map_pdf,
+        baseline_top,
+        diverging=True,
+        value_label="Baseline health cost per capita (USD)",
+    )
+    logger.info("Saved baseline health risk map to %s", baseline_map_pdf)
+
+    baseline_region_table = build_health_region_table(
+        regions_gdf,
+        cluster_lookup,
+        baseline_cost_by_risk,
+        baseline_per_capita_by_risk,
+    )
+    baseline_region_table.to_csv(
+        Path(snakemake.output.health_baseline_map_csv), index=False
+    )
+    logger.info(
+        "Wrote baseline regional health table to %s",
+        snakemake.output.health_baseline_map_csv,
+    )
 
 
 if __name__ == "__main__":

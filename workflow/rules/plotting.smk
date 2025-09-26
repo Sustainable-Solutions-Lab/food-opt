@@ -68,6 +68,7 @@ rule plot_health_impacts:
         health_cause_log=f"processing/{name}/health/cause_log_breakpoints.csv",
         health_cluster_summary=f"processing/{name}/health/cluster_summary.csv",
         health_clusters=f"processing/{name}/health/country_clusters.csv",
+        health_cluster_risk_baseline=f"processing/{name}/health/cluster_risk_baseline.csv",
         food_risk_map="data/health/food_to_risk_factor.csv",
         population=f"processing/{name}/population.csv",
     params:
@@ -77,6 +78,8 @@ rule plot_health_impacts:
         breakdown_csv="results/{name}/plots/objective_breakdown.csv",
         health_map_pdf="results/{name}/plots/health_risk_map.pdf",
         health_map_csv="results/{name}/plots/health_risk_by_region.csv",
+        health_baseline_map_pdf="results/{name}/plots/health_baseline_map.pdf",
+        health_baseline_map_csv="results/{name}/plots/health_baseline_by_region.csv",
     script:
         "../scripts/plot_health_impacts.py"
 

@@ -47,6 +47,8 @@ rule all:
         f"results/{name}/plots/objective_breakdown.csv",
         f"results/{name}/plots/health_risk_map.pdf",
         f"results/{name}/plots/health_risk_by_region.csv",
+        f"results/{name}/plots/health_baseline_map.pdf",
+        f"results/{name}/plots/health_baseline_by_region.csv",
         # maps
         f"results/{name}/plots/regions_map.pdf",
         f"results/{name}/plots/resource_classes_map.pdf",
