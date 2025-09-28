@@ -54,6 +54,7 @@ rule all:
         f"results/{name}/plots/regions_map.pdf",
         f"results/{name}/plots/resource_classes_map.pdf",
         f"results/{name}/plots/crop_production_map.pdf",
+        f"results/{name}/plots/crop_land_use_map.pdf",
         f"results/{name}/plots/cropland_fraction_map.pdf",
 
 

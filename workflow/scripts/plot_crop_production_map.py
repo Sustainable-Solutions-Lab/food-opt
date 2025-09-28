@@ -5,7 +5,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, Tuple
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
@@ -13,6 +13,7 @@ import geopandas as gpd
 import matplotlib
 
 matplotlib.use("pdf")
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.ticker as mticker
@@ -23,89 +24,88 @@ import pypsa
 logger = logging.getLogger(__name__)
 
 
-def _extract_crop_by_region(n: pypsa.Network) -> pd.DataFrame:
-    """Return dataframe with index=region, columns=crop, values=tonnes.
+def _region_from_bus0(bus0: str) -> str:
+    parts = bus0.split("_")
+    return parts[1] if len(parts) >= 2 else "unknown"
 
-    Compatible with link names like:
-    - produce_{crop}_{region}_class{resource_class}  (legacy)
-    - produce_{crop}_{irrigated|rainfed}_{region}_class{resource_class}  (current)
-    Region is derived robustly from bus0: land_{region}_class{k}_{i|r}.
-    """
-    data: Dict[Tuple[str, str], float] = {}
-    links = [link for link in n.links.index if str(link).startswith("produce_")]
-    if not links:
-        return pd.DataFrame()
 
-    for link in links:
-        parts = str(link).split("_")
-        crop = parts[1] if len(parts) >= 2 else "unknown"
-        # Derive region from bus0 to avoid ambiguity with ws tokens
-        try:
-            bus0 = n.links.at[link, "bus0"]
-            bparts = str(bus0).split("_")
-            # Expect: land_{region}_class{k}_{ws}
-            region = bparts[1] if len(bparts) >= 2 else "unknown"
-        except Exception:
-            # Fallback to legacy parsing: third token as region
-            region = parts[2] if len(parts) >= 3 else "unknown"
-
-        flow = float(n.links_t.p1.loc["now", link])  # t at crop bus
-        data[(region, crop)] = data.get((region, crop), 0.0) + abs(flow)
-
+def _dict_to_df(data: Dict[Tuple[str, str], float]) -> pd.DataFrame:
     if not data:
         return pd.DataFrame()
-
-    s = pd.Series(data)
-    df = s.unstack(fill_value=0.0)
+    series = pd.Series(data).sort_index()
+    df = series.unstack(fill_value=0.0).sort_index(axis=0).sort_index(axis=1)
     df.index.name = "region"
-    return df.sort_index(axis=0).sort_index(axis=1)
+    return df
 
 
-def _draw_pie(
-    ax: plt.Axes,
-    x: float,
-    y: float,
-    sizes: List[float],
-    colors: List[str],
-    radius: float,
-) -> None:
-    total = float(sum(sizes))
-    if total <= 0 or radius <= 0:
-        return
-    angles = np.cumsum([0.0] + [s / total * 360.0 for s in sizes])
-    for i in range(len(sizes)):
-        if sizes[i] <= 0:
-            continue
-        wedge = mpatches.Wedge(
-            center=(x, y),
-            r=radius,
-            theta1=angles[i],
-            theta2=angles[i + 1],
-            facecolor=colors[i],
-            edgecolor="white",
-            linewidth=0.4,
-            alpha=0.85,
-        )
-        ax.add_patch(wedge)
-    # subtle outline
-    circ = mpatches.Circle(
-        (x, y),
-        radius=radius,
-        facecolor="none",
-        edgecolor="#444444",
-        linewidth=0.3,
-        alpha=0.7,
-    )
-    ax.add_patch(circ)
+def _aggregate_production_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFrame:
+    data: Dict[Tuple[str, str], float] = {}
+
+    def add(region: str, crop: str, value: float) -> None:
+        if not np.isfinite(value) or value <= 0:
+            return
+        key = (region, crop)
+        data[key] = data.get(key, 0.0) + float(value)
+
+    produce_links = [name for name in n.links.index if str(name).startswith("produce_")]
+    if produce_links:
+        p1 = n.links_t.p1.loc[snapshot, produce_links]
+        bus0 = n.links.loc[produce_links, "bus0"]
+        for name, value in p1.items():
+            crop = str(name).split("_")[1] if "_" in str(name) else "unknown"
+            region = _region_from_bus0(str(bus0.loc[name]))
+            add(region, crop, abs(float(value)))
+
+    graze_links = [name for name in n.links.index if str(name).startswith("graze_")]
+    if graze_links:
+        p1 = n.links_t.p1.loc[snapshot, graze_links]
+        bus0 = n.links.loc[graze_links, "bus0"]
+        for name, value in p1.items():
+            region = _region_from_bus0(str(bus0.loc[name]))
+            add(region, "grassland", abs(float(value)))
+
+    df = _dict_to_df(data)
+    if "grassland" not in df.columns:
+        df["grassland"] = 0.0
+    return df
 
 
-def plot_crop_production_pies(
-    n: pypsa.Network, regions_path: str, output_path: str
-) -> None:
-    logger.info("Loading regions and network")
+def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFrame:
+    data: Dict[Tuple[str, str], float] = {}
+
+    def add(region: str, crop: str, value: float) -> None:
+        if not np.isfinite(value) or value <= 0:
+            return
+        key = (region, crop)
+        data[key] = data.get(key, 0.0) + float(value)
+
+    produce_links = [name for name in n.links.index if str(name).startswith("produce_")]
+    if produce_links:
+        p0 = n.links_t.p0.loc[snapshot, produce_links]
+        bus0 = n.links.loc[produce_links, "bus0"]
+        for name, value in p0.items():
+            crop = str(name).split("_")[1] if "_" in str(name) else "unknown"
+            region = _region_from_bus0(str(bus0.loc[name]))
+            add(region, crop, max(float(value), 0.0))
+
+    graze_links = [name for name in n.links.index if str(name).startswith("graze_")]
+    if graze_links:
+        p0 = n.links_t.p0.loc[snapshot, graze_links]
+        bus0 = n.links.loc[graze_links, "bus0"]
+        for name, value in p0.items():
+            region = _region_from_bus0(str(bus0.loc[name]))
+            add(region, "grassland", max(float(value), 0.0))
+
+    df = _dict_to_df(data)
+    if "grassland" not in df.columns:
+        df["grassland"] = 0.0
+    return df
+
+
+def _setup_regions(regions_path: str) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     gdf = gpd.read_file(regions_path)
     if gdf.crs is None:
-        logger.warning("Input CRS missing; assuming EPSG:4326 (WGS84)")
+        logger.warning("Regions GeoDataFrame missing CRS; assuming EPSG:4326")
         gdf = gdf.set_crs(4326, allow_override=True)
     else:
         gdf = gdf.to_crs(4326)
@@ -115,29 +115,22 @@ def plot_crop_production_pies(
 
     gdf = gdf.set_index("region", drop=False)
     gdf_eq = gdf.to_crs("+proj=eqearth")
-
-    # Compute crop production by region (only regions that have links)
-    by_region = _extract_crop_by_region(n)
-
-    # Prepare indices
     gdf_eq = gdf_eq.set_index("region", drop=False)
-    model_regions = gdf.index
-    present_regions = by_region.index if not by_region.empty else pd.Index([])
-    missing_regions = model_regions.difference(present_regions)
-    # Filter by_region to modeled regions only
-    if not by_region.empty:
-        by_region = by_region.reindex(
-            model_regions.intersection(present_regions)
-        ).fillna(0.0)
+    return gdf, gdf_eq
 
-        # Keep only crops with meaningful production and order by total output
-        crop_totals = by_region.sum(axis=0).sort_values(ascending=False)
-        crop_totals = crop_totals[crop_totals >= 10_000.0]
-        if crop_totals.empty:
-            by_region = by_region.iloc[:, 0:0]
-        else:
-            by_region = by_region.loc[:, crop_totals.index]
 
+def _plot_pie_map(
+    by_region: pd.DataFrame,
+    gdf: gpd.GeoDataFrame,
+    gdf_eq: gpd.GeoDataFrame,
+    colors: Dict[str, str],
+    output_path: str,
+    title: str,
+    legend_title: str,
+    pie_scale_title: str,
+    pie_unit: str,
+    min_total: float,
+) -> None:
     out = Path(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
 
@@ -146,10 +139,8 @@ def plot_crop_production_pies(
         dpi=150,
         subplot_kw={"projection": ccrs.EqualEarth()},
     )
-
     ax.set_facecolor("#f7f9fb")
     ax.set_global()
-
     plate = ccrs.PlateCarree()
 
     ax.add_geometries(
@@ -161,7 +152,10 @@ def plot_crop_production_pies(
         zorder=1,
     )
 
-    # Hatch overlay for regions without production links
+    model_regions = gdf.index
+    present_regions = by_region.index if not by_region.empty else pd.Index([])
+    missing_regions = model_regions.difference(present_regions)
+
     if len(missing_regions) > 0:
         ax.add_geometries(
             gdf.loc[missing_regions].geometry,
@@ -173,15 +167,22 @@ def plot_crop_production_pies(
             zorder=1.5,
         )
 
-    # Draw pies for regions that have production links
-    if not by_region.empty:
-        crops = list(by_region.columns)
-        cmap = plt.get_cmap("tab20")
-        colors = {
-            crop: matplotlib.colors.to_hex(cmap(i % 20)) for i, crop in enumerate(crops)
-        }
+    filtered = by_region.copy()
+    if not filtered.empty:
+        filtered = filtered.reindex(model_regions.intersection(filtered.index)).fillna(
+            0.0
+        )
+        crop_totals = filtered.sum(axis=0).sort_values(ascending=False)
+        crop_totals = crop_totals[crop_totals >= min_total]
+        if crop_totals.empty:
+            filtered = filtered.iloc[:, 0:0]
+        else:
+            filtered = filtered.loc[:, crop_totals.index]
 
-        totals = by_region.sum(axis=1)
+    if not filtered.empty:
+        crops = list(filtered.columns)
+        color_list = [colors[c] for c in crops]
+        totals = filtered.sum(axis=1)
         if totals.max() > 0:
             xmin, ymin, xmax, ymax = gdf_eq.total_bounds
             width = xmax - xmin
@@ -190,18 +191,16 @@ def plot_crop_production_pies(
             radii = (np.sqrt(totals / totals.max()) * r_max).fillna(0.0)
 
             centroids = gdf_eq.geometry.representative_point()
-            for region in by_region.index:
+            for region in filtered.index:
                 point = centroids.loc[region]
                 x, y = point.x, point.y
-                values = by_region.loc[region].values.tolist()
-                cols = [colors[c] for c in crops]
-                _draw_pie(ax, x, y, values, cols, float(radii.get(region, 0.0)))
+                values = filtered.loc[region].values.tolist()
+                _draw_pie(ax, x, y, values, color_list, float(radii.get(region, 0.0)))
 
-            # Legend: crops (colors)
             handles = [mpatches.Patch(facecolor=colors[c], label=c) for c in crops]
             legend1 = ax.legend(
                 handles=handles,
-                title="Crops",
+                title=legend_title,
                 loc="lower left",
                 bbox_to_anchor=(0.15, 0.03),
                 fontsize=8,
@@ -214,10 +213,8 @@ def plot_crop_production_pies(
             legend1._legend_box.align = "left"
             ax.add_artist(legend1)
 
-            # Legend: pie size scale using scatter handles for consistent sizing
             ref_fracs = np.array([0.25, 0.5, 1.0])
             ref_vals = np.unique(totals.max() * ref_fracs)
-            # Scale to reasonable handle area in points^2
             handle_scale = 900.0
             size_handles = [
                 ax.scatter(
@@ -231,11 +228,11 @@ def plot_crop_production_pies(
                 )
                 for val in ref_vals
             ]
-            size_labels = [f"{val:,.0f} t" for val in ref_vals]
+            size_labels = [f"{val:,.0f} {pie_unit}" for val in ref_vals]
             legend2 = ax.legend(
                 size_handles,
                 size_labels,
-                title="Pie size ∝ total production",
+                title=pie_scale_title,
                 loc="lower left",
                 bbox_to_anchor=(0.6, 0.03),
                 fontsize=8,
@@ -249,13 +246,12 @@ def plot_crop_production_pies(
             legend2._legend_box.align = "left"
             ax.add_artist(legend2)
 
-    # Legend: hatched regions indicating no production links
     if len(missing_regions) > 0:
         hatch_handle = mpatches.Patch(
             facecolor="#f0f0f0",
             edgecolor="#666666",
             hatch="..",
-            label="No production links",
+            label="No activity",
         )
         ax.legend(
             handles=[hatch_handle],
@@ -293,22 +289,121 @@ def plot_crop_production_pies(
 
     ax.set_xlabel("Longitude", fontsize=8, color="#555555")
     ax.set_ylabel("Latitude", fontsize=8, color="#555555")
-    ax.set_title("Crop Production by Region")
+    ax.set_title(title)
     plt.tight_layout()
     fig.savefig(out, bbox_inches="tight", dpi=300)
     plt.close(fig)
 
-    # Also write CSV for reference
     if not by_region.empty:
-        csv_path = out.with_suffix("")  # remove .pdf
+        csv_path = out.with_suffix("")
         csv_out = csv_path.parent / f"{csv_path.name}_by_region.csv"
-        by_region.to_csv(csv_out, index=True)
-        logger.info("Saved crop production by region to %s", csv_out)
+        by_region.sort_index(axis=1).to_csv(csv_out, index=True)
+        logger.info("Saved regional totals to %s", csv_out)
 
-    logger.info("Saved crop production pie map to %s", output_path)
+    logger.info("Saved map to %s", out)
+
+
+def _draw_pie(
+    ax: plt.Axes,
+    x: float,
+    y: float,
+    sizes: Iterable[float],
+    colors: Iterable[str],
+    radius: float,
+) -> None:
+    total = float(sum(sizes))
+    if total <= 0 or radius <= 0:
+        return
+    sizes = list(sizes)
+    colors = list(colors)
+    angles = np.cumsum([0.0] + [s / total * 360.0 for s in sizes])
+    for i, size in enumerate(sizes):
+        if size <= 0:
+            continue
+        wedge = mpatches.Wedge(
+            center=(x, y),
+            r=radius,
+            theta1=angles[i],
+            theta2=angles[i + 1],
+            facecolor=colors[i],
+            edgecolor="white",
+            linewidth=0.4,
+            alpha=0.85,
+        )
+        ax.add_patch(wedge)
+    circ = mpatches.Circle(
+        (x, y),
+        radius=radius,
+        facecolor="none",
+        edgecolor="#444444",
+        linewidth=0.3,
+        alpha=0.7,
+    )
+    ax.add_patch(circ)
+
+
+def main() -> None:
+    n = pypsa.Network(snakemake.input.network)  # type: ignore[name-defined]
+    regions_path: str = snakemake.input.regions  # type: ignore[name-defined]
+    prod_pdf: str = snakemake.output.production_pdf  # type: ignore[name-defined]
+    land_pdf: str = snakemake.output.land_pdf  # type: ignore[name-defined]
+
+    snapshot = "now" if "now" in n.snapshots else n.snapshots[0]
+
+    gdf, gdf_eq = _setup_regions(regions_path)
+
+    production = _aggregate_production_by_region(n, snapshot)
+    land_use = _aggregate_land_use_by_region(n, snapshot)
+
+    all_regions = gdf.index
+    all_columns = sorted(set(production.columns) | set(land_use.columns))
+    if production.empty:
+        production = pd.DataFrame(
+            index=pd.Index([], name="region"), columns=all_columns
+        )
+    else:
+        production = production.reindex(
+            all_regions.intersection(production.index)
+        ).fillna(0.0)
+        production = production.reindex(columns=all_columns, fill_value=0.0)
+
+    if land_use.empty:
+        land_use = pd.DataFrame(index=pd.Index([], name="region"), columns=all_columns)
+    else:
+        land_use = land_use.reindex(all_regions.intersection(land_use.index)).fillna(
+            0.0
+        )
+        land_use = land_use.reindex(columns=all_columns, fill_value=0.0)
+
+    cmap = plt.get_cmap("tab20")
+    colors = {crop: mcolors.to_hex(cmap(i % 20)) for i, crop in enumerate(all_columns)}
+
+    _plot_pie_map(
+        production,
+        gdf,
+        gdf_eq,
+        colors,
+        prod_pdf,
+        title="Crop and Grassland Output by Region",
+        legend_title="Crops / grassland",
+        pie_scale_title="Pie size ∝ total production",
+        pie_unit="t",
+        min_total=10_000.0,
+    )
+
+    _plot_pie_map(
+        land_use,
+        gdf,
+        gdf_eq,
+        colors,
+        land_pdf,
+        title="Land Use by Crop and Grassland",
+        legend_title="Crops / grassland",
+        pie_scale_title="Pie size ∝ total land area",
+        pie_unit="ha",
+        min_total=1_000.0,
+    )
 
 
 if __name__ == "__main__":
-    # snakemake inputs
-    n = pypsa.Network(snakemake.input.network)
-    plot_crop_production_pies(n, snakemake.input.regions, snakemake.output.pdf)
+    main()

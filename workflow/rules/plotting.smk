@@ -89,7 +89,8 @@ rule plot_crop_production_map:
         network=f"results/{name}/solved/model.nc",
         regions=f"processing/{name}/regions.geojson",
     output:
-        pdf=f"results/{name}/plots/crop_production_map.pdf",
+        production_pdf=f"results/{name}/plots/crop_production_map.pdf",
+        land_pdf=f"results/{name}/plots/crop_land_use_map.pdf",
     script:
         "../scripts/plot_crop_production_map.py"
 
