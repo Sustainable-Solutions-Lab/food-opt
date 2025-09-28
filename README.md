@@ -59,14 +59,12 @@ food-model/
 
 ## Data Sources
 
-The model integrates multiple global datasets:
+The model integrates multiple global datasets. These are documented in data/DATASETS.md, and include the following:
 
 - **GAEZ (Global Agro-Ecological Zones)**: Crop suitability and yield potentials
-- **FAOSTAT**: Agricultural production, land use, and fertilizer application data
-- **CROPGRIDS**: High-resolution crop distribution maps
-- **AQUASTAT**: Irrigation infrastructure and water use
+- **ISIMIP LPJmL grassland yields**: Historical managed grassland yield potential used for grazing supply
+- **FAOSTAT**: Agricultural production, costs
 - **Global Burden of Disease**: Dietary risk factors and health impacts
-- **Global Dietary Database**: Population dietary intake estimates
 
 ## Mock Data
 

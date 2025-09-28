@@ -17,6 +17,7 @@ configfile: "config/config.yaml"
 
 name = config["name"]
 gaez_cfg = config["data"]["gaez"]
+grazing_cfg = config.get("grazing", {})
 
 
 include: "rules/retrieve.smk"
@@ -253,6 +254,17 @@ rule build_crop_yields:
         "scripts/build_crop_yields.py"
 
 
+rule build_grassland_yields:
+    input:
+        grassland="data/downloads/grassland_yield_historical.nc4",
+        classes=f"processing/{name}/resource_classes.nc",
+        regions=f"processing/{name}/regions.geojson",
+    output:
+        f"processing/{name}/grassland_yields.csv",
+    script:
+        "scripts/build_grassland_yields.py"
+
+
 def yield_inputs(wildcards):
     # Irrigated crops
     irr_cfg = config["irrigation"]["irrigated_crops"]
@@ -289,6 +301,7 @@ rule build_model:
         land_area_by_class="processing/{name}/land_area_by_class.csv",
         population="processing/{name}/population.csv",
         prices=f"processing/{name}/faostat_prices.csv",
+        grassland_yields=f"processing/{name}/grassland_yields.csv",
     params:
         crops=config["crops"],
         countries=config["countries"],
@@ -297,6 +310,7 @@ rule build_model:
         macronutrients=config["macronutrients"],
         animal_products=config["animal_products"],
         trade=config["trade"],
+        grazing=grazing_cfg,
     output:
         network="results/{name}/build/model.nc",
     script:

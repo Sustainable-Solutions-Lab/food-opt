@@ -63,6 +63,9 @@ animal_products:
   - dairy
   - eggs
 
+grazing:
+  enabled: true
+
 food_groups:
   whole grain:
     min_per_person_per_day: 170  # g/person/day (WHO recommendations)

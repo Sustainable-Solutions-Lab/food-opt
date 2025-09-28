@@ -222,6 +222,74 @@ def add_regional_crop_production_links(
             n.add("Link", **link_params)
 
 
+def add_grassland_feed_links(
+    n: pypsa.Network,
+    grassland: pd.DataFrame,
+    land_rainfed: pd.DataFrame,
+    region_to_country: pd.Series,
+    allowed_countries: set,
+) -> None:
+    """Add links supplying ruminant feed directly from rainfed land."""
+
+    df = grassland.copy()
+    df = df[np.isfinite(df["yield"]) & (df["yield"] > 0)]
+    if df.empty:
+        logger.info("Grassland yields contain no positive entries; skipping")
+        return
+
+    df = df.reset_index()
+    df["resource_class"] = df["resource_class"].astype(int)
+    df = df.set_index(["region", "resource_class"])
+
+    merged = df.join(
+        land_rainfed[["area_ha"]].rename(columns={"area_ha": "land_area"}),
+        how="inner",
+    )
+    if merged.empty:
+        logger.info(
+            "No overlap between grassland yields and rainfed land areas; skipping"
+        )
+        return
+
+    candidate_area = merged["suitable_area"].fillna(merged["land_area"])
+    available_area = np.minimum(
+        candidate_area.to_numpy(), merged["land_area"].to_numpy()
+    )
+    merged["available_area"] = available_area
+    merged = merged[merged["available_area"] > 0]
+    if merged.empty:
+        logger.info("Grassland entries have zero available area; skipping")
+        return
+
+    merged = merged.reset_index()
+    merged["country"] = merged["region"].map(region_to_country)
+    merged = merged[merged["country"].isin(allowed_countries)]
+    merged = merged.dropna(subset=["country"])
+    if merged.empty:
+        logger.info("No grassland regions map to configured countries; skipping")
+        return
+
+    merged["name"] = merged.apply(
+        lambda r: f"graze_{r['region']}_class{int(r['resource_class'])}", axis=1
+    )
+    merged["bus0"] = merged.apply(
+        lambda r: f"land_{r['region']}_class{int(r['resource_class'])}_r", axis=1
+    )
+    merged["bus1"] = merged["country"].apply(lambda c: f"feed_ruminant_{c}")
+
+    n.add(
+        "Link",
+        merged["name"].tolist(),
+        carrier=["feed_ruminant"] * len(merged),
+        bus0=merged["bus0"].tolist(),
+        bus1=merged["bus1"].tolist(),
+        efficiency=merged["yield"].to_numpy(),
+        marginal_cost=[0.0] * len(merged),
+        p_nom_max=merged["available_area"].to_numpy(),
+        p_nom_extendable=[True] * len(merged),
+    )
+
+
 def add_food_conversion_links(
     n: pypsa.Network, food_list: list, foods: pd.DataFrame, countries: list
 ) -> None:
@@ -709,6 +777,13 @@ if __name__ == "__main__":
         ["region", "water_supply", "resource_class"]
     ).sort_index()
 
+    land_rainfed_df = land_class_df.xs("r", level="water_supply").copy()
+    grassland_df = pd.DataFrame()
+    if snakemake.params.grazing["enabled"]:
+        grassland_df = read_csv(
+            snakemake.input.grassland_yields, index_col=["region", "resource_class"]
+        ).sort_index()
+
     # Load population per country for planning horizon
     population_df = read_csv(snakemake.input.population)
     # Expect columns: iso3, country, year, population
@@ -783,6 +858,14 @@ if __name__ == "__main__":
         set(cfg_countries),
         crop_prices,
     )
+    if snakemake.params.grazing.get("enabled", False):
+        add_grassland_feed_links(
+            n,
+            grassland_df,
+            land_rainfed_df,
+            region_to_country,
+            set(cfg_countries),
+        )
     add_crop_to_feed_links(n, crop_list, feed_conversion, cfg_countries)
     add_food_conversion_links(n, food_list, foods, cfg_countries)
     add_feed_to_animal_product_links(
