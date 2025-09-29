@@ -4,28 +4,32 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Plot a world map of cropland fraction per region.
+Plot cropland fraction map with resource class detail at pixel resolution.
 
 Inputs (via snakemake):
 - input.network: solved PyPSA network (NetCDF)
 - input.regions: regions GeoJSON with a 'region' column
 - input.land_area_by_class: CSV with columns [region, water_supply, resource_class, area_ha]
+- input.resource_classes: NetCDF with variables 'resource_class' and 'region_id'
 
 Output:
-- results/{name}/plots/cropland_fraction_map.pdf
+- results/{name}/plots/cropland_fraction_map.pdf (single map at pixel resolution)
 
 Notes:
-- Cropland use is computed from actual land flows supplied by the land
-  generators (carrier 'land'), i.e. n.generators_t.p for generators named
-  like 'land_{region}_class{k}_{ws}', summed over classes and water supplies.
-  This reflects realized land use, not capacity.
-- Total land area per region is the sum of area_ha over all resource classes
-  and water supplies from land_area_by_class.csv, matching the model’s land
+- Cropland use is computed from actual land flows supplied by land generators
+  (carrier 'land'), i.e. n.generators_t.p for generators named like
+  'land_{region}_class{k}_{ws}', aggregated per resource class across water
+  supply options. This reflects realized land use, not capacity.
+- Total land area per (region, resource class) pair is the sum of area_ha over
+  water supplies from land_area_by_class.csv, matching the model’s land
   availability basis.
+- Each pixel inherits the cropland fraction of its (region, resource class)
+  combination, so within-region spatial patterns remain visible.
 """
 
 from pathlib import Path
 import logging
+import re
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
@@ -38,141 +42,165 @@ import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import pypsa
+import xarray as xr
+from affine import Affine
+from rasterio.transform import array_bounds
+
+
+_LAND_GEN_RE = re.compile(
+    r"^land_(?P<region>.+?)_class(?P<resource_class>\d+)_?(?P<water_supply>[a-z]*)$"
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _used_cropland_area_by_region(n: pypsa.Network) -> pd.Series:
-    """Return a Series mapping region -> used cropland area [ha].
+def _used_cropland_area_by_region_class(n: pypsa.Network) -> pd.Series:
+    """Return used cropland area by region and resource class.
 
-    Sums positive output from land generators (carrier 'land') at snapshot
-    'now'. Generator names equal their land bus names: land_{region}_class{k}_{ws}.
+    Extracts positive output from land generators (carrier 'land') at snapshot
+    'now'. Generator names follow the pattern
+    'land_{region}_class{resource_class}_{water_supply}'. Water supply letters
+    (e.g. r/i) are ignored for aggregation.
     """
+
     if n.generators.empty or n.generators_t.p.empty:
         return pd.Series(dtype=float)
-    # Filter land generators
+
     land_gen = n.generators[n.generators["carrier"] == "land"]
     if land_gen.empty:
         return pd.Series(dtype=float)
+
     names = land_gen.index
-    # Extract flows at 'now' (use 0 if snapshot missing)
     if "now" in n.snapshots:
         p_now = n.generators_t.p.loc["now", names]
     else:
-        # fallback: take first snapshot
         p_now = n.generators_t.p.iloc[0][names]
     p_now = p_now.fillna(0.0)
 
-    # Group by region parsed from name
-    def region_from_name(s: str) -> str:
-        parts = s.split("_")
-        return parts[1] if len(parts) >= 2 else "unknown"
+    rows: list[tuple[str, int, float]] = []
+    for name, value in p_now.items():
+        match = _LAND_GEN_RE.match(str(name))
+        if not match:
+            continue
+        region = match.group("region")
+        resource_class = int(match.group("resource_class"))
+        rows.append((region, resource_class, max(float(value), 0.0)))
 
-    regions = [region_from_name(str(nm)) for nm in names]
-    df = pd.DataFrame({"region": regions, "p": p_now.values})
-    df["p"] = df["p"].clip(lower=0.0)
-    used = df.groupby("region")["p"].sum()
-    return used.astype(float)
+    if not rows:
+        return pd.Series(dtype=float)
+
+    df = pd.DataFrame(rows, columns=["region", "resource_class", "used_ha"])
+    used = (
+        df.groupby(["region", "resource_class"], sort=False)["used_ha"]
+        .sum()
+        .astype(float)
+    )
+    used.index = used.index.set_levels(
+        used.index.levels[1].astype(int), level="resource_class"
+    )
+    return used
 
 
 def main() -> None:
     n = pypsa.Network(snakemake.input.network)  # type: ignore[name-defined]
     regions_path: str = snakemake.input.regions  # type: ignore[name-defined]
     land_area_csv: str = snakemake.input.land_area_by_class  # type: ignore[name-defined]
+    classes_path: str = snakemake.input.resource_classes  # type: ignore[name-defined]
     out_pdf = Path(snakemake.output.pdf)  # type: ignore[name-defined]
 
-    # Load regions and set projection
     gdf = gpd.read_file(regions_path)
-    if gdf.crs is None:
-        gdf = gdf.set_crs(4326, allow_override=True)
-    else:
-        gdf = gdf.to_crs(4326)
+    if "region" not in gdf.columns:
+        raise ValueError("regions input must contain a 'region' column")
+    gdf = gdf.reset_index(drop=True).to_crs(4326)
+    region_name_to_id = {region: idx for idx, region in enumerate(gdf["region"])}
     gdf = gdf.set_index("region", drop=False)
 
-    # Used cropland area from solved network
-    used_ha = _used_cropland_area_by_region(n)
+    used_ha = _used_cropland_area_by_region_class(n)
 
-    # Total available land area from preprocessing
     df_land = pd.read_csv(land_area_csv)
-    if not {"region", "area_ha"}.issubset(df_land.columns):
-        raise ValueError("land_area_by_class.csv must contain 'region' and 'area_ha'")
-    total_ha = df_land.groupby("region")["area_ha"].sum().astype(float)
+    required_cols = {"region", "resource_class", "area_ha"}
+    if not required_cols.issubset(df_land.columns):
+        raise ValueError("land_area_by_class.csv must contain required columns")
 
-    # Align to regions
-    idx = gdf.index
-    used_ha = used_ha.reindex(idx).fillna(0.0)
-    total_ha = total_ha.reindex(idx).fillna(0.0)
+    df_land = df_land.dropna(subset=list(required_cols))
+    df_land["resource_class"] = df_land["resource_class"].astype(int)
+    total_ha = (
+        df_land.groupby(["region", "resource_class"])["area_ha"].sum().astype(float)
+    )
 
-    # Fraction and mask for undefined denominators
+    classes = sorted(
+        set(total_ha.index.get_level_values("resource_class"))
+        | set(used_ha.index.get_level_values("resource_class"))
+    )
+    if not classes:
+        raise ValueError("No resource classes found")
+
+    full_index = pd.MultiIndex.from_product(
+        [gdf.index, classes], names=["region", "resource_class"]
+    )
+    used_ha = used_ha.reindex(full_index).fillna(0.0)
+    total_ha = total_ha.reindex(full_index).fillna(0.0)
+
     with np.errstate(divide="ignore", invalid="ignore"):
-        frac = (used_ha / total_ha).replace([np.inf, -np.inf], np.nan)
-    frac = frac.clip(lower=0.0, upper=1.0)
-
-    gdf = gdf.copy()
-    gdf["cropland_used_ha"] = used_ha.values
-    gdf["land_total_ha"] = total_ha.values
-    gdf["cropland_fraction"] = frac.values
+        fractions = (
+            (used_ha / total_ha).replace([np.inf, -np.inf], np.nan).clip(0.0, 1.0)
+        )
 
     out_pdf.parent.mkdir(parents=True, exist_ok=True)
 
+    classes_ds = xr.load_dataset(classes_path)
+    if "resource_class" not in classes_ds or "region_id" not in classes_ds:
+        raise ValueError("resource_classes input must contain required variables")
+
+    class_grid = classes_ds["resource_class"].values.astype(np.int16)
+    region_grid = classes_ds["region_id"].values.astype(np.int32)
+    transform = Affine(*classes_ds.attrs["transform"])
+    height, width = class_grid.shape
+    lon_min, lat_min, lon_max, lat_max = array_bounds(height, width, transform)
+    extent = (lon_min, lon_max, lat_min, lat_max)  # Fixed orientation!
+    classes_ds.close()
+
+    fraction_grid = np.full(class_grid.shape, np.nan, dtype=float)
+    for (region, cls), frac in fractions.items():
+        ridx = region_name_to_id.get(region)
+        if ridx is not None:
+            mask = (region_grid == ridx) & (class_grid == cls)
+            fraction_grid[mask] = frac
+
+    vmax = (
+        max(0.5, min(1.0, np.nanmax(fraction_grid)))
+        if not np.all(np.isnan(fraction_grid))
+        else 0.5
+    )
+
+    cmap = plt.get_cmap("YlOrRd")
     fig, ax = plt.subplots(
-        figsize=(13, 6.5),
-        dpi=150,
-        subplot_kw={"projection": ccrs.EqualEarth()},
+        figsize=(13, 6.5), dpi=150, subplot_kw={"projection": ccrs.EqualEarth()}
     )
     ax.set_facecolor("#f7f9fb")
     ax.set_global()
 
     plate = ccrs.PlateCarree()
+    im = ax.imshow(
+        fraction_grid,
+        origin="upper",
+        extent=extent,
+        transform=plate,
+        cmap=cmap,
+        vmin=0,
+        vmax=vmax,
+        alpha=0.8,
+        zorder=1,
+    )
 
     ax.add_geometries(
         gdf.geometry,
         crs=plate,
-        facecolor="#f5f7f9",
+        facecolor="none",
         edgecolor="#666666",
         linewidth=0.3,
-        zorder=1,
+        zorder=2,
     )
-
-    valid = gdf[~gdf["cropland_fraction"].isna()]
-    if not valid.empty:
-        vmin, vmax = 0.0, 0.5
-        cmap = plt.get_cmap("YlGn")
-        norm = plt.Normalize(vmin=vmin, vmax=vmax)
-        for geom, value in zip(valid.geometry, valid["cropland_fraction"]):
-            ax.add_geometries(
-                [geom],
-                crs=plate,
-                facecolor=cmap(norm(value)),
-                edgecolor="#666666",
-                linewidth=0.3,
-                zorder=2,
-            )
-        sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
-        sm.set_array([])
-        cbar = fig.colorbar(sm, ax=ax, fraction=0.032, pad=0.02)
-        cbar.set_label("Cropland / total model land area")
-
-    zero_total = gdf[gdf["land_total_ha"] <= 0]
-    if not zero_total.empty:
-        ax.add_geometries(
-            zero_total.geometry,
-            crs=plate,
-            facecolor="#f0f0f0",
-            edgecolor="#666666",
-            linewidth=0.3,
-            hatch="//",
-            zorder=2.5,
-        )
-
-    for name, spine in ax.spines.items():
-        if name == "geo":
-            spine.set_visible(True)
-            spine.set_linewidth(0.5)
-            spine.set_edgecolor("#555555")
-            spine.set_alpha(0.7)
-        else:
-            spine.set_visible(False)
 
     gl = ax.gridlines(
         draw_labels=True,
@@ -188,22 +216,25 @@ def main() -> None:
     gl.yformatter = LatitudeFormatter(number_format=".0f")
     gl.xlabel_style = {"size": 8, "color": "#555555"}
     gl.ylabel_style = {"size": 8, "color": "#555555"}
-    gl.top_labels = False
-    gl.right_labels = False
+    gl.top_labels = gl.right_labels = False
 
-    ax.set_xlabel("Longitude", fontsize=8, color="#555555")
-    ax.set_ylabel("Latitude", fontsize=8, color="#555555")
-    ax.set_title("Cropland Fraction by Region")
+    cbar = fig.colorbar(im, ax=ax, fraction=0.032, pad=0.02)
+    cbar.set_label("Cropland / total model land area")
+
+    ax.set_title("Cropland Fraction by Region and Resource Class")
     plt.tight_layout()
     fig.savefig(out_pdf, bbox_inches="tight", dpi=300)
     plt.close(fig)
 
-    # Optional CSV sidecar for reference
-    csv_out = out_pdf.with_suffix("")
-    csv_out = csv_out.parent / f"{csv_out.name}_by_region.csv"
-    gdf[["region", "cropland_used_ha", "land_total_ha", "cropland_fraction"]].to_csv(
-        csv_out, index=False
+    data = pd.DataFrame(
+        {
+            "cropland_used_ha": used_ha,
+            "land_total_ha": total_ha,
+            "cropland_fraction": fractions,
+        }
     )
+    csv_out = out_pdf.with_suffix("").parent / f"{out_pdf.stem}_by_region_class.csv"
+    data.reset_index().to_csv(csv_out, index=False)
     logger.info("Saved cropland fraction map to %s and CSV to %s", out_pdf, csv_out)
 
 

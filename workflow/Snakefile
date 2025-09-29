@@ -34,6 +34,8 @@ wildcard_constraints:
     water_supply=r"r|i|g|s|d",
     co2_fertilization=r"0*",
     crop=r"[a-z\-\w]+",
+    item=r"[a-zA-Z0-9_-]+",
+    supply=r"i|r|pasture",
 
 
 rule all:
@@ -56,6 +58,8 @@ rule all:
         f"results/{name}/plots/crop_production_map.pdf",
         f"results/{name}/plots/crop_land_use_map.pdf",
         f"results/{name}/plots/cropland_fraction_map.pdf",
+        f"results/{name}/plots/crop_use_breakdown.pdf",
+        f"results/{name}/plots/crop_use_breakdown.csv",
 
 
 rule prepare_population:
