@@ -581,82 +581,88 @@ def add_food_nutrition_links(
         n.add("Link", names, p_nom_extendable=[True] * len(countries), **params)
 
 
-def add_crop_trade_hubs_and_links(
+def _add_trade_hubs_and_links(
     n: pypsa.Network,
     trade_config: dict,
     regions_gdf: gpd.GeoDataFrame,
     countries: list,
-    crop_list: list,
+    items: list,
+    *,
+    hub_count_key: str,
+    marginal_cost_key: str,
+    non_tradable_key: str,
+    bus_prefix: str,
+    carrier_prefix: str,
+    hub_name_prefix: str,
+    link_name_prefix: str,
+    log_label: str,
 ) -> None:
-    """Add crop trading hubs and connect crop buses via hubs.
+    """Shared implementation for adding trade hubs and links for a set of items."""
 
-    - Cluster all model regions' centroids (in Equal Earth projection) into K hubs.
-    - Add a per-crop bus at each hub centroid (to match crop carriers).
-    - Connect each country's crop bus to its nearest hub (bidirectional, extendable links).
-      Nearest hub is computed from the centroid of the dissolved country's regions.
-    - Fully connect the hub graph (bidirectional, extendable links).
-
-    Marginal cost is distance-dependent and controlled by
-    config["trade"]["crop_trade_marginal_cost_per_km"].
-    Number of hubs from config["trade"]["crop_hubs"].
-    """
-    n_hubs = int(trade_config["crop_hubs"])
-    cost_per_km = float(trade_config["crop_trade_marginal_cost_per_km"])
+    n_hubs = int(trade_config.get(hub_count_key, trade_config.get("crop_hubs", 0)))
+    cost_per_km = float(
+        trade_config.get(
+            marginal_cost_key, trade_config.get("crop_trade_marginal_cost_per_km", 0.0)
+        )
+    )
 
     if len(regions_gdf) == 0 or len(countries) == 0:
-        logger.info("Skipping trade hubs: no regions/countries available")
+        logger.info("Skipping %s trade hubs: no regions/countries available", log_label)
         return
 
-    if len(crop_list) == 0:
-        logger.info("Skipping trade hubs: no crops configured")
+    items = list(dict.fromkeys(items))
+    if len(items) == 0:
+        logger.info("Skipping %s trade hubs: no items configured", log_label)
         return
 
-    non_tradable = {str(crop) for crop in trade_config.get("non_tradable_crops", [])}
-    tradable_crops = [crop for crop in crop_list if crop not in non_tradable]
-    skipped = sorted(non_tradable.intersection(set(crop_list)))
-    if skipped:
+    non_tradable = {
+        str(item) for item in trade_config.get(non_tradable_key, []) if item in items
+    }
+    tradable_items = [item for item in items if item not in non_tradable]
+    if non_tradable:
         logger.info(
-            "Skipping trade network for non-tradable crops: %s",
-            ", ".join(skipped),
+            "Skipping %s trade network for configured non-tradable items: %s",
+            log_label,
+            ", ".join(sorted(non_tradable)),
         )
 
-    if not tradable_crops:
-        logger.info("Skipping trade hubs: no tradable crops available")
+    if not tradable_items:
+        logger.info("Skipping %s trade hubs: no tradable items available", log_label)
         return
 
-    # Ensure CRS and project to an equal-area/earth projection for distance in meters
     gdf = regions_gdf.copy()
     gdf_ee = gdf.to_crs(6933)
 
-    # Region centroids (in meters) for clustering
     cent = gdf_ee.geometry.centroid
     X = np.column_stack([cent.x.values, cent.y.values])
     k = min(max(1, n_hubs), len(X))
     if k < n_hubs:
-        logger.info("Reducing hub count from %d to %d (regions=%d)", n_hubs, k, len(X))
+        logger.info(
+            "Reducing %s hub count from %d to %d (regions=%d)",
+            log_label,
+            n_hubs,
+            k,
+            len(X),
+        )
         n_hubs = k
 
-    # K-means clustering to get hub centers
     km = KMeans(n_clusters=n_hubs, n_init=10, random_state=0)
     km.fit_predict(X)
-    centers = km.cluster_centers_  # shape (n_hubs, 2)
+    centers = km.cluster_centers_
 
-    # Add per-crop hub buses at these centers
     hub_ids = list(range(n_hubs))
-    for crop in tradable_crops:
-        hub_bus_names = [f"hub_{h}_{crop}" for h in hub_ids]
-        hub_carriers = [f"crop_{crop}"] * n_hubs
+    for item in tradable_items:
+        item_label = str(item)
+        hub_bus_names = [f"{hub_name_prefix}_{h}_{item_label}" for h in hub_ids]
+        hub_carriers = [f"{carrier_prefix}{item_label}"] * n_hubs
         n.add("Bus", hub_bus_names, carrier=hub_carriers)
 
-    # Compute per-country centroid from dissolved regions (projected)
     gdf_countries = gdf_ee[gdf_ee["country"].isin(countries)].dissolve(
         by="country", as_index=True
     )
     ccent = gdf_countries.geometry.centroid
-    C = np.column_stack([ccent.x.values, ccent.y.values])  # meters
-    # Map country -> nearest hub index
-    # Compute distances to all hubs (vectorized)
-    dch = ((C[:, None, :] - centers[None, :, :]) ** 2).sum(axis=2) ** 0.5  # meters
+    C = np.column_stack([ccent.x.values, ccent.y.values])
+    dch = ((C[:, None, :] - centers[None, :, :]) ** 2).sum(axis=2) ** 0.5
     nearest_hub_idx = dch.argmin(axis=1)
     nearest_hub_dist_km = dch[np.arange(len(C)), nearest_hub_idx] / 1000.0
 
@@ -666,20 +672,24 @@ def add_crop_trade_hubs_and_links(
         c: float(d) for c, d in zip(country_index, nearest_hub_dist_km)
     }
 
-    # Connect each country's crop bus to its nearest hub with a single
-    # bidirectional link (p_nom_min = -inf)
     valid_countries = [c for c in countries if c in country_to_hub]
-    for crop in tradable_crops:
+    for item in tradable_items:
         if not valid_countries:
             continue
+        item_label = str(item)
         names_from_c = [
-            f"trade_{crop}_{c}_hub{country_to_hub[c]}" for c in valid_countries
+            f"{link_name_prefix}_{item_label}_{c}_hub{country_to_hub[c]}"
+            for c in valid_countries
         ]
         names_from_hub = [
-            f"trade_{crop}_hub{country_to_hub[c]}_{c}" for c in valid_countries
+            f"{link_name_prefix}_{item_label}_hub{country_to_hub[c]}_{c}"
+            for c in valid_countries
         ]
-        bus0 = [f"crop_{crop}_{c}" for c in valid_countries]
-        bus1 = [f"hub_{country_to_hub[c]}_{crop}" for c in valid_countries]
+        bus0 = [f"{bus_prefix}{item_label}_{c}" for c in valid_countries]
+        bus1 = [
+            f"{hub_name_prefix}_{country_to_hub[c]}_{item_label}"
+            for c in valid_countries
+        ]
         costs = [country_to_dist_km[c] * cost_per_km for c in valid_countries]
         n.add(
             "Link",
@@ -698,20 +708,22 @@ def add_crop_trade_hubs_and_links(
             p_nom_extendable=True,
         )
 
-    # Fully connect hubs (complete graph), per crop, add two directed links per pair
     if n_hubs >= 2:
         H = centers
-        # Pairwise distances (km) for all ordered hub pairs (i != j)
         D = np.sqrt(((H[:, None, :] - H[None, :, :]) ** 2).sum(axis=2)) / 1000.0
         ii, jj = np.where(~np.eye(n_hubs, dtype=bool))
         dists_km = D[ii, jj].tolist()
 
-        for crop in tradable_crops:
+        for item in tradable_items:
             if len(ii) == 0:
                 continue
-            names = [f"trade_{crop}_hub{i}_to_hub{j}" for i, j in zip(ii, jj)]
-            bus0 = [f"hub_{i}_{crop}" for i in ii]
-            bus1 = [f"hub_{j}_{crop}" for j in jj]
+            item_label = str(item)
+            names = [
+                f"{link_name_prefix}_{item_label}_hub{i}_to_hub{j}"
+                for i, j in zip(ii, jj)
+            ]
+            bus0 = [f"{hub_name_prefix}_{i}_{item_label}" for i in ii]
+            bus1 = [f"{hub_name_prefix}_{j}_{item_label}" for j in jj]
             costs = [d * cost_per_km for d in dists_km]
             n.add(
                 "Link",
@@ -721,6 +733,58 @@ def add_crop_trade_hubs_and_links(
                 marginal_cost=costs,
                 p_nom_extendable=True,
             )
+
+
+def add_crop_trade_hubs_and_links(
+    n: pypsa.Network,
+    trade_config: dict,
+    regions_gdf: gpd.GeoDataFrame,
+    countries: list,
+    crop_list: list,
+) -> None:
+    """Add crop trading hubs and connect crop buses via hubs."""
+
+    _add_trade_hubs_and_links(
+        n,
+        trade_config,
+        regions_gdf,
+        countries,
+        crop_list,
+        hub_count_key="crop_hubs",
+        marginal_cost_key="crop_trade_marginal_cost_per_km",
+        non_tradable_key="non_tradable_crops",
+        bus_prefix="crop_",
+        carrier_prefix="crop_",
+        hub_name_prefix="hub",
+        link_name_prefix="trade",
+        log_label="crop",
+    )
+
+
+def add_animal_product_trade_hubs_and_links(
+    n: pypsa.Network,
+    trade_config: dict,
+    regions_gdf: gpd.GeoDataFrame,
+    countries: list,
+    animal_product_list: list,
+) -> None:
+    """Add trading hubs and links for animal products."""
+
+    _add_trade_hubs_and_links(
+        n,
+        trade_config,
+        regions_gdf,
+        countries,
+        animal_product_list,
+        hub_count_key="animal_product_hubs",
+        marginal_cost_key="animal_product_trade_marginal_cost_per_km",
+        non_tradable_key="non_tradable_animal_products",
+        bus_prefix="food_",
+        carrier_prefix="food_",
+        hub_name_prefix="hub_food",
+        link_name_prefix="trade_food",
+        log_label="animal product",
+    )
 
 
 if __name__ == "__main__":
@@ -887,6 +951,13 @@ if __name__ == "__main__":
     # Add crop trading hubs and links (hierarchical trade network)
     add_crop_trade_hubs_and_links(
         n, snakemake.params.trade, regions_df, cfg_countries, list(crop_list)
+    )
+    add_animal_product_trade_hubs_and_links(
+        n,
+        snakemake.params.trade,
+        regions_df,
+        cfg_countries,
+        animal_product_list,
     )
 
     logger.info("Network summary:")

@@ -82,11 +82,14 @@ food_groups:
 
 trade:
   crop_hubs: 20
-  crop_trade_marginal_cost_per_km: 1e-1
+  crop_trade_marginal_cost_per_km: 1e-2
+  animal_product_hubs: 20
+  animal_product_trade_marginal_cost_per_km: 1e-2
   non_tradable_crops:
   - alfalfa
   - biomass-sorghum
   - silage-maize
+  non_tradable_animal_products: []
 
 health:
   region_clusters: 30
