@@ -82,13 +82,54 @@ food_groups:
 
 trade:
   crop_hubs: 20
-  crop_trade_marginal_cost_per_km: 1e-2
+  crop_default_trade_cost_per_km: 1e-2
+  crop_trade_cost_categories:
+    bulk_dry_goods:
+      cost_per_km: 6e-3
+      crops:
+      - wheat
+      - dryland-rice
+      - wetland-rice
+      - maize
+      - soybean
+      - barley
+      - oat
+      - rye
+      - dry-pea
+      - chickpea
+    bulky_fresh:
+      cost_per_km: 1.4e-2
+      crops:
+      - white-potato
+      - sweet-potato
+      - yam
+      - cassava
+      - sugarbeet
+      - biomass-sorghum
+    perishable_high_value:
+      cost_per_km: 2.2e-2
+      crops:
+      - tomato
+      - carrot
+      - onion
+      - cabbage
+      - banana
+      - sugarcane
+      - sunflower
+      - rapeseed
+      - groundnut
   animal_product_hubs: 20
-  animal_product_trade_marginal_cost_per_km: 1e-2
+  animal_product_default_trade_cost_per_km: 2.1e-2
+  animal_product_trade_cost_categories:
+    chilled_meat:
+      cost_per_km: 2.8e-2
+      products:
+      - cattle meat
+      - pig meat
   non_tradable_crops:
-  - alfalfa
-  - biomass-sorghum
-  - silage-maize
+    - alfalfa
+    - biomass-sorghum
+    - silage-maize
   non_tradable_animal_products: []
 
 health:

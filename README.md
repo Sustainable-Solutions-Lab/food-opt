@@ -145,6 +145,7 @@ The `config/config.yaml` file controls key model parameters:
 - **Spatial resolution**: Regional aggregation level
 - **Scenario definitions**: Population projections, dietary preferences, technology assumptions
 - **Environmental constraints**: Emission limits, land use restrictions
+- **Trade cost categories**: Differentiated marginal transport costs for bulk versus perishable crops and foods
 - **Objective weights**: Trade-offs between environmental and health objectives
 
 ## Results and Analysis

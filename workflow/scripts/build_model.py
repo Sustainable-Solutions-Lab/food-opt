@@ -581,6 +581,71 @@ def add_food_nutrition_links(
         n.add("Link", names, p_nom_extendable=[True] * len(countries), **params)
 
 
+def _resolve_trade_costs(
+    trade_config: dict,
+    items: list,
+    *,
+    categories_key: str | None,
+    default_cost_key: str | None,
+    fallback_cost_key: str,
+    category_item_key: str,
+) -> tuple[dict[str, float], float]:
+    """Map each item to its configured trade cost per kilometre."""
+
+    default_cost = float(
+        trade_config.get(
+            default_cost_key,
+            trade_config.get(
+                fallback_cost_key,
+                trade_config.get("crop_trade_marginal_cost_per_km", 0.0),
+            ),
+        )
+        if default_cost_key is not None
+        else trade_config.get(
+            fallback_cost_key, trade_config.get("crop_trade_marginal_cost_per_km", 0.0)
+        )
+    )
+
+    item_costs = {str(item): float(default_cost) for item in items}
+
+    if categories_key is None:
+        return item_costs, float(default_cost)
+
+    categories = trade_config.get(categories_key, {}) or {}
+    for category, cfg in categories.items():
+        if not isinstance(cfg, dict):
+            logger.warning(
+                "Skipping malformed trade cost category '%s': expected mapping, got %s",
+                category,
+                type(cfg).__name__,
+            )
+            continue
+
+        category_cost = float(cfg.get("cost_per_km", default_cost))
+        configured_items = cfg.get(category_item_key, [])
+        if not configured_items:
+            logger.info(
+                "Trade cost category '%s' has no configured %s; skipping",
+                category,
+                category_item_key,
+            )
+            continue
+
+        for item in configured_items:
+            item_label = str(item)
+            if item_label not in item_costs:
+                logger.warning(
+                    "Configured %s '%s' in trade cost category '%s' but item is not tradable",
+                    category_item_key,
+                    item_label,
+                    category,
+                )
+                continue
+            item_costs[item_label] = category_cost
+
+    return item_costs, float(default_cost)
+
+
 def _add_trade_hubs_and_links(
     n: pypsa.Network,
     trade_config: dict,
@@ -590,6 +655,9 @@ def _add_trade_hubs_and_links(
     *,
     hub_count_key: str,
     marginal_cost_key: str,
+    cost_categories_key: str | None,
+    default_cost_key: str | None,
+    category_item_key: str,
     non_tradable_key: str,
     bus_prefix: str,
     carrier_prefix: str,
@@ -600,10 +668,13 @@ def _add_trade_hubs_and_links(
     """Shared implementation for adding trade hubs and links for a set of items."""
 
     n_hubs = int(trade_config.get(hub_count_key, trade_config.get("crop_hubs", 0)))
-    cost_per_km = float(
-        trade_config.get(
-            marginal_cost_key, trade_config.get("crop_trade_marginal_cost_per_km", 0.0)
-        )
+    item_costs, default_cost = _resolve_trade_costs(
+        trade_config,
+        items,
+        categories_key=cost_categories_key,
+        default_cost_key=default_cost_key,
+        fallback_cost_key=marginal_cost_key,
+        category_item_key=category_item_key,
     )
 
     if len(regions_gdf) == 0 or len(countries) == 0:
@@ -690,7 +761,8 @@ def _add_trade_hubs_and_links(
             f"{hub_name_prefix}_{country_to_hub[c]}_{item_label}"
             for c in valid_countries
         ]
-        costs = [country_to_dist_km[c] * cost_per_km for c in valid_countries]
+        item_cost = item_costs.get(item_label, default_cost)
+        costs = [country_to_dist_km[c] * item_cost for c in valid_countries]
         n.add(
             "Link",
             names_from_c,
@@ -724,7 +796,8 @@ def _add_trade_hubs_and_links(
             ]
             bus0 = [f"{hub_name_prefix}_{i}_{item_label}" for i in ii]
             bus1 = [f"{hub_name_prefix}_{j}_{item_label}" for j in jj]
-            costs = [d * cost_per_km for d in dists_km]
+            item_cost = item_costs.get(item_label, default_cost)
+            costs = [d * item_cost for d in dists_km]
             n.add(
                 "Link",
                 names,
@@ -752,6 +825,9 @@ def add_crop_trade_hubs_and_links(
         crop_list,
         hub_count_key="crop_hubs",
         marginal_cost_key="crop_trade_marginal_cost_per_km",
+        cost_categories_key="crop_trade_cost_categories",
+        default_cost_key="crop_default_trade_cost_per_km",
+        category_item_key="crops",
         non_tradable_key="non_tradable_crops",
         bus_prefix="crop_",
         carrier_prefix="crop_",
@@ -778,6 +854,9 @@ def add_animal_product_trade_hubs_and_links(
         animal_product_list,
         hub_count_key="animal_product_hubs",
         marginal_cost_key="animal_product_trade_marginal_cost_per_km",
+        cost_categories_key="animal_product_trade_cost_categories",
+        default_cost_key="animal_product_default_trade_cost_per_km",
+        category_item_key="products",
         non_tradable_key="non_tradable_animal_products",
         bus_prefix="food_",
         carrier_prefix="food_",
