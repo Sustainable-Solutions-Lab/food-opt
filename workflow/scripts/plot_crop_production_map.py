@@ -329,6 +329,7 @@ def _draw_pie(
             edgecolor="white",
             linewidth=0.4,
             alpha=0.85,
+            zorder=10,
         )
         ax.add_patch(wedge)
     circ = mpatches.Circle(
@@ -338,6 +339,7 @@ def _draw_pie(
         edgecolor="#444444",
         linewidth=0.3,
         alpha=0.7,
+        zorder=11,
     )
     ax.add_patch(circ)
 

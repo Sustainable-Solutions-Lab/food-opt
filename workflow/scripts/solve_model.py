@@ -5,7 +5,9 @@
 import logging
 import math
 from collections import defaultdict
+from typing import Dict
 
+import numpy as np
 import pandas as pd
 import pypsa
 import xarray as xr
@@ -19,6 +21,9 @@ HEALTH_AUX_MAP: dict[int, set[str]] = {}
 def _register_health_variable(m: "linopy.Model", name: str) -> None:
     aux = HEALTH_AUX_MAP.setdefault(id(m), set())
     aux.add(name)
+
+
+_SOS2_COUNTER = [0]  # Use list for mutable counter
 
 
 def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list[str]:
@@ -44,32 +49,36 @@ def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list
     interval_index = pd.Index(range(n_points - 1), name=interval_dim)
     binary_coords = [variable.coords[d] for d in other_dims] + [interval_index]
 
+    # Use counter instead of checking existing variables
+    _SOS2_COUNTER[0] += 1
     base_name = f"{variable.name}_segment" if variable.name else "health_segment"
-    existing = set(getattr(m.variables, "data", {}))
-    binary_name = base_name
-    counter = 1
-    while binary_name in existing:
-        binary_name = f"{base_name}_{counter}"
-        counter += 1
+    binary_name = f"{base_name}_{_SOS2_COUNTER[0]}"
 
     binaries = m.add_variables(coords=binary_coords, binary=True, name=binary_name)
 
     m.add_constraints(binaries.sum(interval_dim) == 1)
 
-    for idx in range(n_points):
-        rhs_terms = []
-        if idx > 0:
-            rhs_terms.append(binaries.isel({interval_dim: idx - 1}))
-        if idx < n_points - 1:
-            rhs_terms.append(binaries.isel({interval_dim: idx}))
-        if not rhs_terms:
-            continue
+    # Vectorize SOS2 constraints: variable[i] <= binary[i-1] + binary[i]
+    if n_points >= 2:
+        # Build adjacency matrix using numpy indexing
+        adjacency_data = np.zeros((n_points, n_points - 1))
 
-        rhs = rhs_terms[0]
-        if len(rhs_terms) == 2:
-            rhs = rhs_terms[0] + rhs_terms[1]
+        # Fill adjacency matrix using vectorized operations
+        # binary[i] affects variable[i] and variable[i+1]
+        indices = np.arange(n_points - 1)
+        adjacency_data[indices, indices] = 1  # binary[i] -> variable[i]
+        adjacency_data[indices + 1, indices] = 1  # binary[i] -> variable[i+1]
 
-        m.add_constraints(variable.isel({sos_dim: idx}) <= rhs)
+        # Convert to DataArray with proper coordinates
+        adjacency = xr.DataArray(
+            adjacency_data,
+            coords={sos_dim: coords, interval_dim: range(n_points - 1)},
+            dims=[sos_dim, interval_dim],
+        )
+
+        # Create constraint: variables <= adjacency @ binaries
+        rhs = (adjacency * binaries).sum(interval_dim)
+        m.add_constraints(variable <= rhs)
 
     return [binary_name]
 
@@ -286,61 +295,86 @@ def add_health_objective(
 
     log_rr_totals: Dict[tuple[int, str], object] = {}
 
+    # Group (cluster, risk) pairs by their intake coordinate patterns
+    intake_groups: dict[tuple[float, ...], list[tuple[int, str]]] = defaultdict(list)
     for (cluster, risk), terms in terms_by_key.items():
         risk_table = risk_data.get(risk)
         if risk_table is None or not terms:
             continue
-
         coords = risk_table["intakes"]
         if len(coords) == 0:
             continue
+        coords_key = tuple(coords.values)
+        intake_groups[coords_key].append((cluster, risk))
 
-        lambda_name = f"health_lambda_c{cluster}_r{sanitize_identifier(risk)}"
-        _register_health_variable(m, lambda_name)
-        lambdas = m.add_variables(
+    # Process each group with vectorized operations
+    for coords_key, cluster_risk_pairs in intake_groups.items():
+        coords = pd.Index(coords_key, name="intake")
+
+        # Create flattened index for this group
+        cluster_risk_labels = [
+            f"c{cluster}_r{sanitize_identifier(risk)}"
+            for cluster, risk in cluster_risk_pairs
+        ]
+        cluster_risk_index = pd.Index(cluster_risk_labels, name="cluster_risk")
+
+        # Single vectorized variable creation
+        lambdas_group = m.add_variables(
             lower=0,
             upper=1,
-            coords=[coords],
-            name=lambda_name,
+            coords=[cluster_risk_index, coords],
+            name=f"health_lambda_group_{hash(coords_key)}",
         )
+
+        # Register all variables
+        _register_health_variable(m, lambdas_group.name)
+
+        # Single SOS2 constraint call for entire group
         aux_names = _add_sos2_with_fallback(
-            m,
-            lambdas,
-            sos_dim="intake",
-            solver_name=solver_name,
+            m, lambdas_group, sos_dim="intake", solver_name=solver_name
         )
         for aux_name in aux_names:
             _register_health_variable(m, aux_name)
-        m.add_constraints(
-            lambdas.sum() == 1,
-            name=f"health_convexity_c{cluster}_r{sanitize_identifier(risk)}",
-        )
 
+        # Vectorized convexity constraints
+        m.add_constraints(lambdas_group.sum("intake") == 1)
+
+        # Process each (cluster, risk) for balance constraints and log_rr contributions
         coeff_intake = xr.DataArray(
             coords.values, coords={"intake": coords.values}, dims=["intake"]
         )
-        intake_expr = m.linexpr((coeff_intake, lambdas)).sum("intake")
-        flow_expr = m.linexpr(*terms)
-        m.add_constraints(
-            flow_expr == intake_expr,
-            name=f"health_intake_balance_c{cluster}_r{sanitize_identifier(risk)}",
-        )
 
-        log_rr_matrix = risk_table["log_rr"]
-        for cause in log_rr_matrix.columns:
-            values = log_rr_matrix[cause].to_numpy()
-            coeff_log = xr.DataArray(
-                values, coords={"intake": coords.values}, dims=["intake"]
+        for (cluster, risk), label in zip(cluster_risk_pairs, cluster_risk_labels):
+            terms = terms_by_key[(cluster, risk)]
+            lambdas = lambdas_group.sel(cluster_risk=label)
+
+            intake_expr = m.linexpr((coeff_intake, lambdas)).sum("intake")
+            flow_expr = m.linexpr(*terms)
+            m.add_constraints(
+                flow_expr == intake_expr,
+                name=f"health_intake_balance_c{cluster}_r{sanitize_identifier(risk)}",
             )
-            contrib = m.linexpr((coeff_log, lambdas)).sum("intake")
-            key = (cluster, cause)
-            if key in log_rr_totals:
-                log_rr_totals[key] = log_rr_totals[key] + contrib
-            else:
-                log_rr_totals[key] = contrib
+
+            risk_table = risk_data[risk]
+            log_rr_matrix = risk_table["log_rr"]
+            for cause in log_rr_matrix.columns:
+                values = log_rr_matrix[cause].to_numpy()
+                coeff_log = xr.DataArray(
+                    values, coords={"intake": coords.values}, dims=["intake"]
+                )
+                contrib = m.linexpr((coeff_log, lambdas)).sum("intake")
+                key = (cluster, cause)
+                if key in log_rr_totals:
+                    log_rr_totals[key] = log_rr_totals[key] + contrib
+                else:
+                    log_rr_totals[key] = contrib
 
     constant_objective = 0.0
     objective_expr = None
+
+    # Group (cluster, cause) pairs by their log_total coordinate patterns
+    log_total_groups: dict[tuple[float, ...], list[tuple[int, str]]] = defaultdict(list)
+    cluster_cause_data: dict[tuple[int, str], dict] = {}
 
     for (cluster, cause), row in cluster_cause_metadata.iterrows():
         cluster = int(cluster)
@@ -352,66 +386,91 @@ def add_health_objective(
         if yll_base == 0 or not math.isfinite(yll_base):
             continue
 
-        log_rr_total_ref = float(row.get("log_rr_total_ref", 0.0))
-        rr_ref = math.exp(log_rr_total_ref)
-
-        total_expr = log_rr_totals.get((cluster, cause), m.linexpr(0.0))
         cause_bp = cause_breakpoint_data[cause]
-
-        coords = pd.Index(cause_bp["log_rr_total"].values, name="log_total")
-        sanitized_cause = sanitize_identifier(cause)
-
-        if len(coords) == 1:
+        coords_key = tuple(cause_bp["log_rr_total"].values)
+        if len(coords_key) == 1:
             raise ValueError(
                 "Need at least two breakpoints for piecewise linear approximation"
             )
 
-        lambda_total_name = f"health_lambda_total_c{cluster}_cause{sanitized_cause}"
-        _register_health_variable(m, lambda_total_name)
-        lambda_total = m.add_variables(
+        log_total_groups[coords_key].append((cluster, cause))
+
+        # Store data for later use
+        log_rr_total_ref = float(row.get("log_rr_total_ref", 0.0))
+        cluster_cause_data[(cluster, cause)] = {
+            "value_per_yll": value_per_yll,
+            "yll_base": yll_base,
+            "log_rr_total_ref": log_rr_total_ref,
+            "rr_ref": math.exp(log_rr_total_ref),
+            "cause_bp": cause_bp,
+        }
+
+    # Process each group with vectorized operations
+    for coords_key, cluster_cause_pairs in log_total_groups.items():
+        coords = pd.Index(coords_key, name="log_total")
+
+        # Create flattened index for this group
+        cluster_cause_labels = [
+            f"c{cluster}_cause{sanitize_identifier(cause)}"
+            for cluster, cause in cluster_cause_pairs
+        ]
+        cluster_cause_index = pd.Index(cluster_cause_labels, name="cluster_cause")
+
+        # Single vectorized variable creation
+        lambda_total_group = m.add_variables(
             lower=0,
             upper=1,
-            coords=[coords],
-            name=lambda_total_name,
-        )
-        m.add_constraints(
-            lambda_total.sum() == 1,
-            name=f"health_total_convexity_c{cluster}_cause{sanitized_cause}",
+            coords=[cluster_cause_index, coords],
+            name=f"health_lambda_total_group_{hash(coords_key)}",
         )
 
+        # Register all variables
+        _register_health_variable(m, lambda_total_group.name)
+
+        # Single SOS2 constraint call for entire group
         aux_names = _add_sos2_with_fallback(
-            m,
-            lambda_total,
-            sos_dim="log_total",
-            solver_name=solver_name,
+            m, lambda_total_group, sos_dim="log_total", solver_name=solver_name
         )
         for aux_name in aux_names:
             _register_health_variable(m, aux_name)
 
+        # Vectorized convexity constraints
+        m.add_constraints(lambda_total_group.sum("log_total") == 1)
+
+        # Process each (cluster, cause) for balance constraints and objective
         coeff_log_total = xr.DataArray(
             coords.values,
             coords={"log_total": coords.values},
             dims=["log_total"],
         )
-        log_interp = m.linexpr((coeff_log_total, lambda_total)).sum("log_total")
-        coeff_rr = xr.DataArray(
-            cause_bp["rr_total"].values,
-            coords={"log_total": coords.values},
-            dims=["log_total"],
-        )
-        rr_interp = m.linexpr((coeff_rr, lambda_total)).sum("log_total")
-        m.add_constraints(
-            log_interp == total_expr,
-            name=f"health_total_balance_c{cluster}_cause{sanitized_cause}",
-        )
-        rr_expr = rr_interp
 
-        coeff = value_per_yll * yll_base
-        scaled_expr = rr_expr * (coeff / rr_ref)
-        objective_expr = (
-            scaled_expr if objective_expr is None else objective_expr + scaled_expr
-        )
-        constant_objective -= coeff
+        for (cluster, cause), label in zip(cluster_cause_pairs, cluster_cause_labels):
+            data = cluster_cause_data[(cluster, cause)]
+            lambda_total = lambda_total_group.sel(cluster_cause=label)
+
+            total_expr = log_rr_totals.get((cluster, cause), m.linexpr(0.0))
+            cause_bp = data["cause_bp"]
+
+            log_interp = m.linexpr((coeff_log_total, lambda_total)).sum("log_total")
+            coeff_rr = xr.DataArray(
+                cause_bp["rr_total"].values,
+                coords={"log_total": coords.values},
+                dims=["log_total"],
+            )
+            rr_interp = m.linexpr((coeff_rr, lambda_total)).sum("log_total")
+
+            sanitized_cause = sanitize_identifier(cause)
+            m.add_constraints(
+                log_interp == total_expr,
+                name=f"health_total_balance_c{cluster}_cause{sanitized_cause}",
+            )
+
+            coeff = data["value_per_yll"] * data["yll_base"]
+            scaled_expr = rr_interp * (coeff / data["rr_ref"])
+            objective_expr = (
+                scaled_expr if objective_expr is None else objective_expr + scaled_expr
+            )
+            constant_objective -= coeff
 
     if objective_expr is not None or constant_objective != 0.0:
         health_expr = objective_expr if objective_expr is not None else m.linexpr(0.0)
