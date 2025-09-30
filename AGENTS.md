@@ -54,6 +54,9 @@ tools/smk -j4 results/{config_name}/build/model.nc
 
 # Solve model only (after build)
 tools/smk -j4 results/{config_name}/solved/model.nc
+
+# Test small snippets of code
+uv run python <...>
 ```
 
 Notes:
@@ -61,6 +64,7 @@ Notes:
 - Snakemake tracks code changes and will rerun affected rules; manual cleanup of `results/` is usually unnecessary.
 - Prefer small, testable edits and validate by running the narrowest target that exercises your change.
 - `tools/smk` runs Snakemake in a systemd cgroup with a hard 10G cap and swap disabled by default; override with `SMK_MEM_MAX=12G tools/smk ...`.
+- Retrieval / downloading rules and scripts make network calls; when running such rules you will need to ask for permission to run outside the sandbox in order to get network access.
 
 ## Repository Conventions
 

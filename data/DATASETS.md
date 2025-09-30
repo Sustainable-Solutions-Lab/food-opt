@@ -32,6 +32,14 @@ Brief descriptions of key external datasets used by this project, with links and
 - License/terms (summary): Datasets disseminated through FAO corporate statistical databases are licensed under Creative Commons Attribution 4.0 International (CC BY 4.0), complemented by FAO’s additional Statistical Database Terms of Use.
   - FAO Statistical Database Terms of Use: https://www.fao.org/contact-us/terms/db-terms-of-use/en/
 
+## Water Footprint Network — Monthly Blue Water Availability
+
+- Description: Monthly blue water availability for 405 GRDC river basins, provided alongside blue-water scarcity indicators as part of the Water Footprint Network’s Appendix to Value of Water Research Report Series No. 53.
+- Download: https://www.waterfootprint.org/resources/appendix/Report53_Appendix.zip
+- Version/format: Appendix VII of Hoekstra & Mekonnen (2011); data distributed as an ESRI shapefile (`Monthly_WS_GRDC_405_basins.*`) with basin metadata, plus an Excel workbook (`Report53-Appendices-VI-IX.xls`, sheet “Appendix-VII”) containing monthly availability in Mm³/month.
+- License/terms (summary): No explicit license accompanies the dataset. The authors request citation as below; users should evaluate whether their use qualifies as fair use (research is probably allowed) and contact the UNESCO-IHE Institute for Water Education for commercial applications.
+- Suggested citation (from the dataset readme): Hoekstra, A.Y. and Mekonnen, M.M. (2011) *Global water scarcity: monthly blue water footprint compared to blue water availability for the world’s major river basins*, Value of Water Research Report Series No. 53, UNESCO-IHE, Delft, the Netherlands. http://www.waterfootprint.org/Reports/Report53-GlobalBlueWaterScarcity.pdf
+
 ## UN WPP — World Population Prospects 2024 (UN DESA)
 
 - Description: Official United Nations population estimates and projections prepared by UN DESA’s Population Division. This project uses the TotalPopulationBySex table (Medium variant) to obtain planning-horizon population totals by country and convert them from thousands of persons to persons.
