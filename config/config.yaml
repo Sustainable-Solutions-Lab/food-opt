@@ -10,8 +10,6 @@ primary:
   land:
     limit: 1e9 # ha
     regional_limit: 0.7 # fraction of each region's potential cropland that is made available.
-  water:
-    limit: 1e9 # m^3
   fertilizer:
     limit: 1e9 # kg
 
@@ -45,7 +43,6 @@ crops:
 - chickpea
 - alfalfa
 - biomass-sorghum
-- silage-maize
 
 macronutrients:
   carb:
@@ -68,17 +65,24 @@ grazing:
 
 food_groups:
   whole grain:
-    min_per_person_per_day: 170  # g/person/day (WHO recommendations)
+    # min_per_person_per_day: 170  # g/person/day (WHO recommendations)
+    min_per_person_per_day: 50
   grain:
-    min_per_person_per_day: 150  # g/person/day (refined grains)
+    # min_per_person_per_day: 150  # g/person/day (refined grains)
+    min_per_person_per_day: 50
   fruit:
-    min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
+    # min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
+    min_per_person_per_day: 50
   vegetable:
-    min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
+    # min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
+    min_per_person_per_day: 50
   starchy vegetable:
-    min_per_person_per_day: 100  # g/person/day (potatoes, etc.)
+    # min_per_person_per_day: 100  # g/person/day (potatoes, etc.)
+    min_per_person_per_day: 50
   oil:
     min_per_person_per_day: 25   # g/person/day (essential fats)
+  animal protein:
+    min_per_person_per_day: 30
 
 trade:
   crop_hubs: 20
@@ -139,7 +143,7 @@ health:
   log_rr_points: 10
   # value_of_statistical_life: "regional" to use DIA regional values, or a
   # numeric constant in USD to override
-  value_of_statistical_life: 10_000_000
+  value_of_statistical_life: 3_500_000
   risk_factors:
   - fruits
   - vegetables
@@ -153,7 +157,7 @@ health:
 aggregation:
   regions:
     type: "cluster"
-    target_count: 500
+    target_count: 400
     allow_cross_border: false
     method: "kmeans"
   simplify_tolerance_km: 5
@@ -162,7 +166,7 @@ aggregation:
   # Crop land-use limitation source used when aggregating yields by region/resource class.
   # - "suitability": limit area using GAEZ suitability rasters per water supply (irrigated/rainfed)
   # - "irrigated": limit area using the irrigated cropland share (for irrigated) and its complement (for rainfed)
-  land_limit_dataset: "suitability"
+  land_limit_dataset: "irrigated"
 
 countries:
 # - ABW  # No level-1 GADM data
@@ -424,8 +428,13 @@ data:
     input_management: "H" # "H" (High), "L" (Low)
     water_supply: "r" # "r" (rainfed), "i" (irrigated)
     co2_fertilization: "" # "" (with) or "0" (without)
-    yield_var: "yc" # "Average attainable yield, current cropland" (GAEZ documentation, page 129)
+    yield_var: "yl" # "Average attainable yield, current cropland" (GAEZ documentation, page 129)
+    water_requirement_var: "wdl" # "Net irrigation water requirement" (GAEZ documentation, page 129)
     suitability_var: "sx1" # "Share of gridcell assessed as VS or S" (i.e. very suitable or suitable; GAEZ documentation, page 129)
+    growing_season:
+      start_var: "lgb" # First day of growing period (day-of-year)
+      length_var: "ld1" # Length of growing period (days)
+      year: 2018 # Year stamp for TS dataset; adjust to match the configured time_period
     crops:
       alfalfa: alf
       banana: ban
@@ -516,5 +525,7 @@ solving:
     LogToConsole: 0
     OutputFlag: 1
     Method: 2
+    MIPGap: 0.001  # target 0.1% relative optimality gap
   options_highs:
     solver: "ipm"
+    mip_rel_gap: 0.001  # align relative gap with gurobi setting
