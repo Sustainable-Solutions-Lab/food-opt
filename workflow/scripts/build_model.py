@@ -19,6 +19,8 @@ def add_carriers_and_buses(
     food_list: list,
     food_group_list: list,
     countries: list,
+    regions: list,
+    water_regions: list,
 ) -> None:
     """Add all carriers and their corresponding buses to the network.
 
@@ -83,33 +85,84 @@ def add_carriers_and_buses(
         n.add("Carrier", sorted(set(feed_carriers)), unit="t")
         n.add("Bus", feed_buses, carrier=feed_carriers)
 
-    # Primary resources and emissions remain global
-    for carrier, unit in [
-        ("water", "m^3"),
-        ("fertilizer", "kg"),
-        ("co2", "kg"),
-        ("ch4", "kg"),
-    ]:
-        n.add("Carrier", carrier, unit=unit)
-        n.add("Bus", carrier, carrier=carrier)
+    # Primary resource carriers
+    if "water" not in n.carriers.index:
+        n.add("Carrier", "water", unit="m^3")
+    if "fertilizer" not in n.carriers.index:
+        n.add("Carrier", "fertilizer", unit="kg")
+    if "co2" not in n.carriers.index:
+        n.add("Carrier", "co2", unit="kg")
+    if "ch4" not in n.carriers.index:
+        n.add("Carrier", "ch4", unit="kg")
+
+    # Primary resource buses
+    for carrier in ["fertilizer", "co2", "ch4"]:
+        if carrier not in n.buses.index:
+            n.add("Bus", carrier, carrier=carrier)
+
+    for region in water_regions:
+        bus_name = f"water_{region}"
+        if bus_name not in n.buses.index:
+            n.add("Bus", bus_name, carrier="water")
 
 
-def add_primary_resources(n: pypsa.Network, primary_config: dict) -> None:
+def add_primary_resources(
+    n: pypsa.Network,
+    primary_config: dict,
+    region_water_limits: pd.Series,
+) -> None:
     """Add stores for primary resources with their limits."""
-    # Add stores for global resources
-    for carrier in ["water", "fertilizer"]:
-        n.add("Store", carrier, bus=carrier, carrier=carrier)
-        n.add("Generator", carrier, bus=carrier, carrier=carrier, p_nom_extendable=True)
+    for region, raw_limit in region_water_limits.items():
+        limit = float(raw_limit)
+        if limit <= 0:
+            continue
+        store_name = f"water_store_{region}"
+        bus_name = f"water_{region}"
+        n.add(
+            "Store",
+            store_name,
+            bus=bus_name,
+            carrier="water",
+            e_nom=limit,
+            e_initial=limit,
+            e_nom_extendable=False,
+            e_cyclic=False,
+            p_nom=limit,
+            p_nom_extendable=False,
+        )
 
-    # Region-level land limit removed; replaced by class-level land pools
+    # Fertilizer remains global (no regionalization yet)
+    if "fertilizer" not in n.stores.index:
+        n.add("Store", "fertilizer", bus="fertilizer", carrier="fertilizer")
+    if "fertilizer" not in n.generators.index:
+        n.add(
+            "Generator",
+            "fertilizer",
+            bus="fertilizer",
+            carrier="fertilizer",
+            p_nom_extendable=True,
+        )
 
     # Add stores for emissions with costs to create objective
-    n.add("Store", "co2", bus="co2", carrier="co2", e_nom_extendable=True)
-    n.add("Store", "ch4", bus="ch4", carrier="ch4", e_nom_extendable=True)
+    if "co2" not in n.stores.index:
+        n.add("Store", "co2", bus="co2", carrier="co2", e_nom_extendable=True)
+    if "ch4" not in n.stores.index:
+        n.add("Store", "ch4", bus="ch4", carrier="ch4", e_nom_extendable=True)
 
-    # Set resource limits from config
-    for resource in ["water", "fertilizer"]:
-        n.stores.at[resource, "e_nom_max"] = float(primary_config[resource]["limit"])
+    # Set resource limits from config for fertilizer store
+    try:
+        fertilizer_limit = float(primary_config["fertilizer"]["limit"])
+    except KeyError as exc:
+        missing = (
+            "primary.fertilizer"
+            if exc.args and exc.args[0] == "fertilizer"
+            else "primary.fertilizer.limit"
+        )
+        raise KeyError(
+            f"Configuration missing `{missing}`; define a fertilizer limit under `primary` in config.yaml."
+        ) from exc
+
+    n.stores.at["fertilizer", "e_nom_max"] = fertilizer_limit
 
 
 def add_regional_crop_production_links(
@@ -121,12 +174,11 @@ def add_regional_crop_production_links(
     allowed_countries: set,
     crop_prices_usd_per_t: pd.Series,
 ) -> None:
-    """Add links for crop production per region/resource class and water supply.
+    """Add crop production links per region/resource class and water supply.
 
-    Expects yields_data to contain per-crop DataFrames for both water supplies
-    with keys f"{crop}_yield_i" and f"{crop}_yield_r".
-    Output links produce into the same crop bus per country; link names encode
-    supply type (i/r) and resource class.
+    Rainfed yields must be present for every crop; irrigated yields are used when
+    provided by the preprocessing pipeline. Output links produce into the same
+    crop bus per country; link names encode supply type (i/r) and resource class.
     """
     for crop in crop_list:
         if crop not in crops.index.get_level_values(0):
@@ -136,8 +188,10 @@ def add_regional_crop_production_links(
         crop_data = crops.loc[crop]
 
         # Get global production coefficients
-        water_use = crop_data.loc["water", "value"]  # m^3/t
-        fert_use = crop_data.loc["fertilizer", "value"]  # kg/t
+        fert_use = pd.to_numeric(
+            crop_data.loc["fertilizer", "value"], errors="coerce"
+        )  # kg/t
+        fert_use = float(fert_use) if np.isfinite(fert_use) else 0.0
 
         # Get emission coefficients (if they exist)
         co2_emission = 0
@@ -147,12 +201,19 @@ def add_regional_crop_production_links(
         if "ch4" in crop_data.index:
             ch4_emission = crop_data.loc["ch4", "value"]  # kg/t
 
-        # Process both water supplies
-        for ws in ["i", "r"]:
+        available_supplies = [
+            ws for ws in ("r", "i") if f"{crop}_yield_{ws}" in yields_data
+        ]
+
+        if "r" not in available_supplies:
+            raise ValueError(
+                "Rainfed yield data missing for crop '%s'; ensure build_crop_yields ran"
+                % crop
+            )
+
+        # Process available water supplies (rainfed always first for stability)
+        for ws in available_supplies:
             key = f"{crop}_yield_{ws}"
-            if key not in yields_data:
-                logger.warning("Missing yields for %s (%s), skipping", crop, ws)
-                continue
             crop_yields = yields_data[key].copy()
 
             # Add a unique name per link including water supply and class
@@ -198,8 +259,6 @@ def add_regional_crop_production_links(
                 ),
                 "bus1": df["country"].apply(lambda c: f"crop_{crop}_{c}"),
                 "efficiency": df["yield"],
-                "bus2": "water",
-                "efficiency2": -water_use / df["yield"],
                 "bus3": "fertilizer",
                 "efficiency3": -fert_use / df["yield"],
                 # Link marginal_cost is per unit of bus0 flow (ha). To apply a
@@ -208,6 +267,37 @@ def add_regional_crop_production_links(
                 "p_nom_max": df["suitable_area"],
                 "p_nom_extendable": True,
             }
+
+            if ws == "i":
+                if "water_requirement_m3_per_ha" not in df.columns:
+                    raise ValueError(
+                        "Missing GAEZ water requirement column for irrigated crop "
+                        f"'{crop}'"
+                    )
+
+                water_requirement = pd.to_numeric(
+                    df["water_requirement_m3_per_ha"], errors="coerce"
+                )
+                invalid = (~np.isfinite(water_requirement)) | (water_requirement < 0)
+                if invalid.any():
+                    invalid_rows = df.loc[invalid, ["region", "resource_class"]]
+                    sample = (
+                        invalid_rows.head(5)
+                        .apply(
+                            lambda r: f"{r['region']}#class{int(r['resource_class'])}",
+                            axis=1,
+                        )
+                        .tolist()
+                    )
+                    raise ValueError(
+                        "Invalid irrigated water requirement for crop "
+                        f"'{crop}' in {invalid_rows.shape[0]} rows (examples: "
+                        + ", ".join(sample)
+                        + ")"
+                    )
+
+                link_params["bus2"] = df["region"].apply(lambda r: f"water_{r}")
+                link_params["efficiency2"] = -water_requirement
 
             # Add emission outputs if they exist
             if co2_emission > 0:
@@ -887,20 +977,35 @@ if __name__ == "__main__":
     # Read feed requirements for animal products (feed pools -> foods)
     feed_to_products = read_csv(snakemake.input.feed_to_products)
 
-    # Read yields data for each configured crop and water supply (skip missing)
-    yields_data = {}
+    irrigation_cfg = snakemake.config["irrigation"]["irrigated_crops"]  # type: ignore[index]
+    if irrigation_cfg == "auto":
+        irrigated_availability = read_csv(snakemake.input.irrigation_availability)
+        expected_irrigated_crops = set(
+            irrigated_availability.loc[
+                irrigated_availability["first_available"] != "none", "crop"
+            ].astype(str)
+        )
+    else:
+        expected_irrigated_crops = set(map(str, irrigation_cfg))
+
+    # Read yields data for each configured crop and water supply
+    yields_data: dict[str, pd.DataFrame] = {}
     for crop in snakemake.params.crops:
-        for ws in ["i", "r"]:
+        expected_supplies = ["r"]
+        if crop in expected_irrigated_crops:
+            expected_supplies.append("i")
+
+        for ws in expected_supplies:
             yields_key = f"{crop}_yield_{ws}"
             try:
                 path = snakemake.input[yields_key]
-            except AttributeError:
-                logger.warning(
-                    "Missing yields input for %s (%s), skipping",
-                    crop,
-                    "irrigated" if ws == "i" else "rainfed",
-                )
-                continue
+            except AttributeError as exc:
+                supply_label = "irrigated" if ws == "i" else "rainfed"
+                raise ValueError(
+                    "Missing %s yield input for crop '%s'. Ensure the crop yield preprocessing "
+                    "step produced '%s'." % (supply_label, crop, yields_key)
+                ) from exc
+
             yields_df = read_csv(path, index_col=["region", "resource_class"])
             yields_data[yields_key] = yields_df
             logger.info(
@@ -927,6 +1032,23 @@ if __name__ == "__main__":
             snakemake.input.grassland_yields, index_col=["region", "resource_class"]
         ).sort_index()
 
+    blue_water_availability_df = read_csv(snakemake.input.blue_water_availability)
+    monthly_region_water_df = read_csv(snakemake.input.monthly_region_water)
+    region_growing_water_df = read_csv(snakemake.input.growing_season_water)
+
+    logger.info(
+        "Loaded blue water availability data: %d basin-month pairs",
+        len(blue_water_availability_df),
+    )
+    logger.info(
+        "Loaded monthly region water availability: %d rows",
+        len(monthly_region_water_df),
+    )
+    logger.info(
+        "Loaded region growing-season water availability: %d regions",
+        region_growing_water_df.shape[0],
+    )
+
     # Load population per country for planning horizon
     population_df = read_csv(snakemake.input.population)
     # Expect columns: iso3, country, year, population
@@ -951,6 +1073,36 @@ if __name__ == "__main__":
     # Keep only regions whose country is in configured countries
     region_to_country = region_to_country[region_to_country.isin(cfg_countries)]
 
+    regions = sorted(region_to_country.index.unique())
+
+    region_water_limits = (
+        region_growing_water_df.set_index("region")["growing_season_water_available_m3"]
+        .reindex(regions)
+        .fillna(0.0)
+    )
+
+    positive_water_limits = region_water_limits[region_water_limits > 0].copy()
+
+    irrigated_regions: set[str] = set()
+    for key, df in yields_data.items():
+        if key.endswith("_yield_i"):
+            irrigated_regions.update(df.index.get_level_values("region"))
+
+    land_regions = set(land_class_df.index.get_level_values("region"))
+    water_bus_regions = sorted(
+        set(positive_water_limits.index)
+        .union(irrigated_regions)
+        .intersection(land_regions)
+    )
+
+    missing_water_regions = [r for r in regions if region_water_limits.loc[r] <= 0]
+    if missing_water_regions:
+        logger.warning(
+            "Regions without growing-season water availability data: %s",
+            ", ".join(missing_water_regions[:10])
+            + ("..." if len(missing_water_regions) > 10 else ""),
+        )
+
     logger.debug("Crops data:\n%s", crops.head(10))
     logger.debug("Foods data:\n%s", foods.head())
     logger.debug("Food groups data:\n%s", food_groups.head())
@@ -964,6 +1116,7 @@ if __name__ == "__main__":
     # Build the network (inlined)
     n = pypsa.Network()
     n.set_snapshots(["now"])
+    n.name = "food-opt"
 
     crop_list = snakemake.params.crops
     animal_products_cfg = snakemake.params.animal_products
@@ -975,8 +1128,16 @@ if __name__ == "__main__":
         food_groups["food"].isin(food_list), "group"
     ].unique()
 
-    add_carriers_and_buses(n, crop_list, food_list, food_group_list, cfg_countries)
-    add_primary_resources(n, snakemake.params.primary)
+    add_carriers_and_buses(
+        n,
+        crop_list,
+        food_list,
+        food_group_list,
+        cfg_countries,
+        regions,
+        water_bus_regions,
+    )
+    add_primary_resources(n, snakemake.params.primary, positive_water_limits)
 
     # Add class-level land buses and generators (shared pools), replacing region-level caps
     # Apply same regional_limit factor per class pool

@@ -144,12 +144,19 @@ checkpoint detect_irrigated_availability:
 def gaez_path(kind: str, water_supply: str, code: str) -> str:
     """Return compact GAEZ raster path for a given kind and water supply.
 
-    kind: one of {"yield", "suitability", "actual_yield"}
+    kind: one of {"yield", "suitability", "water_requirement", "actual_yield"}
     water_supply: "r" (rainfed) or irrigation type ("i", "g", "s", "d")
     code: GAEZ crop code (e.g., "whe")
     """
     if kind == "yield":
         prefix = "gaez_potential_yield"
+        return (
+            f"data/downloads/{prefix}_{gaez_cfg['climate_model']}_{gaez_cfg['time_period']}"
+            f"_{gaez_cfg['rcp']}_{gaez_cfg['input_management']}_{water_supply}"
+            f"_{gaez_cfg['co2_fertilization']}_{code}.tif"
+        )
+    if kind == "water_requirement":
+        prefix = "gaez_water_requirement"
         return (
             f"data/downloads/{prefix}_{gaez_cfg['climate_model']}_{gaez_cfg['time_period']}"
             f"_{gaez_cfg['rcp']}_{gaez_cfg['input_management']}_{water_supply}"
@@ -244,7 +251,27 @@ def yield_and_suitability_for_crop(w):
         t = "r"
     y = gaez_path("yield", t, code)
     s = gaez_path("suitability", t, code)
-    return {"yield_raster": y, "suitability_raster": s}
+    water = None
+    if w.water_supply == "i":
+        water = gaez_path("water_requirement", t, code)
+    gs_cfg = gaez_cfg["growing_season"]
+    start = (
+        f"data/downloads/gaez_growing_season_start_{gaez_cfg['climate_model']}"
+        f"_{gaez_cfg['time_period']}_{gaez_cfg['rcp']}_{gs_cfg['year']}.tif"
+    )
+    length = (
+        f"data/downloads/gaez_growing_season_length_{gaez_cfg['climate_model']}"
+        f"_{gaez_cfg['time_period']}_{gaez_cfg['rcp']}_{gs_cfg['year']}.tif"
+    )
+    inputs = {
+        "yield_raster": y,
+        "suitability_raster": s,
+        "growing_season_start_raster": start,
+        "growing_season_length_raster": length,
+    }
+    if water is not None:
+        inputs["water_requirement_raster"] = water
+    return inputs
 
 
 rule build_crop_yields:
@@ -268,6 +295,51 @@ rule build_grassland_yields:
         f"processing/{name}/grassland_yields.csv",
     script:
         "scripts/build_grassland_yields.py"
+
+
+rule extract_waterfootprint_appendix:
+    input:
+        zip_path="data/downloads/Report53_Appendix.zip",
+    output:
+        shapefile="data/downloads/Report53_Appendix/Report53-BlueWaterScarcity-ArcGIS-ShapeFile/Monthly_WS_GRDC_405_basins.shp",
+        excel="data/downloads/Report53_Appendix/Report53-Appendices-VI-IX.xls",
+    shell:
+        r"""
+        unzip -o {input.zip_path} -d data/downloads
+        """
+
+
+rule process_blue_water_availability:
+    input:
+        shapefile=rules.extract_waterfootprint_appendix.output.shapefile,
+        excel=rules.extract_waterfootprint_appendix.output.excel,
+    output:
+        f"processing/{name}/water/blue_water_availability.csv",
+    script:
+        "scripts/process_blue_water_availability.py"
+
+
+def crop_yield_file_list(w):
+    return list(yield_inputs(w).values())
+
+
+def irrigated_availability_csv(wildcards):
+    return checkpoints.detect_irrigated_availability.get(name=name).output[0]
+
+
+rule build_region_water_availability:
+    input:
+        shapefile=rules.extract_waterfootprint_appendix.output.shapefile,
+        regions=f"processing/{name}/regions.geojson",
+        monthly=f"processing/{name}/water/blue_water_availability.csv",
+        crop_yields=crop_yield_file_list,
+    params:
+        code_to_crop={code: crop for crop, code in gaez_cfg["crops"].items()},
+    output:
+        monthly_region=f"processing/{name}/water/monthly_region_water.csv",
+        region_growing=f"processing/{name}/water/region_growing_season_water.csv",
+    script:
+        "scripts/build_region_water_availability.py"
 
 
 def yield_inputs(wildcards):
@@ -296,6 +368,7 @@ def yield_inputs(wildcards):
 rule build_model:
     input:
         unpack(yield_inputs),
+        irrigation_availability=irrigated_availability_csv,
         crops="data/crops.csv",
         foods="data/foods.csv",
         feed_conversion="data/feed_conversion.csv",
@@ -307,6 +380,9 @@ rule build_model:
         population="processing/{name}/population.csv",
         prices=f"processing/{name}/faostat_prices.csv",
         grassland_yields=f"processing/{name}/grassland_yields.csv",
+        monthly_region_water=f"processing/{name}/water/monthly_region_water.csv",
+        growing_season_water=f"processing/{name}/water/region_growing_season_water.csv",
+        blue_water_availability=f"processing/{name}/water/blue_water_availability.csv",
     params:
         crops=config["crops"],
         countries=config["countries"],

@@ -31,6 +31,7 @@ dependencies = [
     "pycountry>=24.6.1",
     "scikit-learn>=1.4",
     "faostat",
+    "xlrd>=2.0.1",
 ]
 
 [project.optional-dependencies]

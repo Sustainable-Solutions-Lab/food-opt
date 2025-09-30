@@ -47,6 +47,47 @@ rule download_gaez_potential_yield_data:
         "wget -O {output} {params.url}"
 
 
+rule download_gaez_water_requirement_data:
+    output:
+        "data/downloads/gaez_water_requirement_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
+    params:
+        url=lambda w: f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/{w.climate_model}/rcp{w.rcp}/{w.time_period}H/{config['data']['gaez']['water_requirement_var']}{w.input_management}{w.water_supply}{w.co2_fertilization}_{w.crop}.tif",
+    shell:
+        "wget -O {output} {params.url}"
+
+
+rule download_gaez_growing_season_start_data:
+    output:
+        f"data/downloads/gaez_growing_season_start_{config['data']['gaez']['climate_model']}_{config['data']['gaez']['time_period']}_{config['data']['gaez']['rcp']}_{config['data']['gaez']['growing_season']['year']}.tif",
+    params:
+        url=(
+            f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res01/"
+            f"{config['data']['gaez']['climate_model']}/rcp{config['data']['gaez']['rcp']}/TS/"
+            f"{config['data']['gaez']['growing_season']['start_var']}"
+            f"_{config['data']['gaez']['climate_model']}"
+            f"_rcp{config['data']['gaez']['rcp']}"
+            f"_{config['data']['gaez']['growing_season']['year']}.tif"
+        ),
+    shell:
+        "wget -O {output} {params.url}"
+
+
+rule download_gaez_growing_season_length_data:
+    output:
+        f"data/downloads/gaez_growing_season_length_{config['data']['gaez']['climate_model']}_{config['data']['gaez']['time_period']}_{config['data']['gaez']['rcp']}_{config['data']['gaez']['growing_season']['year']}.tif",
+    params:
+        url=(
+            f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res01/"
+            f"{config['data']['gaez']['climate_model']}/rcp{config['data']['gaez']['rcp']}/TS/"
+            f"{config['data']['gaez']['growing_season']['length_var']}"
+            f"_{config['data']['gaez']['climate_model']}"
+            f"_rcp{config['data']['gaez']['rcp']}"
+            f"_{config['data']['gaez']['growing_season']['year']}.tif"
+        ),
+    shell:
+        "wget -O {output} {params.url}"
+
+
 rule download_gaez_suitability_data:
     output:
         "data/downloads/gaez_suitability_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
@@ -101,4 +142,16 @@ rule download_wpp_population:
     shell:
         r"""
         wget -O {output} "{params.url}"
+        """
+
+
+rule download_waterfootprint_appendix:
+    output:
+        "data/downloads/Report53_Appendix.zip",
+    params:
+        url="https://www.waterfootprint.org/resources/appendix/Report53_Appendix.zip",
+    shell:
+        r"""
+        mkdir -p "$(dirname {output})"
+        wget -O "{output}" "{params.url}"
         """

@@ -37,7 +37,12 @@ if __name__ == "__main__":
     classes_nc: str = snakemake.input.classes  # type: ignore[name-defined]
     yield_path: str = snakemake.input.yield_raster  # type: ignore[name-defined]
     suit_path: str = snakemake.input.suitability_raster  # type: ignore[name-defined]
+    water_path: str | None = getattr(  # type: ignore[attr-defined]
+        snakemake.input, "water_requirement_raster", None
+    )
     regions_path: str = snakemake.input.regions  # type: ignore[name-defined]
+    gs_start_path: str = snakemake.input.growing_season_start_raster  # type: ignore[name-defined]
+    gs_length_path: str = snakemake.input.growing_season_length_raster  # type: ignore[name-defined]
     crop_code: str = snakemake.wildcards.crop  # type: ignore[name-defined]
     conv_csv: str | None = getattr(snakemake.input, "yield_unit_conversions", None)  # type: ignore[attr-defined]
 
@@ -63,6 +68,13 @@ if __name__ == "__main__":
     y_tpha = y_raw * factor
     s_raw, _ = read_raster_float(suit_path)
     s_frac = scale_fraction(s_raw)
+    if water_path:
+        water_raw_mm, _ = read_raster_float(water_path)
+        water_m3_per_ha = water_raw_mm * 10.0  # 1 mm over 1 ha equals 10 m³
+    else:
+        water_m3_per_ha = np.zeros_like(y_raw)
+    gs_start_raw, _ = read_raster_float(gs_start_path)
+    gs_length_raw, _ = read_raster_float(gs_length_path)
 
     height, width = y_tpha.shape
     transform = y_src.transform
@@ -111,6 +123,36 @@ if __name__ == "__main__":
             nodata=np.nan,
             srs_wkt=crs_wkt,
         )
+        water = np.where(mask, water_m3_per_ha, np.nan)
+        water_src_np = NumPyRasterSource(
+            water,
+            xmin=xmin,
+            ymin=ymin,
+            xmax=xmax,
+            ymax=ymax,
+            nodata=np.nan,
+            srs_wkt=crs_wkt,
+        )
+        gs_start = np.where(mask, gs_start_raw, np.nan)
+        gs_start_src_np = NumPyRasterSource(
+            gs_start,
+            xmin=xmin,
+            ymin=ymin,
+            xmax=xmax,
+            ymax=ymax,
+            nodata=np.nan,
+            srs_wkt=crs_wkt,
+        )
+        gs_length = np.where(mask, gs_length_raw, np.nan)
+        gs_length_src_np = NumPyRasterSource(
+            gs_length,
+            xmin=xmin,
+            ymin=ymin,
+            xmax=xmax,
+            ymax=ymax,
+            nodata=np.nan,
+            srs_wkt=crs_wkt,
+        )
 
         y_stats = exact_extract(
             y_src_np,
@@ -126,10 +168,51 @@ if __name__ == "__main__":
             include_cols=["region"],
             output="pandas",
         )
+        water_stats = exact_extract(
+            water_src_np,
+            regions_for_extract,
+            ["mean"],
+            include_cols=["region"],
+            output="pandas",
+        )
+        gs_start_stats = exact_extract(
+            gs_start_src_np,
+            regions_for_extract,
+            ["mean"],
+            include_cols=["region"],
+            output="pandas",
+        )
+        gs_length_stats = exact_extract(
+            gs_length_src_np,
+            regions_for_extract,
+            ["mean"],
+            include_cols=["region"],
+            output="pandas",
+        )
         if y_stats.empty or a_stats.empty:
             continue
-        merged = y_stats.rename(columns={"mean": "yield"}).merge(
-            a_stats.rename(columns={"sum": "suitable_area"}), on="region", how="inner"
+        merged = (
+            y_stats.rename(columns={"mean": "yield"})
+            .merge(
+                a_stats.rename(columns={"sum": "suitable_area"}),
+                on="region",
+                how="inner",
+            )
+            .merge(
+                water_stats.rename(columns={"mean": "water_requirement_m3_per_ha"}),
+                on="region",
+                how="left",
+            )
+            .merge(
+                gs_start_stats.rename(columns={"mean": "growing_season_start_day"}),
+                on="region",
+                how="left",
+            )
+            .merge(
+                gs_length_stats.rename(columns={"mean": "growing_season_length_days"}),
+                on="region",
+                how="left",
+            )
         )
         merged["resource_class"] = cls
         out.append(merged)
@@ -142,7 +225,15 @@ if __name__ == "__main__":
         )
     else:
         df = pd.DataFrame(
-            columns=["region", "resource_class", "yield", "suitable_area"]
+            columns=[
+                "region",
+                "resource_class",
+                "yield",
+                "suitable_area",
+                "water_requirement_m3_per_ha",
+                "growing_season_start_day",
+                "growing_season_length_days",
+            ]
         ).set_index(["region", "resource_class"])  # type: ignore[name-defined]
 
     Path(snakemake.output[0]).parent.mkdir(parents=True, exist_ok=True)  # type: ignore[name-defined]
