@@ -50,9 +50,15 @@ if __name__ == "__main__":
                 f"{gaez['climate_model']}/rcp{gaez['rcp']}/{gaez['time_period']}H/"
                 f"{gaez['suitability_var']}{gaez['input_management']}{t}{gaez['co2_fertilization']}_{code}.tif"
             )
+            url_w = (
+                f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/"
+                f"{gaez['climate_model']}/rcp{gaez['rcp']}/{gaez['time_period']}H/"
+                f"{gaez['water_requirement_var']}{gaez['input_management']}{t}{gaez['co2_fertilization']}_{code}.tif"
+            )
             y_ok = url_ok(url_y)
             s_ok = url_ok(url_s)
-            if y_ok and s_ok:
+            w_ok = url_ok(url_w)
+            if y_ok and s_ok and w_ok:
                 available[t] = 1
 
         # First available in the order defined above, or "none" if none
