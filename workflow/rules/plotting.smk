@@ -190,3 +190,13 @@ rule plot_average_yield_gap_by_country:
         pdf=f"results/{name}/plots/yield_gap_by_country_average.pdf",
     script:
         "../scripts/plot_yield_gap_by_country_average.py"
+
+
+rule plot_water_value_map:
+    input:
+        network=f"results/{name}/solved/model.nc",
+        regions=f"processing/{name}/regions.geojson",
+    output:
+        pdf=f"results/{name}/plots/water_value_map.pdf",
+    script:
+        "../scripts/plot_water_value_map.py"
