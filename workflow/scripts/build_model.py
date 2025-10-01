@@ -29,7 +29,7 @@ def add_carriers_and_buses(
     - Primary resources (water, fertilizer) and emissions (co2, ch4) stay global.
     """
     # Land carrier (class-level buses are added later)
-    n.add("Carrier", "land", unit="ha")
+    n.add("Carrier", "land", unit="Mha")
 
     # Crops per country
     crop_buses = [
@@ -91,9 +91,9 @@ def add_carriers_and_buses(
     if "fertilizer" not in n.carriers.index:
         n.add("Carrier", "fertilizer", unit="kg")
     if "co2" not in n.carriers.index:
-        n.add("Carrier", "co2", unit="kg")
+        n.add("Carrier", "co2", unit="t")
     if "ch4" not in n.carriers.index:
-        n.add("Carrier", "ch4", unit="kg")
+        n.add("Carrier", "ch4", unit="t")
 
     # Primary resource buses
     for carrier in ["fertilizer", "co2", "ch4"]:
@@ -197,9 +197,9 @@ def add_regional_crop_production_links(
         co2_emission = 0
         ch4_emission = 0
         if "co2" in crop_data.index:
-            co2_emission = crop_data.loc["co2", "value"]  # kg/t
+            co2_emission = crop_data.loc["co2", "value"] / 1000.0  # kg/t → t/t
         if "ch4" in crop_data.index:
-            ch4_emission = crop_data.loc["ch4", "value"]  # kg/t
+            ch4_emission = crop_data.loc["ch4", "value"] / 1000.0  # kg/t → t/t
 
         available_supplies = [
             ws for ws in ("r", "i") if f"{crop}_yield_{ws}" in yields_data
@@ -249,6 +249,7 @@ def add_regional_crop_production_links(
 
             # Add links
             # Connect to class-level land bus per region/resource class and water supply
+            # Land is now tracked in Mha, so scale yields and areas accordingly
             link_params = {
                 "name": df.index,
                 # Use the crop's own carrier so no extra carrier is needed
@@ -258,13 +259,13 @@ def add_regional_crop_production_links(
                     axis=1,
                 ),
                 "bus1": df["country"].apply(lambda c: f"crop_{crop}_{c}"),
-                "efficiency": df["yield"],
+                "efficiency": df["yield"] * 1e6,  # t/ha → t/Mha
                 "bus3": "fertilizer",
-                "efficiency3": -fert_use / df["yield"],
-                # Link marginal_cost is per unit of bus0 flow (ha). To apply a
-                # cost per tonne on bus1, multiply by efficiency (t/ha).
-                "marginal_cost": price * df["yield"],
-                "p_nom_max": df["suitable_area"],
+                "efficiency3": -fert_use / df["yield"],  # kg/t remains kg/t
+                # Link marginal_cost is per unit of bus0 flow (now Mha). To apply a
+                # cost per tonne on bus1, multiply by efficiency (t/Mha).
+                "marginal_cost": price * df["yield"] * 1e6,  # USD/t * t/Mha = USD/Mha
+                "p_nom_max": df["suitable_area"] / 1e6,  # ha → Mha
                 "p_nom_extendable": True,
             }
 
@@ -297,7 +298,7 @@ def add_regional_crop_production_links(
                     )
 
                 link_params["bus2"] = df["region"].apply(lambda r: f"water_{r}")
-                link_params["efficiency2"] = -water_requirement
+                link_params["efficiency2"] = -water_requirement * 1e6  # m³/ha → m³/Mha
 
             # Add emission outputs if they exist
             if co2_emission > 0:
@@ -373,9 +374,9 @@ def add_grassland_feed_links(
         carrier=["feed_ruminant"] * len(merged),
         bus0=merged["bus0"].tolist(),
         bus1=merged["bus1"].tolist(),
-        efficiency=merged["yield"].to_numpy(),
+        efficiency=merged["yield"].to_numpy() * 1e6,  # t/ha → t/Mha
         marginal_cost=[0.0] * len(merged),
-        p_nom_max=merged["available_area"].to_numpy(),
+        p_nom_max=merged["available_area"].to_numpy() / 1e6,  # ha → Mha
         p_nom_extendable=[True] * len(merged),
     )
 
@@ -1151,7 +1152,7 @@ if __name__ == "__main__":
         bus=bus_names,
         carrier=["land"] * len(bus_names),
         p_nom_extendable=[True] * len(bus_names),
-        p_nom_max=(reg_limit * land_class_df["area_ha"]).values,
+        p_nom_max=(reg_limit * land_class_df["area_ha"] / 1e6).values,  # ha → Mha
     )
     add_regional_crop_production_links(
         n,

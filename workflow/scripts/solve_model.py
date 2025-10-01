@@ -90,7 +90,7 @@ def add_ghg_constraint(n: pypsa.Network, primary: dict) -> None:
     """Add greenhouse gas constraint (combining CO2 and CH4 using GWP)."""
     if "ghg" in primary:
         logger.info("Adding greenhouse gas constraint...")
-        ghg_limit = float(primary["ghg"]["limit"])  # kg CO2-eq
+        ghg_limit = float(primary["ghg"]["limit"])  # t CO2-eq
 
         # Get the linopy model
         m = n.model
@@ -120,11 +120,15 @@ def add_ghg_constraint(n: pypsa.Network, primary: dict) -> None:
         # Add constraint if we have any GHG emissions
         if ghg_expression is not None:
             m.add_constraints(ghg_expression <= ghg_limit, name="max_ghg_emissions")
-            logger.info("Total GHG limit: %.1f Gt CO2-eq", ghg_limit / 1e9)
+            logger.info("Total GHG limit: %.1f Gt CO2-eq", ghg_limit / 1e12)
 
 
 def add_ghg_objective(n: pypsa.Network, ghg_price: float) -> None:
-    """Add GHG emissions to the objective function."""
+    """Add GHG emissions to the objective function.
+
+    Args:
+        ghg_price: Price per tonne of CO2-equivalent (USD/tCO2-eq)
+    """
     logger.info("Adding GHG emissions to objective function...")
 
     # Get the linopy model
@@ -133,7 +137,7 @@ def add_ghg_objective(n: pypsa.Network, ghg_price: float) -> None:
     # GWP values: CO2 = 1, CH4 = 25 (100-year GWP)
     ghg_expression = None
 
-    # Add CO2 contribution if CO2 store exists
+    # Add CO2 contribution if CO2 store exists (emissions in tonnes)
     if "co2" in n.stores.index:
         co2_store_idx = n.stores.index.get_loc("co2")
         co2_term = (
@@ -142,7 +146,7 @@ def add_ghg_objective(n: pypsa.Network, ghg_price: float) -> None:
         ghg_expression = co2_term
         logger.info("Added CO2 emissions to objective")
 
-    # Add CH4 contribution if CH4 store exists
+    # Add CH4 contribution if CH4 store exists (emissions in tonnes)
     if "ch4" in n.stores.index:
         ch4_store_idx = n.stores.index.get_loc("ch4")
         ch4_term = (
@@ -157,8 +161,9 @@ def add_ghg_objective(n: pypsa.Network, ghg_price: float) -> None:
     # Add GHG emissions to objective if we have any
     if ghg_expression is not None:
         # Add to objective (minimizing GHG emissions)
+        # ghg_price is USD/tCO2-eq, ghg_expression is in tCO2-eq, so units match
         m.objective = m.objective + ghg_price * ghg_expression
-        logger.info("GHG weight in objective: %s", ghg_price)
+        logger.info("GHG weight in objective: %s USD/tCO2-eq", ghg_price)
 
 
 def sanitize_identifier(value: str) -> str:
