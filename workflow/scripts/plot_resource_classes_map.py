@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 def _load_resource_classes(
     path: Path,
 ) -> tuple[np.ndarray, Affine, Sequence[float] | None]:
-    with xr.open_dataset(path) as ds:
+    with xr.open_dataset(path, mode="r") as ds:
         if "resource_class" not in ds:
             raise ValueError("NetCDF must contain a 'resource_class' variable")
         data = ds["resource_class"].values.astype(float)

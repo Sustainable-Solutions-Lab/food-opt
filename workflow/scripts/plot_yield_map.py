@@ -47,7 +47,7 @@ def _load_geotiff(path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 def _load_netcdf(
     path: str, variable: str | None
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    ds = xr.open_dataset(path, decode_times=False)
+    ds = xr.open_dataset(path, mode="r", decode_times=False)
     try:
         if variable is None:
             variables = list(ds.data_vars)

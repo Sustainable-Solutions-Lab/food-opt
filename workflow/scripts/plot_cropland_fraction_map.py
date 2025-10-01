@@ -150,7 +150,7 @@ def main() -> None:
 
     out_pdf.parent.mkdir(parents=True, exist_ok=True)
 
-    classes_ds = xr.load_dataset(classes_path)
+    classes_ds = xr.open_dataset(classes_path, mode="r")
     if "resource_class" not in classes_ds or "region_id" not in classes_ds:
         raise ValueError("resource_classes input must contain required variables")
 
