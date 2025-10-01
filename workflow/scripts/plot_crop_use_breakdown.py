@@ -18,13 +18,20 @@ import matplotlib.pyplot as plt
 logger = logging.getLogger(__name__)
 
 
-def _extract_crop_production(n: pypsa.Network) -> pd.Series:
-    """Aggregate crop production (tonnes) over all regions/resource classes."""
+def _extract_crop_production(
+    n: pypsa.Network,
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Aggregate crop production (tonnes) over all regions/resource classes.
+
+    Returns total, irrigated, and rainfed production separately.
+    """
 
     if "now" not in n.snapshots:
         raise ValueError("Expected snapshot 'now' in solved network")
 
     production = {}
+    irrigated = {}
+    rainfed = {}
     flows = n.links_t.p1.loc["now"] if "p1" in n.links_t else pd.Series(dtype=float)
     links_df = n.links
 
@@ -36,15 +43,23 @@ def _extract_crop_production(n: pypsa.Network) -> pd.Series:
         if not bus1.startswith("crop_"):
             continue
 
-        crop_token = link.split("_", 2)[1] if "_" in link[len("produce_") :] else ""
-        if not crop_token:
+        parts = link.split("_")
+        if len(parts) < 3:
             continue
+
+        crop_token = parts[1]
+        water_supply = parts[2] if len(parts) > 2 else ""
 
         value = abs(float(flows.get(link, 0.0)))
         if value <= 0.0:
             continue
 
         production[crop_token] = production.get(crop_token, 0.0) + value
+
+        if water_supply == "irrigated":
+            irrigated[crop_token] = irrigated.get(crop_token, 0.0) + value
+        elif water_supply == "rainfed":
+            rainfed[crop_token] = rainfed.get(crop_token, 0.0) + value
 
     pasture_total = 0.0
     for link in n.links.index:
@@ -59,8 +74,13 @@ def _extract_crop_production(n: pypsa.Network) -> pd.Series:
 
     if pasture_total > 0.0:
         production["pasture"] = pasture_total
+        rainfed["pasture"] = pasture_total
 
-    return pd.Series(production, dtype=float)
+    return (
+        pd.Series(production, dtype=float),
+        pd.Series(irrigated, dtype=float),
+        pd.Series(rainfed, dtype=float),
+    )
 
 
 def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
@@ -113,13 +133,19 @@ def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
 
 
 def _build_dataframe(
-    production: pd.Series, human_use: pd.Series, feed_use: pd.Series
+    production: pd.Series,
+    irrigated: pd.Series,
+    rainfed: pd.Series,
+    human_use: pd.Series,
+    feed_use: pd.Series,
 ) -> pd.DataFrame:
     """Combine the individual series into a single dataframe for plotting/export."""
 
     df = pd.DataFrame(
         {
             "production_tonnes": production,
+            "irrigated_tonnes": irrigated,
+            "rainfed_tonnes": rainfed,
             "human_consumption_tonnes": human_use,
             "animal_feed_tonnes": feed_use,
         }
@@ -129,6 +155,10 @@ def _build_dataframe(
         return df
 
     df = df[(df > 0).any(axis=1)]
+
+    df["irrigated_fraction"] = df["irrigated_tonnes"] / df["production_tonnes"].replace(
+        0, float("nan")
+    )
 
     df["residual_tonnes"] = df["production_tonnes"] - df[
         ["human_consumption_tonnes", "animal_feed_tonnes"]
@@ -146,7 +176,7 @@ def _build_dataframe(
 
 
 def _plot(df: pd.DataFrame, output_pdf: Path) -> None:
-    """Render stacked bar chart for crop uses."""
+    """Render stacked bar chart for crop uses with irrigation info."""
 
     plt.figure(figsize=(12, 7))
 
@@ -157,9 +187,50 @@ def _plot(df: pd.DataFrame, output_pdf: Path) -> None:
         x = range(len(df))
         human = df["human_consumption_tonnes"].to_numpy()
         feed = df["animal_feed_tonnes"].to_numpy()
+        irrigated_frac = df["irrigated_fraction"].fillna(0).to_numpy()
 
-        plt.bar(x, human, label="Human consumption", color="#1f77b4")
-        plt.bar(x, feed, bottom=human, label="Animal feed", color="#ff7f0e")
+        human_rainfed = human * (1 - irrigated_frac)
+        human_irrigated = human * irrigated_frac
+        feed_rainfed = feed * (1 - irrigated_frac)
+        feed_irrigated = feed * irrigated_frac
+
+        plt.bar(
+            x,
+            human_rainfed,
+            label="Human consumption (rainfed)",
+            color="#1f77b4",
+            edgecolor="black",
+            linewidth=0.5,
+        )
+        plt.bar(
+            x,
+            human_irrigated,
+            bottom=human_rainfed,
+            label="Human consumption (irrigated)",
+            color="#1f77b4",
+            hatch="///",
+            edgecolor="black",
+            linewidth=0.5,
+        )
+        plt.bar(
+            x,
+            feed_rainfed,
+            bottom=human,
+            label="Animal feed (rainfed)",
+            color="#ff7f0e",
+            edgecolor="black",
+            linewidth=0.5,
+        )
+        plt.bar(
+            x,
+            feed_irrigated,
+            bottom=human + feed_rainfed,
+            label="Animal feed (irrigated)",
+            color="#ff7f0e",
+            hatch="///",
+            edgecolor="black",
+            linewidth=0.5,
+        )
 
         plt.ylabel("Tonnes")
         plt.xticks(x, df.index, rotation=45, ha="right")
@@ -167,7 +238,7 @@ def _plot(df: pd.DataFrame, output_pdf: Path) -> None:
         plt.legend()
         plt.tight_layout()
 
-    plt.title("Global crop use breakdown")
+    plt.title("Global crop use breakdown (hatched = irrigated)")
     plt.tight_layout()
     output_pdf.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_pdf, bbox_inches="tight", dpi=300)
@@ -179,10 +250,10 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     network = pypsa.Network(snakemake.input.network)
-    production = _extract_crop_production(network)
+    production, irrigated, rainfed = _extract_crop_production(network)
     human_use, feed_use = _extract_crop_use(network)
 
-    df = _build_dataframe(production, human_use, feed_use)
+    df = _build_dataframe(production, irrigated, rainfed, human_use, feed_use)
 
     csv_path = Path(snakemake.output.csv)
     pdf_path = Path(snakemake.output.pdf)

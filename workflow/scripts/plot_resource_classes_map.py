@@ -52,7 +52,7 @@ def _load_resource_classes(
 def _subdued_colors(count: int) -> Iterable[str]:
     if count <= 0:
         return []
-    cmap = plt.get_cmap("YlGnBu")
+    cmap = plt.colormaps["YlGnBu"]
     span = max(count - 1, 1)
     colors = [
         cmap(0.3 + 0.5 * (i / span)) if count > 1 else cmap(0.45) for i in range(count)

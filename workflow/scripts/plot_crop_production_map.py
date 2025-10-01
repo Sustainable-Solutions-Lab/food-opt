@@ -71,6 +71,10 @@ def _aggregate_production_by_region(n: pypsa.Network, snapshot: str) -> pd.DataF
 
 
 def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFrame:
+    """Aggregate land use by region and crop.
+
+    Returns land area in hectares.
+    """
     data: Dict[Tuple[str, str], float] = {}
 
     def add(region: str, crop: str, value: float) -> None:
@@ -86,7 +90,7 @@ def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFra
         for name, value in p0.items():
             crop = str(name).split("_")[1] if "_" in str(name) else "unknown"
             region = _region_from_bus0(str(bus0.loc[name]))
-            add(region, crop, max(float(value), 0.0))
+            add(region, crop, max(float(value), 0.0) * 1e6)
 
     graze_links = [name for name in n.links.index if str(name).startswith("graze_")]
     if graze_links:
@@ -94,7 +98,7 @@ def _aggregate_land_use_by_region(n: pypsa.Network, snapshot: str) -> pd.DataFra
         bus0 = n.links.loc[graze_links, "bus0"]
         for name, value in p0.items():
             region = _region_from_bus0(str(bus0.loc[name]))
-            add(region, "grassland", max(float(value), 0.0))
+            add(region, "grassland", max(float(value), 0.0) * 1e6)
 
     df = _dict_to_df(data)
     if "grassland" not in df.columns:
@@ -377,7 +381,7 @@ def main() -> None:
         )
         land_use = land_use.reindex(columns=all_columns, fill_value=0.0)
 
-    cmap = plt.get_cmap("tab20")
+    cmap = plt.colormaps["tab20"]
     colors = {crop: mcolors.to_hex(cmap(i % 20)) for i, crop in enumerate(all_columns)}
 
     _plot_pie_map(

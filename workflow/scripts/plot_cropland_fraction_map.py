@@ -61,6 +61,8 @@ def _used_cropland_area_by_region_class(n: pypsa.Network) -> pd.Series:
     'now'. Generator names follow the pattern
     'land_{region}_class{resource_class}_{water_supply}'. Water supply letters
     (e.g. r/i) are ignored for aggregation.
+
+    Returns area in hectares.
     """
 
     if n.generators.empty or n.generators_t.p.empty:
@@ -84,7 +86,7 @@ def _used_cropland_area_by_region_class(n: pypsa.Network) -> pd.Series:
             continue
         region = match.group("region")
         resource_class = int(match.group("resource_class"))
-        rows.append((region, resource_class, max(float(value), 0.0)))
+        rows.append((region, resource_class, max(float(value), 0.0) * 1e6))
 
     if not rows:
         return pd.Series(dtype=float)
@@ -173,7 +175,7 @@ def main() -> None:
         else 0.5
     )
 
-    cmap = plt.get_cmap("YlOrRd")
+    cmap = plt.colormaps["YlOrRd"]
     fig, ax = plt.subplots(
         figsize=(13, 6.5), dpi=150, subplot_kw={"projection": ccrs.EqualEarth()}
     )

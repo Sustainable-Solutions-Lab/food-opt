@@ -152,7 +152,7 @@ def plot_yield_gap(
     fig, ax = plt.subplots(figsize=(12, 6), dpi=150)
     xmin, ymin, xmax, ymax = array_bounds(height_ee, width_ee, transform_ee)
     extent = (xmin, xmax, ymin, ymax)
-    cmap = plt.get_cmap("RdBu")  # blue for low (negative), red for high (positive)
+    cmap = plt.colormaps["RdBu"]  # blue for low (negative), red for high (positive)
     cmap = cmap.copy()
     cmap.set_bad(color="#f0f0f0")
 

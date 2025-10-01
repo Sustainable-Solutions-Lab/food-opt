@@ -73,7 +73,7 @@ def plot_map(regions_path: str, csv_path: str, output_path: str) -> None:
         vmin, vmax = min(lo, 1.0), max(hi, 1.0)
 
     norm = TwoSlopeNorm(vmin=vmin, vcenter=1.0, vmax=vmax)
-    cmap = plt.get_cmap("RdBu_r").copy()
+    cmap = plt.colormaps["RdBu_r"].copy()
 
     # Base
     gdf_plot.plot(

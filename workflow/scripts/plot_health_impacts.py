@@ -543,13 +543,13 @@ def plot_health_map(
                 vmin, vmax = values.min(), values.max()
             bound = max(abs(vmin), abs(vmax), 1e-6)
             norm = mcolors.TwoSlopeNorm(vmin=-bound, vcenter=0, vmax=bound)
-            cmap = matplotlib.cm.get_cmap("RdBu_r")
+            cmap = matplotlib.colormaps["RdBu_r"]
         else:
             vmax = float(values.max()) if not values.empty else 1.0
             if not np.isfinite(vmax) or vmax <= 0:
                 vmax = 1.0
             norm = mcolors.Normalize(vmin=0.0, vmax=vmax)
-            cmap = matplotlib.cm.get_cmap("Blues")
+            cmap = matplotlib.colormaps["Blues"]
 
         ax.set_facecolor("#f7f9fb")
         ax.set_global()
