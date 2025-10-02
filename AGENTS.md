@@ -8,8 +8,6 @@ SPDX-License-Identifier: CC-BY-4.0
 
 Guidance for AI coding agents contributing to this repository.
 
-If you are Claude Code, see also `CLAUDE.md` for Claude-specific tips.
-
 ## Purpose
 
 Provide clear expectations and a safe, efficient workflow so agents can make small, correct, and reversible changes that fit the project’s conventions.
@@ -20,7 +18,16 @@ Provide clear expectations and a safe, efficient workflow so agents can make sma
 - Built on PyPSA for modeling and Snakemake for workflow orchestration.
 - Configuration-driven; results materialized under `results/{config_name}/`.
 
-For a longer overview and concrete file references, see `CLAUDE.md`.
+## Filesystem Layout
+
+- `config/`: Scenario configuration files and shared YAML fragments; edits here drive what Snakemake targets construct and solve.
+- `data/`: Source datasets and mock CSVs used for testing; treat contents as inputs only and keep large/raw data out of Git.
+- `workflow/`: Snakemake project root with the main `workflow/Snakefile`, modular rules, and workflow scripts under `workflow/scripts/`.
+- `tools/`: Utility wrappers (e.g., `tools/smk`) that pin resource limits and interpreter settings for repeatable runs.
+- `processing/`: Intermediate datasets that feed the modeled workflow.
+- `notebooks/`: Exploratory analyses and sanity-check visualisations.
+- `results/`: Auto-generated artifacts organized as `results/{config_name}/`; never hand-edit. Rerun the relevant target instead.
+- `vendor/`: A few bundled third-party assets kept in-repo for customised tweaks.
 
 ## Core Principles
 
@@ -97,11 +104,6 @@ Notes:
 - No new linter errors; no unused imports.
 - Results land under the expected `results/{config_name}/...` path(s).
 - README or relevant docs updated when changing user-visible behavior.
-
-## Agent-Specific Notes
-
-- Claude Code: Follow this document and the additional context in `CLAUDE.md`.
-- Other agents (e.g., GitHub Copilot/Cursor/Codex-based tools): Adhere to the same principles—small patches, strong validation, and consistency with existing styles and commands.
 
 ## Safety & Licensing
 
