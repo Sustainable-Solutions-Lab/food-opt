@@ -1,0 +1,42 @@
+crop_name,description,res02_code,res05_code,res06_code
+wheat,Wheat,WHEA,WHE,WHE
+dryland-rice,Dryland rice,RICD,RCD,
+wetland-rice,Wetland rice,RICW,RCW,RCW
+maize,Maize,MAIZ,MZE,MZE
+soybean,Soybean,SOYB,SOY,SOY
+white-potato,White potato,WPOT,WPO,POT
+tomato,Tomato,TOMA,TOM,TOM
+barley,Barley,BARL,BRL,BRL
+oat,Oat,OATS,OAT,
+sunflower,Sunflower,SUNF,SFL,SFL
+carrot,Carrot,CARR,CAR,
+onion,Onion,ONIO,ONI,
+cabbage,Cabbage,CABB,CAB,
+banana,Banana,BANA,BAN,BAN
+cassava,Cassava,CASV,CSV,CSV
+sweet-potato,Sweet potato,SPOT,SPO,POT
+yam,Yam,YAMS,YAM,ORT
+sugarcane,Sugar cane,SUGC,SUC,SUC
+sugarbeet,Sugar beet,SUGB,SUB,SUB
+rapeseed,Rapeseed,RAPE,RSD,RSD
+groundnut,Groundnut,GRND,GRD,GRD
+rye,Rye,RYES,RYE,OCE
+dry-pea,Dry pea,DPEA,PEA,PLS
+chickpea,Chickpea,CHCK,CHK,PLS
+alfalfa,Alfalfa,ALFA,ALF,FDD
+biomass-sorghum,Biomass sorghum,BSRG,BSG,
+buckwheat,Buckwheat,BCKW,BCK,OCE
+foxtail-millet,Foxtail millet,FMLT,FML,MLT
+pearl-millet,Pearl millet,PMLT,PML,MLT
+sorghum,Sorghum,SORG,SRG,SRG
+cowpea,Cowpea,COWP,COW,PLS
+gram,Gram,GRAM,GRM,PLS
+phaseolus-bean,Phaseolus bean,BEAN,PHB,PLS
+pigeonpea,Pigeonpea,PIGP,PIG,PLS
+citrus,Citrus,CITR,CIT,FRT
+coconut,Coconut,COCN,CON,CON
+mango,Mango,MANGO,MNG,FRT
+olive,Olive,OLIV,OLV,OOC
+sesame,Sesame,SESA,SES,SES
+oil-palm,Oil palm,OILP,OLP,OLP
+taro,Taro,CYAM1,CYA,ORT

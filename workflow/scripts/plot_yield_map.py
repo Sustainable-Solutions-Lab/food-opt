@@ -178,6 +178,8 @@ def _load_conversion_table(path: str) -> dict[str, float]:
 
 
 def _load_irrigated_map(path: str) -> dict[str, str]:
+    if not path:
+        return {}
     try:
         df = pd.read_csv(path)
     except FileNotFoundError:
@@ -187,23 +189,20 @@ def _load_irrigated_map(path: str) -> dict[str, str]:
     return {str(row["code"]): str(row["first_available"]) for _, row in df.iterrows()}
 
 
-def _pretty_crop_name(item: str, gaez_cfg: dict) -> str:
-    label = gaez_cfg["crops"].get(item)
-    if label is None:
-        reverse = {v: k for k, v in gaez_cfg["crops"].items()}
-        label = reverse.get(item, item)
-    return str(label).replace("-", " ").replace("_", " ").title()
+def _format_crop_label(item: str) -> str:
+    return str(item).replace("-", " ").replace("_", " ").title()
 
 
 def _determine_water_supply_for_title(
-    item: str, supply: str, irrigated_map: dict[str, str], gaez_cfg: dict
+    code: str | None, supply: str, irrigated_map: dict[str, str]
 ) -> str:
     """Determine the actual water supply used for the plot title."""
     if supply != "i":
         return supply
 
     # For "i" request, determine what was actually used
-    code = gaez_cfg["crops"].get(item, item)
+    if code is None:
+        return "i"
     return irrigated_map.get(code, "i")
 
 
@@ -212,11 +211,11 @@ def main() -> None:
 
     params = snakemake.params  # type: ignore[name-defined]
     inputs = snakemake.input  # type: ignore[name-defined]
-    gaez_cfg: dict = params["gaez"]
     item: str = params["item"]
     supply: str = params["supply"]
     unit: str = params.get("unit", "t/ha")
     cmap: str = params.get("cmap", "YlGn")
+    gaez_code: str | None = params.get("gaez_code")
 
     conversions = _load_conversion_table(inputs.get("conversions"))
     irrigated_map = _load_irrigated_map(inputs.get("irrigated"))
@@ -229,16 +228,14 @@ def main() -> None:
 
     if item == "pasture":
         factor = 1.0
-        title = "Pasture yield"
+        title = "Pasture Yield"
         variable = "yield-mgr-noirr"
     else:
-        code = gaez_cfg["crops"].get(item, item)
+        code = gaez_code
         # Determine actual water supply used (for title)
-        water_supply = _determine_water_supply_for_title(
-            item, supply, irrigated_map, gaez_cfg
-        )
+        water_supply = _determine_water_supply_for_title(code, supply, irrigated_map)
 
-        factor = conversions.get(code, 0.001)
+        factor = conversions.get(code, 0.001) if code is not None else 0.001
         suffix_map = {
             "i": "Irrigated",
             "r": "Rainfed",
@@ -247,7 +244,7 @@ def main() -> None:
             "d": "Drip irrigated",
         }
         suffix = suffix_map.get(water_supply, water_supply.upper())
-        title = f"{_pretty_crop_name(item, gaez_cfg)} yield ({suffix})"
+        title = f"{_format_crop_label(item)} Yield ({suffix})"
         variable = None
 
     output_path = Path(snakemake.output.pdf)  # type: ignore[name-defined]

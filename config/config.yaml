@@ -421,102 +421,24 @@ countries:
 
 data:
   gaez:
-    climate_model: "NorESM1-M"
-    time_period: "2020s" # "2020s", "2050s", "2080s"; these are 30 year averages from climate ensembles centered on the given decade.
-    actual_yield_year: "2010" # "2000", "2010"; year for actual historical yeilds
-    rcp: "4p5" # "2p6", "4p5", "6p0", "8p5"
-    input_management: "H" # "H" (High), "L" (Low)
-    water_supply: "r" # "r" (rainfed), "i" (irrigated)
-    co2_fertilization: "" # "" (with) or "0" (without)
-    yield_var: "yl" # "Average attainable yield, current cropland" (GAEZ documentation, page 129)
-    water_requirement_var: "wdl" # "Net irrigation water requirement" (GAEZ documentation, page 129)
-    suitability_var: "sx1" # "Share of gridcell assessed as VS or S" (i.e. very suitable or suitable; GAEZ documentation, page 129)
-    growing_season:
-      start_var: "lgb" # First day of growing period (day-of-year)
-      length_var: "ld1" # Length of growing period (days)
-      year: 2018 # Year stamp for TS dataset; adjust to match the configured time_period
-    crops:
-      alfalfa: alf
-      banana: ban
-      buckwheat: bck
-      barley: brl
-      biomass-sorghum: bsg
-      cabbage: cab
-      carrot: car
-      chickpea: chk
-      citrus: cit
-      cocoa: coc
-      coffee: cof
-      coconut: con
-      cotton: cot
-      cowpea: cow
-      cassava: csv
-      flax: flx
-      foxtail-millet: fml
-      groundnut: grd
-      gram: grm
-      jatropha: jtr
-      miscanthus: mis
-      maize: mze
-      silage-maize: mzs
-      napier-grass: nap
-      oat: oat
-      oil-palm: olp
-      olive: olv
-      onion: oni
-      dry-pea: pea
-      phaseolus bean: phb
-      pigeonpea: pig
-      pearl-millet: pml
-      dryland-rice: rcd
-      reed-canary grass: rcg
-      wetland-rice: rcw
-      rapeseed: rsd
-      rubber: rub
-      rye: rye
-      sunflower: sfl
-      soybean: soy
-      sweet-potato: spo
-      sorghum: srg
-      sugarbeet: sub
-      sugarcane: suc
-      switchgrass: swg
-      tea: tea
-      tobacco: tob
-      tomato: tom
-      wheat: whe
-      white-potato: wpo
-      yam: yam
-    actual_yield_crops:
-    # GAEZ only has actual yields for the following crops
-    - ban
-    - brl
-    - cot
-    - grd
-    - mze
-    - olp
-    - olv
-    - rsd
-    - srg
-    - soy
-    - sub
-    - suc
-    - sfl
-    - tob
-    - rcw
-    - whe
-    # GAEZ also has aggregate actual yields for millet, other cereals, potato & sweet potato and pulses. We ignore those here for simplicity
-    # - fml pml
-    # - oat rye
-    # - wpo spo
-    # - chk pea cow grm phb pig
+    # GAEZ v5 parameters
+    # Note: RES05 (yields/suitability) has ENSEMBLE, but RES02 (growing season) only has individual GCMs
+    climate_model: "GFDL-ESM4" # Specific GCMs: "GFDL-ESM4", "IPSL-CM6A-LR", "MPI-ESM1-2-HR", "MRI-ESM2-0", "UKESM1-0-LL"
+    climate_model_ensemble: "ENSEMBLE" # Multi-model mean (only available for RES05, not RES02)
+    period: "FP2140" # Future: "FP2140" (2021-2040), "FP4160" (2041-2060), "FP6180" (2061-2080), "FP8100" (2081-2100); Historical: "HP0120" (2001-2020), "HP8100" (1981-2000)
+    scenario: "SSP126" # "SSP126" (low emissions), "SSP370" (medium, ~RCP4.5), "SSP585" (high), "HIST" (historical)
+    input_level: "H" # "H" (High), "L" (Low)
+    water_supply: "R" # "I" (irrigated), "R" (rainfed)
+    # Variable codes for GAEZ v5
+    yield_var: "RES05-YCX" # Average attainable yield, current cropland
+    water_requirement_var: "RES05-WDC" # Water deficit/net irrigation requirement during crop cycle, current cropland
+    suitability_var: "RES05-SX1" # Share of grid cell assessed as VS or S (very suitable or suitable)
 
 irrigation:
   # Which model crops are allowed to have irrigated production.
-  # Options:
-  # - a list of crop names (as in 'crops' above)
-  # - the string "auto" to detect availability by probing the GAEZ endpoints
-  irrigated_crops: "auto"
+  # In GAEZ v5, all crops have both irrigated (HILM/LILM) and rainfed (HRLM/LRLM) data available.
+  # List specific crops here if you want to restrict irrigation, or use "all" for all crops.
+  irrigated_crops: "all"
 
 solving:
   solver: highs

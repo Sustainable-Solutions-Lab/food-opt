@@ -38,81 +38,107 @@ rule retrieve_faostat_prices:
         "../scripts/retrieve_faostat_prices.py"
 
 
-rule download_gaez_potential_yield_data:
+rule download_gaez_yield_data:
     output:
-        "data/downloads/gaez_potential_yield_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
+        "data/downloads/gaez_yield_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
     params:
-        url=lambda w: f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/{w.climate_model}/rcp{w.rcp}/{w.time_period}H/{config['data']['gaez']['yield_var']}{w.input_management}{w.water_supply}{w.co2_fertilization}_{w.crop}.tif",
+        # GAEZ v5 filename: GAEZ-V5.{VARIABLE}.{PERIOD}.{CLIMATE}.{SCENARIO}.{CROP}.{INPUT}.tif
+        # INPUT = {input_level}{water_supply}LM (e.g., HILM, HRLM)
+        gcs_url=lambda w: (
+            f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/{config['data']['gaez']['yield_var']}/"
+            f"GAEZ-V5.{config['data']['gaez']['yield_var']}."
+            f"{w.period}.{w.climate_model}.{w.scenario}."
+            f"{get_gaez_code(w.crop, 'res05')}.{w.input_level}{w.water_supply.upper()}LM.tif"
+        ),
     shell:
-        "wget -O {output} {params.url}"
+        "uv run gsutil cp {params.gcs_url} {output}"
 
 
 rule download_gaez_water_requirement_data:
     output:
-        "data/downloads/gaez_water_requirement_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
+        "data/downloads/gaez_water_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
     params:
-        url=lambda w: f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/{w.climate_model}/rcp{w.rcp}/{w.time_period}H/{config['data']['gaez']['water_requirement_var']}{w.input_management}{w.water_supply}{w.co2_fertilization}_{w.crop}.tif",
-    shell:
-        "wget -O {output} {params.url}"
-
-
-rule download_gaez_growing_season_start_data:
-    output:
-        f"data/downloads/gaez_growing_season_start_{config['data']['gaez']['climate_model']}_{config['data']['gaez']['time_period']}_{config['data']['gaez']['rcp']}_{config['data']['gaez']['growing_season']['year']}.tif",
-    params:
-        url=(
-            f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res01/"
-            f"{config['data']['gaez']['climate_model']}/rcp{config['data']['gaez']['rcp']}/TS/"
-            f"{config['data']['gaez']['growing_season']['start_var']}"
-            f"_{config['data']['gaez']['climate_model']}"
-            f"_rcp{config['data']['gaez']['rcp']}"
-            f"_{config['data']['gaez']['growing_season']['year']}.tif"
+        gcs_url=lambda w: (
+            f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/{config['data']['gaez']['water_requirement_var']}/"
+            f"GAEZ-V5.{config['data']['gaez']['water_requirement_var']}."
+            f"{w.period}.{w.climate_model}.{w.scenario}."
+            f"{get_gaez_code(w.crop, 'res05')}.{w.input_level}{w.water_supply.upper()}LM.tif"
         ),
     shell:
-        "wget -O {output} {params.url}"
-
-
-rule download_gaez_growing_season_length_data:
-    output:
-        f"data/downloads/gaez_growing_season_length_{config['data']['gaez']['climate_model']}_{config['data']['gaez']['time_period']}_{config['data']['gaez']['rcp']}_{config['data']['gaez']['growing_season']['year']}.tif",
-    params:
-        url=(
-            f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res01/"
-            f"{config['data']['gaez']['climate_model']}/rcp{config['data']['gaez']['rcp']}/TS/"
-            f"{config['data']['gaez']['growing_season']['length_var']}"
-            f"_{config['data']['gaez']['climate_model']}"
-            f"_rcp{config['data']['gaez']['rcp']}"
-            f"_{config['data']['gaez']['growing_season']['year']}.tif"
-        ),
-    shell:
-        "wget -O {output} {params.url}"
+        "uv run gsutil cp {params.gcs_url} {output}"
 
 
 rule download_gaez_suitability_data:
     output:
-        "data/downloads/gaez_suitability_{climate_model}_{time_period}_{rcp}_{input_management}_{water_supply}_{co2_fertilization}_{crop}.tif",
+        "data/downloads/gaez_suitability_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
     params:
-        url=lambda w: f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res05/{w.climate_model}/rcp{w.rcp}/{w.time_period}H/{config['data']['gaez']['suitability_var']}{w.input_management}{w.water_supply}{w.co2_fertilization}_{w.crop}.tif",
+        gcs_url=lambda w: (
+            f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/{config['data']['gaez']['suitability_var']}/"
+            f"GAEZ-V5.{config['data']['gaez']['suitability_var']}."
+            f"{w.period}.{w.climate_model}.{w.scenario}."
+            f"{get_gaez_code(w.crop, 'res05')}.{w.input_level}{w.water_supply.upper()}LM.tif"
+        ),
     shell:
-        "wget -O {output} {params.url}"
+        "uv run gsutil cp {params.gcs_url} {output}"
 
 
-rule download_gaez_actual_yield_data:
+rule download_gaez_growing_season_start:
     output:
-        "data/downloads/gaez_actual_yield_{year}_{water_supply}_{crop}.tif",
+        "data/downloads/gaez_growing_season_start_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
     params:
-        url=lambda w: f"https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res06/{w.water_supply.upper()}/{w.year}/{w.crop}_{w.year}_yld.tif",
+        # RES02-CBD: Beginning of crop growth cycle (day)
+        gcs_url=lambda w: (
+            f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES02-CBD/"
+            f"GAEZ-V5.RES02-CBD."
+            f"{w.period}.{w.climate_model}.{w.scenario}."
+            f"{get_gaez_code(w.crop, 'res02')}.{w.input_level}{w.water_supply.upper()}LM.tif"
+        ),
     shell:
-        "wget -O {output} {params.url}"
+        "uv run gsutil cp {params.gcs_url} {output}"
 
 
-rule download_gaez_irrigated_cropland_data:
+rule download_gaez_growing_season_length:
     output:
-        "data/downloads/gaez_irrigated_cropland_share.tif",
+        "data/downloads/gaez_growing_season_length_{climate_model}_{period}_{scenario}_{input_level}_{water_supply}_{crop}.tif",
     params:
-        url="https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/LR/wat/GLCSv11_12_5m.tif",
+        # RES02-CYL: Length of crop growth cycle (days)
+        gcs_url=lambda w: (
+            f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES02-CYL/"
+            f"GAEZ-V5.RES02-CYL."
+            f"{w.period}.{w.climate_model}.{w.scenario}."
+            f"{get_gaez_code(w.crop, 'res02')}.{w.input_level}{w.water_supply.upper()}LM.tif"
+        ),
     shell:
-        "wget -O {output} {params.url}"
+        "uv run gsutil cp {params.gcs_url} {output}"
+
+
+rule download_gaez_actual_yield:
+    output:
+        "data/downloads/gaez_actual_yield_{water_supply}_{crop}.tif",
+    params:
+        # RES06-YLD: Actual yields (2010-2019 average)
+        # INPUT codes: WSI (irrigated), WSR (rainfed), WST (total)
+        # Note: Uses different input naming convention than RES05
+        gcs_url=lambda w: (
+            f"gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAPSET/RES06-YLD/"
+            f"GAEZ-V5.RES06-YLD.{get_gaez_code(w.crop, 'res06').lower()}."
+            f"WS{w.water_supply.upper()}.tif"
+        ),
+    shell:
+        "uv run gsutil cp {params.gcs_url} {output}"
+
+
+rule download_gaez_irrigated_landshare_map:
+    output:
+        "data/downloads/gaez_land_equipped_for_irrigation_share.tif",
+    params:
+        # LR-IRR: Share of land area equipped for irrigation
+        gcs_url="gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAP/GAEZ-V5.LR-IRR.tif",
+    shell:
+        "uv run gsutil cp {params.gcs_url} {output}"
+
+
+
 
 
 # TODO: license. Different variations?

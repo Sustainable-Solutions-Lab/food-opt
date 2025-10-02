@@ -53,3 +53,36 @@ sugarcane,fertilizer,kg/t,60,High nutrient needs
 sugarcane,co2,kg/t,500,Processing and field emissions
 sugarbeet,fertilizer,kg/t,50,High nutrient needs
 sugarbeet,co2,kg/t,450,Processing and field emissions
+wetland-rice,fertilizer,kg/t,70,Higher fertilizer for wetland cultivation
+wetland-rice,ch4,kg/t,150,High methane from flooded fields
+wetland-rice,co2,kg/t,950,GHG emissions including CH4
+sorghum,fertilizer,kg/t,50,Drought-tolerant cereal
+sorghum,co2,kg/t,600,Moderate emissions
+buckwheat,fertilizer,kg/t,30,Low fertilizer needs
+buckwheat,co2,kg/t,550,Moderate emissions
+foxtail-millet,fertilizer,kg/t,40,Moderate fertilizer needs
+foxtail-millet,co2,kg/t,580,Moderate emissions
+pearl-millet,fertilizer,kg/t,45,Moderate fertilizer needs
+pearl-millet,co2,kg/t,590,Moderate emissions
+cowpea,fertilizer,kg/t,15,N-fixing legume
+cowpea,co2,kg/t,390,Lower emissions due to N-fixation
+gram,fertilizer,kg/t,15,N-fixing legume
+gram,co2,kg/t,385,Lower emissions due to N-fixation
+phaseolus-bean,fertilizer,kg/t,15,N-fixing legume
+phaseolus-bean,co2,kg/t,400,Lower emissions due to N-fixation
+pigeonpea,fertilizer,kg/t,15,N-fixing legume
+pigeonpea,co2,kg/t,395,Lower emissions due to N-fixation
+citrus,fertilizer,kg/t,30,Perennial fruit tree
+citrus,co2,kg/t,350,Lower emissions for perennial
+coconut,fertilizer,kg/t,25,Low fertilizer palm
+coconut,co2,kg/t,420,Moderate tropical emissions
+sesame,fertilizer,kg/t,35,Moderate fertilizer needs
+sesame,co2,kg/t,550,Oil seed emissions
+oil-palm,fertilizer,kg/t,40,Tropical plantation
+oil-palm,co2,kg/t,650,Includes land use change concerns
+olive,fertilizer,kg/t,20,Low fertilizer perennial
+olive,co2,kg/t,340,Low emissions for perennial
+alfalfa,fertilizer,kg/t,10,N-fixing forage
+alfalfa,co2,kg/t,280,Lower emissions due to N-fixation
+biomass-sorghum,fertilizer,kg/t,40,Bioenergy feedstock
+biomass-sorghum,co2,kg/t,550,Moderate emissions

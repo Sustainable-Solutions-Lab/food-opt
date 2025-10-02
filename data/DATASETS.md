@@ -20,7 +20,7 @@ Brief descriptions of key external datasets used by this project, with links and
 
 - Description: Global suitability and attainable yield datasets by crop and scenario. This project uses crop yield and suitability rasters (e.g., variables `yc`, `sx1`) under selected climate and management scenarios.
 - Website: https://gaez.fao.org/
-- Version: GAEZ v4.
+- Version: GAEZ v5.
 - License/terms (summary): Datasets disseminated through FAO corporate statistical databases are licensed under Creative Commons Attribution 4.0 International (CC BY 4.0), complemented by FAO’s additional Statistical Database Terms of Use.
   - FAO Database Terms of Use: https://www.fao.org/contact-us/terms/db-terms-of-use/en/
 

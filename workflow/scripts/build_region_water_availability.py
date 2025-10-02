@@ -5,7 +5,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 
 from pathlib import Path
-from typing import Dict, Iterable
+from typing import Iterable
 
 import geopandas as gpd
 import numpy as np
@@ -110,7 +110,6 @@ def compute_region_monthly_water(
 
 def load_crop_growing_seasons(
     crop_files: Iterable[str],
-    code_to_crop: Dict[str, str],
 ) -> pd.DataFrame:
     records = []
     for path_str in crop_files:
@@ -118,8 +117,7 @@ def load_crop_growing_seasons(
         stem = path.stem
         if "_" not in stem:
             continue
-        code, water_supply = stem.split("_", 1)
-        crop = code_to_crop.get(code, code)
+        crop, water_supply = stem.split("_", 1)
 
         df = pd.read_csv(path)
         required_cols = {
@@ -274,13 +272,12 @@ if __name__ == "__main__":
     regions_path: str = snakemake.input.regions  # type: ignore[name-defined]
     monthly_csv: str = snakemake.input.monthly  # type: ignore[name-defined]
     crop_files = list(snakemake.input.crop_yields)  # type: ignore[name-defined]
-    code_to_crop = dict(snakemake.params.code_to_crop)  # type: ignore[name-defined]
 
     monthly_basin_df = pd.read_csv(monthly_csv)
     shares_df = build_basin_region_shares(shapefile_path, regions_path)
     region_month_df = compute_region_monthly_water(shares_df, monthly_basin_df)
 
-    crop_seasons_df = load_crop_growing_seasons(crop_files, code_to_crop)
+    crop_seasons_df = load_crop_growing_seasons(crop_files)
     region_growing_df = compute_region_growing_water(region_month_df, crop_seasons_df)
 
     monthly_out = Path(snakemake.output.monthly_region)  # type: ignore[name-defined]

@@ -32,6 +32,8 @@ dependencies = [
     "scikit-learn>=1.4",
     "faostat",
     "xlrd>=2.0.1",
+    "openpyxl>=3.1.5",
+    "gsutil>=5.35",
 ]
 
 [project.optional-dependencies]

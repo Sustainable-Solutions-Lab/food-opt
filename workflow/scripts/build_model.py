@@ -979,13 +979,8 @@ if __name__ == "__main__":
     feed_to_products = read_csv(snakemake.input.feed_to_products)
 
     irrigation_cfg = snakemake.config["irrigation"]["irrigated_crops"]  # type: ignore[index]
-    if irrigation_cfg == "auto":
-        irrigated_availability = read_csv(snakemake.input.irrigation_availability)
-        expected_irrigated_crops = set(
-            irrigated_availability.loc[
-                irrigated_availability["first_available"] != "none", "crop"
-            ].astype(str)
-        )
+    if irrigation_cfg == "all":
+        expected_irrigated_crops = set(snakemake.params.crops)
     else:
         expected_irrigated_crops = set(map(str, irrigation_cfg))
 
