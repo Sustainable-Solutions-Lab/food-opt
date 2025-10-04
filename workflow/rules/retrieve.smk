@@ -33,6 +33,7 @@ rule download_cropgrids_nc_maps:
     params:
         article_id=22491997,
         file_name="CROPGRIDSv1.08_NC_maps.zip",
+        show_progress=config["downloads"]["show_progress"],
     script:
         "../scripts/download_figshare_file.py"
 
@@ -146,9 +147,6 @@ rule download_gaez_irrigated_landshare_map:
         gcs_url="gs://fao-gismgr-gaez-v5-data/DATA/GAEZ-V5/MAP/GAEZ-V5.LR-IRR.tif",
     shell:
         "uv run gsutil cp {params.gcs_url} {output}"
-
-
-
 
 
 # TODO: license. Different variations?

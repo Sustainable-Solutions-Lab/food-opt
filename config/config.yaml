@@ -6,6 +6,9 @@ name: "toy"
 
 planning_horizon: 2030
 
+downloads:
+  show_progress: true
+
 plotting:
   colors:
     crops:

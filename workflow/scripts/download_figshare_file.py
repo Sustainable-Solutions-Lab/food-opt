@@ -33,7 +33,7 @@ def _resolve_file(article_id: int, file_name: str) -> int:
     )
 
 
-def _download_file(file_id: int, output: Path) -> None:
+def _download_file(file_id: int, output: Path, show_progress: bool) -> None:
     base_url = "https://api.figshare.com/v2"
     with requests.get(
         f"{base_url}/file/download/{file_id}",
@@ -55,6 +55,7 @@ def _download_file(file_id: int, output: Path) -> None:
                 unit_divisor=1024,
                 desc=desc,
                 dynamic_ncols=True,
+                disable=not show_progress,
             ) as progress,
         ):
             for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
@@ -64,13 +65,13 @@ def _download_file(file_id: int, output: Path) -> None:
                 progress.update(len(chunk))
 
 
-def main(article_id: int, file_name: str, output: Path) -> None:
+def main(article_id: int, file_name: str, output: Path, show_progress: bool) -> None:
     try:
         file_id = _resolve_file(article_id, file_name)
     except FileNotFoundError as exc:  # pragma: no cover - user-facing error
         raise SystemExit(str(exc)) from exc
 
-    _download_file(file_id, output)
+    _download_file(file_id, output, show_progress)
 
 
 if __name__ == "__main__":
@@ -78,4 +79,5 @@ if __name__ == "__main__":
         article_id=int(snakemake.params.article_id),
         file_name=snakemake.params.file_name,
         output=Path(snakemake.output[0]),
+        show_progress=bool(snakemake.params.show_progress),
     )
