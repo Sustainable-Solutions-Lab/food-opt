@@ -17,32 +17,54 @@ emissions:
   ghg_price: 200 # USD/tCO2
 
 crops:
+# Core cereals
 - wheat
 - dryland-rice
 - wetland-rice
 - maize
-- soybean
-- white-potato
-- tomato
 - barley
 - oat
-- sunflower
+- rye
+- sorghum
+- buckwheat
+- foxtail-millet
+- pearl-millet
+# Legumes/pulses
+- soybean
+- dry-pea
+- chickpea
+- cowpea
+- gram
+- phaseolus-bean
+- pigeonpea
+# Roots and tubers
+- white-potato
+- sweet-potato
+- cassava
+- yam
+# Vegetables
+- tomato
 - carrot
 - onion
 - cabbage
+# Fruits
 - banana
-- cassava
-- sweet-potato
-- yam
-- sugarcane
-- sugarbeet
+- citrus
+- coconut
+# Oil crops
+- sunflower
 - rapeseed
 - groundnut
-- rye
-- dry-pea
-- chickpea
+- sesame
+- oil-palm
+- olive
+# Sugar crops
+- sugarcane
+- sugarbeet
+# Fodder
 - alfalfa
 - biomass-sorghum
+# Note: mango and taro excluded - missing RES02 (growing season) data for GFDL-ESM4
 
 macronutrients:
   carb:
