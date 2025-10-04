@@ -87,3 +87,42 @@ eggs,fat,g/100g,11
 sugar,carb,g/100g,100
 sugar,protein,g/100g,0
 sugar,fat,g/100g,0
+sorghum,carb,g/100g,75
+sorghum,protein,g/100g,11
+sorghum,fat,g/100g,3
+buckwheat,carb,g/100g,72
+buckwheat,protein,g/100g,13
+buckwheat,fat,g/100g,3
+foxtail millet,carb,g/100g,72
+foxtail millet,protein,g/100g,12
+foxtail millet,fat,g/100g,4
+pearl millet,carb,g/100g,67
+pearl millet,protein,g/100g,11
+pearl millet,fat,g/100g,5
+cowpea,carb,g/100g,60
+cowpea,protein,g/100g,24
+cowpea,fat,g/100g,2
+gram,carb,g/100g,58
+gram,protein,g/100g,22
+gram,fat,g/100g,4
+phaseolus bean,carb,g/100g,60
+phaseolus bean,protein,g/100g,21
+phaseolus bean,fat,g/100g,1
+pigeon pea,carb,g/100g,61
+pigeon pea,protein,g/100g,22
+pigeon pea,fat,g/100g,2
+citrus,carb,g/100g,9
+citrus,protein,g/100g,1
+citrus,fat,g/100g,0
+coconut,carb,g/100g,15
+coconut,protein,g/100g,3
+coconut,fat,g/100g,33
+sesame seed,carb,g/100g,23
+sesame seed,protein,g/100g,18
+sesame seed,fat,g/100g,50
+palm oil,carb,g/100g,0
+palm oil,protein,g/100g,0
+palm oil,fat,g/100g,100
+olive oil,carb,g/100g,0
+olive oil,protein,g/100g,0
+olive oil,fat,g/100g,100

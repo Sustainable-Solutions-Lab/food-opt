@@ -5,6 +5,10 @@ wheat,flour (wholemeal),0.85,Higher extraction rate for whole grain flour
 dryland-rice,rice,0.68,Milled rice yield from paddy (husking + polishing losses)
 wetland-rice,rice,0.68,Milled rice yield from paddy (husking + polishing losses)
 maize,maize,0.85,Dry corn processing with minimal losses
+sorghum,sorghum,0.80,Whole sorghum grain after threshing and cleaning losses
+buckwheat,buckwheat,0.78,Dehulled buckwheat groats ready for milling
+foxtail-millet,foxtail millet,0.80,Dehulled foxtail millet grain with light cleaning
+pearl-millet,pearl millet,0.80,Dehulled pearl millet grain with light cleaning
 soybean,soy,0.90,Cleaned soybeans with minimal processing losses
 white-potato,potato,0.85,Fresh potato with minimal processing losses
 apple,apple,0.90,Fresh apples with minimal processing losses
@@ -12,10 +16,15 @@ tomato,tomato,0.88,Fresh tomatoes with minimal losses
 barley,barley (hulled),0.72,Hulled barley processing losses
 oat,oat,0.78,Oat processing with hull removal
 sunflower,sunflower oil,0.35,Oil extraction efficiency from seeds
+sesame,sesame seed,0.90,Cleaned sesame seeds suitable for direct consumption or milling
+oil-palm,palm oil,0.33,Crude palm oil extraction efficiency from fresh fruit bunches
+olive,olive oil,0.32,Oil extraction efficiency from pressed olives
 carrot,carrot,0.90,Fresh carrots with minimal losses
 onion,onion,0.85,Fresh onions with processing losses
 cabbage,cabbage,0.88,Fresh cabbage with minimal losses
 banana,banana,0.75,Peeled bananas from whole fruit
+citrus,citrus,0.92,Fresh citrus fruit with minimal processing losses
+coconut,coconut,0.85,Fresh coconut meat after husk and shell removal
 cassava,cassava,0.90,Fresh cassava with minimal processing losses
 sweet-potato,sweet potato,0.90,Fresh sweet potato with minimal processing losses
 yam,yam,0.90,Fresh yam with minimal processing losses
@@ -24,5 +33,9 @@ rapeseed,rapeseed oil,0.35,Oil extraction efficiency from seeds
 groundnut,groundnut,0.90,Edible groundnuts (peanuts) with minimal losses
 dry-pea,dry pea,0.90,Dried pea to edible fraction
 chickpea,chickpea,0.90,Dried chickpea to edible fraction
+cowpea,cowpea,0.90,Dried cowpea with minimal processing losses
+gram,gram,0.90,Dried gram pulse with minimal processing losses
+phaseolus-bean,phaseolus bean,0.90,Dried common bean with minimal processing losses
+pigeonpea,pigeon pea,0.90,Dried pigeon pea with minimal processing losses
 sugarcane,sugar,0.12,Sucrose extraction from cane
 sugarbeet,sugar,0.15,Sucrose extraction from beet

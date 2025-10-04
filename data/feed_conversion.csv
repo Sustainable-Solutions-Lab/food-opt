@@ -8,6 +8,14 @@ wetland-rice,ruminant,0.78,Mock value aligned with polished rice feed use
 wetland-rice,monogastric,0.78,Mock value aligned with polished rice feed use
 maize,ruminant,0.85,Mock value for grain maize digestibility
 maize,monogastric,0.85,Mock value for grain maize digestibility
+sorghum,ruminant,0.82,Mock value for sorghum grain feed digestibility
+sorghum,monogastric,0.82,Mock value for sorghum grain feed digestibility
+buckwheat,ruminant,0.79,Mock value for buckwheat grain feed digestibility
+buckwheat,monogastric,0.79,Mock value for buckwheat grain feed digestibility
+foxtail-millet,ruminant,0.80,Mock value for foxtail millet grain feed digestibility
+foxtail-millet,monogastric,0.80,Mock value for foxtail millet grain feed digestibility
+pearl-millet,ruminant,0.80,Mock value for pearl millet grain feed digestibility
+pearl-millet,monogastric,0.80,Mock value for pearl millet grain feed digestibility
 soybean,ruminant,0.90,Mock protein-rich concentrate digestibility
 soybean,monogastric,0.90,Mock protein-rich concentrate digestibility
 white-potato,ruminant,0.65,Mock energy yield from root crops for feed
@@ -42,12 +50,22 @@ rapeseed,ruminant,0.72,Mock value for oilseed meal digestibility
 rapeseed,monogastric,0.72,Mock value for oilseed meal digestibility
 groundnut,ruminant,0.78,Mock value for oilseed meal digestibility
 groundnut,monogastric,0.78,Mock value for oilseed meal digestibility
+sesame,ruminant,0.74,Mock value for sesame oilseed meal digestibility
+sesame,monogastric,0.74,Mock value for sesame oilseed meal digestibility
 rye,ruminant,0.79,Mock value for rye digestibility
 rye,monogastric,0.79,Mock value for rye digestibility
 dry-pea,ruminant,0.83,Mock value for pulse digestibility
 dry-pea,monogastric,0.83,Mock value for pulse digestibility
 chickpea,ruminant,0.83,Mock value for pulse digestibility
 chickpea,monogastric,0.83,Mock value for pulse digestibility
+cowpea,ruminant,0.83,Mock value for pulse digestibility
+cowpea,monogastric,0.83,Mock value for pulse digestibility
+gram,ruminant,0.83,Mock value for pulse digestibility
+gram,monogastric,0.83,Mock value for pulse digestibility
+phaseolus-bean,ruminant,0.83,Mock value for pulse digestibility
+phaseolus-bean,monogastric,0.83,Mock value for pulse digestibility
+pigeonpea,ruminant,0.83,Mock value for pulse digestibility
+pigeonpea,monogastric,0.83,Mock value for pulse digestibility
 alfalfa,ruminant,0.88,Mock value for forage digestibility
 alfalfa,monogastric,0.88,Mock value assuming same digestibility for now
 biomass-sorghum,ruminant,0.60,Mock value for lignocellulosic forage digestibility
