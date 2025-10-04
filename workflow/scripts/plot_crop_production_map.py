@@ -5,7 +5,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Iterable, Mapping, Tuple
 
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
@@ -348,6 +348,45 @@ def _draw_pie(
     ax.add_patch(circ)
 
 
+def _build_color_mapping(
+    crops: Iterable[str],
+    overrides: Mapping[str, str],
+    fallback_cmap_name: str,
+) -> Dict[str, str]:
+    """Return color per crop, falling back to a named matplotlib colormap."""
+
+    try:
+        cmap = plt.get_cmap(fallback_cmap_name)
+    except ValueError:
+        logger.warning(
+            "Unknown colormap '%s'; defaulting to 'Set3' for crop colors",
+            fallback_cmap_name,
+        )
+        cmap = plt.get_cmap("Set3")
+
+    listed_colors = list(getattr(cmap, "colors", []))
+    colors: Dict[str, str] = {}
+    fallback_idx = 0
+
+    for crop in crops:
+        override = overrides.get(crop)
+        if isinstance(override, str) and override:
+            colors[crop] = override
+            continue
+
+        if listed_colors:
+            color = listed_colors[fallback_idx % len(listed_colors)]
+        else:
+            size = max(getattr(cmap, "N", 256), 1)
+            value = (fallback_idx % size) / max(size - 1, 1)
+            color = cmap(value)
+
+        colors[crop] = mcolors.to_hex(color)
+        fallback_idx += 1
+
+    return colors
+
+
 def main() -> None:
     n = pypsa.Network(snakemake.input.network)  # type: ignore[name-defined]
     regions_path: str = snakemake.input.regions  # type: ignore[name-defined]
@@ -381,58 +420,17 @@ def main() -> None:
         )
         land_use = land_use.reindex(columns=all_columns, fill_value=0.0)
 
-    # Define logical color scheme by crop category
-    crop_colors = {
-        # Grains - shades of gold/tan
-        "wheat": "#DAA520",
-        "rice": "#F4A460",
-        "maize": "#FFD700",
-        "barley": "#D2B48C",
-        "sorghum": "#CD853F",
-        "millet": "#DEB887",
-        "oats": "#F5DEB3",
-        "rye": "#BC8F8F",
-        # Legumes - shades of brown/maroon
-        "soybean": "#8B4513",
-        "groundnut": "#A0522D",
-        "chickpea": "#D2691E",
-        "cowpea": "#8B5A2B",
-        "pigeonpea": "#9B6B47",
-        "bean": "#6B4423",
-        "lentil": "#704214",
-        "pea": "#8B7355",
-        # Oil crops - shades of yellow/orange
-        "rapeseed": "#FFB347",
-        "sunflower": "#FFA500",
-        "sesame": "#FF8C00",
-        "palm": "#FF7F50",
-        # Vegetables - shades of green
-        "cassava": "#6B8E23",
-        "potato": "#8FBC8F",
-        "sweetpotato": "#9ACD32",
-        "yam": "#556B2F",
-        "tomato": "#DC143C",
-        # Sugar crops - purple/pink
-        "sugarcane": "#BA55D3",
-        "sugarbeet": "#DA70D6",
-        # Fruits/other
-        "banana": "#FFE135",
-        "plantain": "#F0E68C",
-        "coconut": "#8B7D6B",
-        # Grassland - light green
-        "grassland": "#90EE90",
-    }
+    params = getattr(snakemake, "params", None)  # type: ignore[name-defined]
+    overrides: Mapping[str, str] = {}
+    fallback_cmap_name = "Set3"
 
-    # Fallback colors for any crops not in the predefined list
-    fallback_cmap = plt.colormaps["Set3"]
-    colors = {}
-    fallback_idx = 0
-    for crop in all_columns:
-        if crop in crop_colors:
-            colors[crop] = crop_colors[crop]
-        else:
-            colors[crop] = mcolors.to_hex(fallback_cmap(fallback_idx % 12))
-            fallback_idx += 1
+    if params is not None:
+        raw_overrides = getattr(params, "crop_colors", None)
+        if raw_overrides is not None:
+            overrides = dict(raw_overrides)
+        fallback_cmap_name = getattr(params, "fallback_cmap", fallback_cmap_name)
+
+    colors = _build_color_mapping(all_columns, overrides, fallback_cmap_name)
 
     _plot_pie_map(
         production,

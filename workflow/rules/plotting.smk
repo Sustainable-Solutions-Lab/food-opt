@@ -4,6 +4,9 @@
 
 
 gaez = config["data"]["gaez"]
+plotting_cfg = config.get("plotting", {})
+crop_color_overrides = plotting_cfg.get("colors", {}).get("crops", {})
+crop_fallback_cmap = plotting_cfg.get("fallback_cmaps", {}).get("crops", "Set3")
 
 
 def _gaez_actual_yield_raster_path(crop_name: str, water_supply: str) -> str:
@@ -99,6 +102,9 @@ rule plot_crop_production_map:
     output:
         production_pdf=f"results/{name}/plots/crop_production_map.pdf",
         land_pdf=f"results/{name}/plots/crop_land_use_map.pdf",
+    params:
+        crop_colors=crop_color_overrides,
+        fallback_cmap=crop_fallback_cmap,
     script:
         "../scripts/plot_crop_production_map.py"
 
