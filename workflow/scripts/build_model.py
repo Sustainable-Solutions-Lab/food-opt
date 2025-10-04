@@ -10,6 +10,9 @@ from sklearn.cluster import KMeans
 import pypsa
 import logging
 
+KM3_PER_M3 = 1e-9  # convert cubic metres to cubic kilometres
+TONNE_TO_MEGATONNE = 1e-6  # convert tonnes to megatonnes
+
 logger = logging.getLogger(__name__)
 
 
@@ -60,9 +63,11 @@ def add_carriers_and_buses(
         n.add(
             "Carrier",
             sorted(set(f"group_{group}" for group in food_group_list)),
-            unit="t",
+            unit="Mt",
         )
         n.add("Bus", group_buses, carrier=group_carriers)
+        scale_meta = n.meta.setdefault("carrier_unit_scale", {})
+        scale_meta["food_group_t_to_Mt"] = TONNE_TO_MEGATONNE
 
     # Macronutrients per country
     nutrient_buses = [
@@ -74,8 +79,10 @@ def add_carriers_and_buses(
         nut for country in countries for nut in ["carb", "protein", "fat"]
     ]
     if nutrient_buses:
-        n.add("Carrier", ["carb", "protein", "fat"], unit="t")
+        n.add("Carrier", ["carb", "protein", "fat"], unit="Mt")
         n.add("Bus", nutrient_buses, carrier=nutrient_carriers)
+        scale_meta = n.meta.setdefault("carrier_unit_scale", {})
+        scale_meta["macronutrient_t_to_Mt"] = TONNE_TO_MEGATONNE
 
     # Feed carriers per country (ruminant-wide and monogastric-only pools)
     feed_types = ["ruminant", "monogastric"]
@@ -87,7 +94,7 @@ def add_carriers_and_buses(
 
     # Primary resource carriers
     if "water" not in n.carriers.index:
-        n.add("Carrier", "water", unit="m^3")
+        n.add("Carrier", "water", unit="km^3")
     if "fertilizer" not in n.carriers.index:
         n.add("Carrier", "fertilizer", unit="kg")
     if "co2" not in n.carriers.index:
@@ -116,6 +123,7 @@ def add_primary_resources(
         limit = float(raw_limit)
         if limit <= 0:
             continue
+        limit_km3 = limit * KM3_PER_M3
         store_name = f"water_store_{region}"
         bus_name = f"water_{region}"
         n.add(
@@ -123,13 +131,16 @@ def add_primary_resources(
             store_name,
             bus=bus_name,
             carrier="water",
-            e_nom=limit,
-            e_initial=limit,
+            e_nom=limit_km3,
+            e_initial=limit_km3,
             e_nom_extendable=False,
             e_cyclic=False,
-            p_nom=limit,
+            p_nom=limit_km3,
             p_nom_extendable=False,
         )
+
+    scale_meta = n.meta.setdefault("carrier_unit_scale", {})
+    scale_meta["water_km3_per_m3"] = KM3_PER_M3
 
     # Fertilizer remains global (no regionalization yet)
     if "fertilizer" not in n.stores.index:
@@ -298,7 +309,8 @@ def add_regional_crop_production_links(
                     )
 
                 link_params["bus2"] = df["region"].apply(lambda r: f"water_{r}")
-                link_params["efficiency2"] = -water_requirement * 1e6  # m³/ha → m³/Mha
+                # Convert m³/ha to km³/Mha for compatibility with scaled water units
+                link_params["efficiency2"] = -water_requirement * 1e-3
 
             # Add emission outputs if they exist
             if co2_emission > 0:
@@ -573,6 +585,7 @@ def add_food_group_buses_and_loads(
                         * float(population[c])
                         * days_per_year
                         / 1_000_000.0
+                        * TONNE_TO_MEGATONNE
                         for c in countries
                     ]
                     n.add("Load", names, bus=buses, carrier=carriers, p_set=p_set)
@@ -612,6 +625,7 @@ def add_macronutrient_loads(
                         * float(population[c])
                         * days_per_year
                         / 1_000_000.0
+                        * TONNE_TO_MEGATONNE
                         for c in countries
                     ]
                     n.add("Load", names, bus=buses, carrier=carriers, p_set=p_set)
@@ -656,7 +670,7 @@ def add_food_nutrition_links(
                 if (food, nutrient) in nutrition.index
                 else 0.0
             )
-            eff_lists.append([eff_val] * len(countries))
+            eff_lists.append([eff_val * TONNE_TO_MEGATONNE] * len(countries))
 
         params = {"bus0": bus0, "marginal_cost": [0.01] * len(countries)}
         for i, (buses, effs) in enumerate(zip(out_bus_lists, eff_lists), start=1):
@@ -667,7 +681,7 @@ def add_food_nutrition_links(
         if group_val is not None and pd.notna(group_val):
             idx = len(nutrients) + 1
             params[f"bus{idx}"] = [f"group_{group_val}_{c}" for c in countries]
-            params[f"efficiency{idx}"] = [1.0] * len(countries)
+            params[f"efficiency{idx}"] = [TONNE_TO_MEGATONNE] * len(countries)
 
         n.add("Link", names, p_nom_extendable=[True] * len(countries), **params)
 

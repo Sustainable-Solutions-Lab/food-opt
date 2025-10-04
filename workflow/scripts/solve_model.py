@@ -83,7 +83,44 @@ def _add_sos2_with_fallback(m, variable, sos_dim: str, solver_name: str) -> list
     return [binary_name]
 
 
+OBJECTIVE_COEFF_TARGET = 1e8
+
 logger = logging.getLogger(__name__)
+
+
+def rescale_objective(
+    m: "linopy.Model", target_max_coeff: float = OBJECTIVE_COEFF_TARGET
+) -> float:
+    """Scale objective to keep coefficients within numerical comfort zone."""
+
+    dataset = m.objective.data
+    if "coeffs" not in dataset:
+        return 1.0
+
+    coeffs = dataset["coeffs"].values
+    if coeffs.size == 0:
+        return 1.0
+
+    max_coeff = float(np.nanmax(np.abs(coeffs)))
+    if not math.isfinite(max_coeff) or max_coeff == 0.0:
+        return 1.0
+
+    if max_coeff <= target_max_coeff:
+        return 1.0
+
+    exponent = math.ceil(math.log10(max_coeff / target_max_coeff))
+    if exponent <= 0:
+        return 1.0
+
+    scale_factor = 10.0**exponent
+    m.objective = m.objective / scale_factor
+    logger.warning(
+        "Scaled objective by 1/%s to reduce max coefficient from %.3g to %.3g",
+        scale_factor,
+        max_coeff,
+        max_coeff / scale_factor,
+    )
+    return scale_factor
 
 
 def add_ghg_constraint(n: pypsa.Network, primary: dict) -> None:
@@ -477,23 +514,19 @@ def add_health_objective(
             )
             constant_objective -= coeff
 
-    if objective_expr is not None or constant_objective != 0.0:
-        health_expr = objective_expr if objective_expr is not None else m.linexpr(0.0)
-        if constant_objective != 0.0:
-            if "objective_constant" in m.variables:
-                const_var = m.variables["objective_constant"]
-                const_var.lower = const_var.lower + constant_objective
-                const_var.upper = const_var.upper + constant_objective
-            else:
-                const_var = m.add_variables(
-                    lower=constant_objective,
-                    upper=constant_objective,
-                    name="objective_constant",
-                )
-            health_expr = health_expr + const_var
-        m.objective = m.objective + health_expr
+    if objective_expr is not None:
+        m.objective = m.objective + objective_expr
         logger.info("Added health cost objective")
-    else:
+
+    if constant_objective != 0.0:
+        adjustments = n.meta.setdefault("objective_constant_terms", {})
+        adjustments["health"] = adjustments.get("health", 0.0) + constant_objective
+        logger.debug(
+            "Recorded health objective constant %.3g in network metadata",
+            constant_objective,
+        )
+
+    if objective_expr is None and constant_objective == 0.0:
         logger.info("No health objective terms added (missing overlaps)")
 
 
@@ -524,6 +557,12 @@ if __name__ == "__main__":
         snakemake.input.population,
         solver_name,
     )
+
+    scaling_factor = rescale_objective(n.model)
+    if scaling_factor != 1.0:
+        previous = n.meta.get("objective_scaling_factor", 1.0)
+        n.meta["objective_scaling_factor"] = previous * scaling_factor
+        n.meta["objective_scaling_target_coeff"] = OBJECTIVE_COEFF_TARGET
 
     status, condition = n.model.solve(
         solver_name=solver_name,

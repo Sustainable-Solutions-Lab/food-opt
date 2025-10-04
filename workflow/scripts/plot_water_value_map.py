@@ -36,9 +36,19 @@ def plot_water_value_map(
 
     marginal_prices = n.buses_t.marginal_price.iloc[0][water_buses]
 
+    scale_meta = n.meta.get("carrier_unit_scale", {})
+    km3_per_m3 = float(scale_meta.get("water_km3_per_m3", 1.0))
+    if km3_per_m3 <= 0 or not np.isfinite(km3_per_m3):
+        km3_per_m3 = 1.0
+
+    marginal_prices_per_m3 = marginal_prices * km3_per_m3
+
     region_ids = [b.replace("water_", "") for b in water_buses]
     water_values = pd.DataFrame(
-        {"region": region_ids, "water_value_usd_per_m3": marginal_prices.values}
+        {
+            "region": region_ids,
+            "water_value_usd_per_m3": marginal_prices_per_m3.values,
+        }
     )
 
     logger.info("Loading regions from %s", regions_path)
