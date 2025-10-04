@@ -27,6 +27,16 @@ rule extract_adm1:
         """
 
 
+rule download_cropgrids_nc_maps:
+    output:
+        "data/downloads/cropgrids_v1_08_nc_maps.zip",
+    params:
+        article_id=22491997,
+        file_name="CROPGRIDSv1.08_NC_maps.zip",
+    script:
+        "../scripts/download_figshare_file.py"
+
+
 rule retrieve_faostat_prices:
     input:
         mapping="data/faostat_item_map.csv",

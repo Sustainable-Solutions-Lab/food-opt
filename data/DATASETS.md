@@ -24,6 +24,14 @@ Brief descriptions of key external datasets used by this project, with links and
 - License/terms (summary): Datasets disseminated through FAO corporate statistical databases are licensed under Creative Commons Attribution 4.0 International (CC BY 4.0), complemented by FAO’s additional Statistical Database Terms of Use.
   - FAO Database Terms of Use: https://www.fao.org/contact-us/terms/db-terms-of-use/en/
 
+## CROPGRIDS
+
+- Description: Global geo-referenced harvested and physical crop area maps for 173 crops around 2020 at 0.05° (~5.6 km) resolution; compiled from Monfreda et al. (2008) plus 28 newer gridded sources aligned to 2020 FAOSTAT statistics.
+- Website: https://figshare.com/articles/dataset/CROPGRIDS/22491997
+- Version/format: v1.08 release (Figshare v9); we download the NetCDF package `CROPGRIDSv1.08_NC_maps.zip` alongside accompanying country tables.
+- License/terms (summary): Creative Commons Attribution 4.0 International (CC BY 4.0); cite Tang, Nguyen, Conchedda, Casse, Tubiello & Maggi (2023), *Scientific Data*, https://doi.org/10.6084/m9.figshare.22491997.v9.
+  - License: https://creativecommons.org/licenses/by/4.0/
+
 ## FAOSTAT — FAO Statistics Division
 
 - Description: FAO’s global statistical database covering food and agriculture domains for 245+ countries and territories from 1961 onward. This project currently uses the Producer Prices (PP) domain to obtain 2015–2024 USD/tonne crop producer prices for cost calibration.
