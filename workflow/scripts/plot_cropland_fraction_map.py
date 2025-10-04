@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Plot cropland fraction map with resource class detail at pixel resolution.
+Plot cropland fraction maps with resource class detail at pixel resolution.
 
 Inputs (via snakemake):
 - input.network: solved PyPSA network (NetCDF)
@@ -12,17 +12,26 @@ Inputs (via snakemake):
 - input.land_area_by_class: CSV with columns [region, water_supply, resource_class, area_ha]
 - input.resource_classes: NetCDF with variables 'resource_class' and 'region_id'
 
-Output:
-- results/{name}/plots/cropland_fraction_map.pdf (single map at pixel resolution)
+Outputs:
+- PDF map under results/{name}/plots/
+- CSV summary alongside the PDF (same stem, `_by_region_class.csv`)
+
+Optional parameters (snakemake.params):
+- water_supply: "i"/"irrigated", "r"/"rainfed", or omitted for all.
+- title: figure title; defaults derived from `water_supply`.
+- colorbar_label: colorbar caption; defaults derived from `water_supply`.
+- cmap: Matplotlib colormap name (default: "YlOrRd").
+- csv_prefix: prefix for CSV column names (default determined from `water_supply`).
 
 Notes:
 - Cropland use is computed from actual land flows supplied by land generators
   (carrier 'land'), i.e. n.generators_t.p for generators named like
-  'land_{region}_class{k}_{ws}', aggregated per resource class across water
-  supply options. This reflects realized land use, not capacity.
-- Total land area per (region, resource class) pair is the sum of area_ha over
-  water supplies from land_area_by_class.csv, matching the model’s land
-  availability basis.
+  'land_{region}_class{k}_{ws}'. Water supply filtering (irrigated vs rainfed)
+  happens via the optional parameter above. This reflects realized land use,
+  not capacity.
+- Total land area per (region, resource class) pair comes from
+  land_area_by_class.csv, filtered to the requested water supply when
+  specified, matching the model’s land availability basis.
 - Each pixel inherits the cropland fraction of its (region, resource class)
   combination, so within-region spatial patterns remain visible.
 """
@@ -54,7 +63,9 @@ _LAND_GEN_RE = re.compile(
 logger = logging.getLogger(__name__)
 
 
-def _used_cropland_area_by_region_class(n: pypsa.Network) -> pd.Series:
+def _used_cropland_area_by_region_class(
+    n: pypsa.Network, water_supply: str | None
+) -> pd.Series:
     """Return used cropland area by region and resource class.
 
     Extracts positive output from land generators (carrier 'land') at snapshot
@@ -86,6 +97,9 @@ def _used_cropland_area_by_region_class(n: pypsa.Network) -> pd.Series:
             continue
         region = match.group("region")
         resource_class = int(match.group("resource_class"))
+        ws = (match.group("water_supply") or "").lower()
+        if water_supply is not None and ws != water_supply:
+            continue
         rows.append((region, resource_class, max(float(value), 0.0) * 1e6))
 
     if not rows:
@@ -103,12 +117,71 @@ def _used_cropland_area_by_region_class(n: pypsa.Network) -> pd.Series:
     return used
 
 
+def _normalize_water_supply(value: object) -> str | None:
+    if value is None:
+        return None
+
+    text = str(value).strip().lower()
+    if not text or text in {"all", "total", "both", "any"}:
+        return None
+
+    mapping = {
+        "i": "i",
+        "irr": "i",
+        "irrigated": "i",
+        "r": "r",
+        "rainfed": "r",
+    }
+
+    try:
+        return mapping[text]
+    except KeyError as exc:
+        raise ValueError(
+            "Unsupported water_supply parameter (expected irrigated/rainfed)"
+        ) from exc
+
+
 def main() -> None:
     n = pypsa.Network(snakemake.input.network)  # type: ignore[name-defined]
     regions_path: str = snakemake.input.regions  # type: ignore[name-defined]
     land_area_csv: str = snakemake.input.land_area_by_class  # type: ignore[name-defined]
     classes_path: str = snakemake.input.resource_classes  # type: ignore[name-defined]
     out_pdf = Path(snakemake.output.pdf)  # type: ignore[name-defined]
+
+    params = getattr(snakemake, "params", None)  # type: ignore[name-defined]
+    water_param = getattr(params, "water_supply", None) if params is not None else None
+    water_supply = _normalize_water_supply(water_param)
+
+    base_prefix = {
+        None: "cropland",
+        "i": "irrigated_cropland",
+        "r": "rainfed_cropland",
+    }[water_supply]
+
+    csv_prefix = getattr(params, "csv_prefix", None) if params is not None else None
+    if not csv_prefix:
+        csv_prefix = base_prefix
+
+    default_titles = {
+        None: "Cropland Fraction by Region and Resource Class",
+        "i": "Irrigated Cropland Fraction by Region and Resource Class",
+        "r": "Rainfed Cropland Fraction by Region and Resource Class",
+    }
+    default_colorbars = {
+        None: "Cropland / total model land area",
+        "i": "Irrigated cropland / irrigable land area",
+        "r": "Rainfed cropland / rainfed land area",
+    }
+
+    title = (
+        getattr(params, "title", None) if params is not None else None
+    ) or default_titles[water_supply]
+    colorbar_label = (
+        getattr(params, "colorbar_label", None) if params is not None else None
+    ) or default_colorbars[water_supply]
+    cmap_name = (
+        getattr(params, "cmap", None) if params is not None else None
+    ) or "YlOrRd"
 
     gdf = gpd.read_file(regions_path)
     if "region" not in gdf.columns:
@@ -117,7 +190,7 @@ def main() -> None:
     region_name_to_id = {region: idx for idx, region in enumerate(gdf["region"])}
     gdf = gdf.set_index("region", drop=False)
 
-    used_ha = _used_cropland_area_by_region_class(n)
+    used_ha = _used_cropland_area_by_region_class(n, water_supply)
 
     df_land = pd.read_csv(land_area_csv)
     required_cols = {"region", "resource_class", "area_ha"}
@@ -126,6 +199,13 @@ def main() -> None:
 
     df_land = df_land.dropna(subset=list(required_cols))
     df_land["resource_class"] = df_land["resource_class"].astype(int)
+    if "water_supply" in df_land.columns:
+        df_land["water_supply"] = (
+            df_land["water_supply"].astype(str).str.strip().str.lower()
+        )
+        if water_supply is not None:
+            df_land = df_land[df_land["water_supply"] == water_supply]
+
     total_ha = (
         df_land.groupby(["region", "resource_class"])["area_ha"].sum().astype(float)
     )
@@ -175,7 +255,7 @@ def main() -> None:
         else 0.5
     )
 
-    cmap = plt.colormaps["YlOrRd"]
+    cmap = plt.colormaps[cmap_name]
     fig, ax = plt.subplots(
         figsize=(13, 6.5), dpi=150, subplot_kw={"projection": ccrs.EqualEarth()}
     )
@@ -221,18 +301,26 @@ def main() -> None:
     gl.top_labels = gl.right_labels = False
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.032, pad=0.02)
-    cbar.set_label("Cropland / total model land area")
+    cbar.set_label(colorbar_label)
 
-    ax.set_title("Cropland Fraction by Region and Resource Class")
+    ax.set_title(title)
     plt.tight_layout()
     fig.savefig(out_pdf, bbox_inches="tight", dpi=300)
     plt.close(fig)
 
     data = pd.DataFrame(
         {
-            "cropland_used_ha": used_ha,
-            "land_total_ha": total_ha,
-            "cropland_fraction": fractions,
+            f"{csv_prefix}_used_ha": used_ha,
+            (
+                "land_total_ha"
+                if water_supply is None
+                else (
+                    "irrigable_land_total_ha"
+                    if water_supply == "i"
+                    else "rainfed_land_total_ha"
+                )
+            ): total_ha,
+            f"{csv_prefix}_fraction": fractions,
         }
     )
     csv_out = out_pdf.with_suffix("").parent / f"{out_pdf.stem}_by_region_class.csv"
