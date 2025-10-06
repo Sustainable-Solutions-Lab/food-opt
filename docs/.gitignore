@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Sphinx build outputs
+_build/
+_static/
+_templates/
+
+# Sphinx cache
+.doctrees/

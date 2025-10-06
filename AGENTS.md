@@ -22,6 +22,7 @@ Provide clear expectations and a safe, efficient workflow so agents can make sma
 
 - `config/`: Scenario configuration files and shared YAML fragments; edits here drive what Snakemake targets construct and solve.
 - `data/`: Source datasets and mock CSVs used for testing; treat contents as inputs only and keep large/raw data out of Git.
+- `docs/`: Sphinx documentation (17 sections covering all model aspects); see `docs/README.md` for build instructions.
 - `workflow/`: Snakemake project root with the main `workflow/Snakefile`, modular rules, and workflow scripts under `workflow/scripts/`.
 - `tools/`: Utility wrappers (e.g., `tools/smk`) that pin resource limits and interpreter settings for repeatable runs.
 - `processing/`: Intermediate datasets that feed the modeled workflow.
@@ -98,12 +99,23 @@ Notes:
 - If you add a new rule or script, integrate it into the `workflow/Snakefile` and ensure targets are reproducible.
 - Don’t introduce network calls or external services in core code unless explicitly required by the task.
 
+## Documentation
+
+- Comprehensive Sphinx documentation lives in `docs/` with 17 major sections covering:
+  - Model framework, components, and mathematical formulation
+  - Data sources, workflow execution, and configuration
+  - All model aspects: land use, crops, livestock, nutrition, health, environment
+  - Contributing guidelines, troubleshooting, and API reference
+- When adding features or changing behavior, update relevant documentation sections in `docs/*.rst`.
+- Build docs locally: `cd docs && make html` (requires `uv sync --dev`).
+- Documentation is version-controlled and builds automatically on ReadTheDocs.
+
 ## Validation Checklist
 
 - Narrow target runs clean via Snakemake for at least one `config_name`.
 - No new linter errors; no unused imports.
 - Results land under the expected `results/{config_name}/...` path(s).
-- README or relevant docs updated when changing user-visible behavior.
+- Documentation updated when changing user-visible behavior (check `docs/*.rst` for relevant sections).
 
 ## Safety & Licensing
 

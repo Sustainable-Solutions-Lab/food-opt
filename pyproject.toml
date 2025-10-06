@@ -42,6 +42,9 @@ dev = [
     "ipython",
     "pre-commit",
     "ruff",
+    "sphinx>=8.1.3",
+    "sphinx-autodoc-typehints>=3.0.1",
+    "furo>=2025.9.25",
 ]
 
 [tool.ruff]
