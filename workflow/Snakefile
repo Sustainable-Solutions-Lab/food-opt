@@ -88,6 +88,7 @@ rule all:
         f"results/{name}/plots/crop_use_breakdown.pdf",
         f"results/{name}/plots/crop_use_breakdown.csv",
         f"results/{name}/plots/water_value_map.pdf",
+        f"results/{name}/plots/food_consumption.pdf",
 
 
 rule prepare_population:

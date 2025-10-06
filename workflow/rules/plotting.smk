@@ -119,6 +119,16 @@ rule plot_crop_use_breakdown:
         "../scripts/plot_crop_use_breakdown.py"
 
 
+rule plot_food_consumption:
+    input:
+        network=f"results/{name}/solved/model.nc",
+        population=f"processing/{name}/population.csv",
+    output:
+        pdf=f"results/{name}/plots/food_consumption.pdf",
+    script:
+        "../scripts/plot_food_consumption.py"
+
+
 def yield_map_inputs(wildcards):
     if wildcards.item == "pasture":
         return {"raster": "data/downloads/grassland_yield_historical.nc4"}
