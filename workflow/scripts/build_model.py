@@ -12,6 +12,55 @@ import logging
 
 KM3_PER_M3 = 1e-9  # convert cubic metres to cubic kilometres
 TONNE_TO_MEGATONNE = 1e-6  # convert tonnes to megatonnes
+KCAL_TO_MCAL = 1e-6  # convert kilocalories to megacalories
+KCAL_PER_100G_TO_MCAL_PER_TONNE = 1e-2  # kcal/100g to Mcal per tonne of food
+DAYS_PER_YEAR = 365
+
+SUPPORTED_NUTRITION_UNITS = {
+    "g/100g": {"kind": "mass", "efficiency_factor": TONNE_TO_MEGATONNE},
+    "kcal/100g": {
+        "kind": "energy",
+        "efficiency_factor": KCAL_PER_100G_TO_MCAL_PER_TONNE,
+    },
+}
+
+
+def _nutrient_kind(unit: str) -> str:
+    try:
+        return SUPPORTED_NUTRITION_UNITS[unit]["kind"]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported nutrition unit '{unit}'") from exc
+
+
+def _nutrition_efficiency_factor(unit: str) -> float:
+    try:
+        return SUPPORTED_NUTRITION_UNITS[unit]["efficiency_factor"]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported nutrition unit '{unit}'") from exc
+
+
+def _per_capita_to_bus_units(
+    value_per_person_per_day: float,
+    population: float,
+    unit: str,
+) -> float:
+    kind = _nutrient_kind(unit)
+    if kind == "mass":
+        # g/person/day → Mt/year (1e-12 = 1e-6 g→t × 1e-6 t→Mt)
+        return value_per_person_per_day * population * DAYS_PER_YEAR * 1e-12
+    if kind == "energy":
+        return value_per_person_per_day * population * DAYS_PER_YEAR * KCAL_TO_MCAL
+    raise ValueError(f"Unsupported nutrient kind '{kind}' for unit '{unit}'")
+
+
+def _carrier_unit_for_nutrient(unit: str) -> str:
+    kind = _nutrient_kind(unit)
+    if kind == "mass":
+        return "Mt"
+    if kind == "energy":
+        return "Mcal"
+    raise ValueError(f"Unsupported nutrient kind '{kind}'")
+
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +70,8 @@ def add_carriers_and_buses(
     crop_list: list,
     food_list: list,
     food_group_list: list,
+    nutrient_list: list,
+    nutrient_units: dict[str, str],
     countries: list,
     regions: list,
     water_regions: list,
@@ -70,19 +121,33 @@ def add_carriers_and_buses(
         scale_meta["food_group_t_to_Mt"] = TONNE_TO_MEGATONNE
 
     # Macronutrients per country
-    nutrient_buses = [
-        f"{nut}_{country}"
-        for country in countries
-        for nut in ["carb", "protein", "fat"]
-    ]
-    nutrient_carriers = [
-        nut for country in countries for nut in ["carb", "protein", "fat"]
-    ]
-    if nutrient_buses:
-        n.add("Carrier", ["carb", "protein", "fat"], unit="Mt")
+    nutrient_list_sorted = sorted(dict.fromkeys(nutrient_list))
+    for nutrient in nutrient_list_sorted:
+        unit = nutrient_units[nutrient]
+        carrier_unit = _carrier_unit_for_nutrient(unit)
+        if nutrient not in n.carriers.index:
+            n.add("Carrier", nutrient, unit=carrier_unit)
+
+    if nutrient_list_sorted:
+        nutrient_buses = [
+            f"{nut}_{country}" for country in countries for nut in nutrient_list_sorted
+        ]
+        nutrient_carriers = [
+            nut for country in countries for nut in nutrient_list_sorted
+        ]
         n.add("Bus", nutrient_buses, carrier=nutrient_carriers)
+
         scale_meta = n.meta.setdefault("carrier_unit_scale", {})
-        scale_meta["macronutrient_t_to_Mt"] = TONNE_TO_MEGATONNE
+        if any(
+            _nutrient_kind(nutrient_units[nut]) == "mass"
+            for nut in nutrient_list_sorted
+        ):
+            scale_meta["macronutrient_t_to_Mt"] = TONNE_TO_MEGATONNE
+        if any(
+            _nutrient_kind(nutrient_units[nut]) == "energy"
+            for nut in nutrient_list_sorted
+        ):
+            scale_meta["macronutrient_kcal_to_Mcal"] = KCAL_TO_MCAL
 
     # Feed carriers per country (ruminant-wide and monogastric-only pools)
     feed_types = ["ruminant", "monogastric"]
@@ -566,38 +631,34 @@ def add_food_group_buses_and_loads(
     population: pd.Series,
 ) -> None:
     """Add carriers, buses, and loads for food groups defined in the CSV."""
-    # Add loads for food groups with requirements
-    if food_groups_config:
-        logger.info("Adding food group loads based on nutrition requirements...")
-        for group in food_group_list:
-            if group in food_groups_config:
-                group_config = food_groups_config[group]
-                if "min_per_person_per_day" in group_config:
-                    days_per_year = 365
-                    min_per_person_per_day = float(
-                        group_config["min_per_person_per_day"]
-                    )  # g/person/day
-                    names = [f"{group}_{c}" for c in countries]
-                    buses = [f"group_{group}_{c}" for c in countries]
-                    carriers = [f"group_{group}"] * len(countries)
-                    p_set = [
-                        min_per_person_per_day
-                        * float(population[c])
-                        * days_per_year
-                        / 1_000_000.0
-                        * TONNE_TO_MEGATONNE
-                        for c in countries
-                    ]
-                    n.add("Load", names, bus=buses, carrier=carriers, p_set=p_set)
+    if not food_groups_config:
+        return
 
-                    store_names = [f"store_{group}_{c}" for c in countries]
-                    n.add(
-                        "Store",
-                        store_names,
-                        bus=buses,
-                        carrier=carriers,
-                        e_nom_extendable=[True] * len(countries),
-                    )
+    logger.info("Adding food group loads based on nutrition requirements...")
+    for group in food_group_list:
+        group_config = food_groups_config.get(group)
+        if not group_config or "min_per_person_per_day" not in group_config:
+            continue
+
+        min_per_person_per_day = float(group_config["min_per_person_per_day"])
+        names = [f"{group}_{c}" for c in countries]
+        buses = [f"group_{group}_{c}" for c in countries]
+        carriers = [f"group_{group}"] * len(countries)
+        # g/person/day → Mt/year
+        p_set = [
+            min_per_person_per_day * float(population[c]) * DAYS_PER_YEAR * 1e-12
+            for c in countries
+        ]
+        n.add("Load", names, bus=buses, carrier=carriers, p_set=p_set)
+
+        store_names = [f"store_{group}_{c}" for c in countries]
+        n.add(
+            "Store",
+            store_names,
+            bus=buses,
+            carrier=carriers,
+            e_nom_extendable=True,
+        )
 
 
 def add_macronutrient_loads(
@@ -605,38 +666,69 @@ def add_macronutrient_loads(
     macronutrients_config: dict,
     countries: list,
     population: pd.Series,
+    nutrient_units: dict[str, str],
 ) -> None:
-    """Add per-country loads for macronutrients based on minimum requirements."""
-    if macronutrients_config:
-        logger.info("Adding macronutrient loads per country based on requirements...")
-        for nutrient in ["carb", "protein", "fat"]:
-            if nutrient in macronutrients_config:
-                nutrient_config = macronutrients_config[nutrient]
-                if "min_per_person_per_day" in nutrient_config:
-                    days_per_year = 365
-                    min_per_person_per_day = float(
-                        nutrient_config["min_per_person_per_day"]
-                    )  # g/person/day
-                    names = [f"{nutrient}_{c}" for c in countries]
-                    buses = names
-                    carriers = [nutrient] * len(countries)
-                    p_set = [
-                        min_per_person_per_day
-                        * float(population[c])
-                        * days_per_year
-                        / 1_000_000.0
-                        * TONNE_TO_MEGATONNE
-                        for c in countries
+    """Add per-country loads and stores for macronutrient bounds."""
+
+    if not macronutrients_config:
+        return
+
+    logger.info("Adding macronutrient constraints per country...")
+
+    for nutrient, nutrient_config in macronutrients_config.items():
+        unit = nutrient_units[nutrient]
+        equal_value = nutrient_config.get("equal")
+        min_value = nutrient_config.get("min")
+        max_value = nutrient_config.get("max")
+
+        names = [f"{nutrient}_{c}" for c in countries]
+        carriers = [nutrient] * len(countries)
+
+        # Handle equality constraint
+        if equal_value is not None:
+            p_set = [
+                _per_capita_to_bus_units(equal_value, float(population[c]), unit)
+                for c in countries
+            ]
+            n.add("Load", names, bus=names, carrier=carriers, p_set=p_set)
+            continue
+
+        # Handle min constraint with Load
+        min_totals = None
+        if min_value is not None:
+            min_totals = [
+                _per_capita_to_bus_units(min_value, float(population[c]), unit)
+                for c in countries
+            ]
+            n.add("Load", names, bus=names, carrier=carriers, p_set=min_totals)
+
+        # Handle max constraint with Store
+        if max_value is not None or min_value is not None:
+            store_names = [f"store_{nutrient}_{c}" for c in countries]
+
+            e_nom_max = None
+            if max_value is not None:
+                max_totals = [
+                    _per_capita_to_bus_units(max_value, float(population[c]), unit)
+                    for c in countries
+                ]
+                if min_totals is not None:
+                    e_nom_max = [
+                        max(max_t - min_t, 0.0)
+                        for max_t, min_t in zip(max_totals, min_totals)
                     ]
-                    n.add("Load", names, bus=buses, carrier=carriers, p_set=p_set)
-                    store_names = [f"store_{nutrient}_{c}" for c in countries]
-                    n.add(
-                        "Store",
-                        store_names,
-                        bus=buses,
-                        carrier=carriers,
-                        e_nom_extendable=[True] * len(countries),
-                    )
+                else:
+                    e_nom_max = max_totals
+
+            n.add(
+                "Store",
+                store_names,
+                bus=names,
+                carrier=carriers,
+                e_nom_extendable=True,
+                e_cyclic=False,
+                **({"e_nom_max": e_nom_max} if e_nom_max is not None else {}),
+            )
 
 
 def add_food_nutrition_links(
@@ -645,6 +737,7 @@ def add_food_nutrition_links(
     foods: pd.DataFrame,
     food_groups: pd.DataFrame,
     nutrition: pd.DataFrame,
+    nutrient_units: dict[str, str],
     countries: list,
 ) -> None:
     """Add multilinks per country for converting foods to groups and macronutrients."""
@@ -664,13 +757,15 @@ def add_food_nutrition_links(
         out_bus_lists = []
         eff_lists = []
         for i, nutrient in enumerate(nutrients, start=1):
+            unit = nutrient_units[nutrient]
+            factor = _nutrition_efficiency_factor(unit)
             out_bus_lists.append([f"{nutrient}_{c}" for c in countries])
             eff_val = (
                 float(nutrition.loc[(food, nutrient), "value"])
                 if (food, nutrient) in nutrition.index
                 else 0.0
             )
-            eff_lists.append([eff_val * TONNE_TO_MEGATONNE] * len(countries))
+            eff_lists.append([eff_val * factor] * len(countries))
 
         params = {"bus0": bus0, "marginal_cost": [0.01] * len(countries)}
         for i, (buses, effs) in enumerate(zip(out_bus_lists, eff_lists), start=1):
@@ -1138,11 +1233,22 @@ if __name__ == "__main__":
         food_groups["food"].isin(food_list), "group"
     ].unique()
 
+    macronutrient_cfg = snakemake.params.macronutrients
+    nutrient_units = (
+        nutrition.reset_index()
+        .drop_duplicates(subset=["nutrient"])
+        .set_index("nutrient")["unit"]
+        .to_dict()
+    )
+    macronutrient_names = list(macronutrient_cfg.keys()) if macronutrient_cfg else []
+
     add_carriers_and_buses(
         n,
         crop_list,
         food_list,
         food_group_list,
+        macronutrient_names,
+        nutrient_units,
         cfg_countries,
         regions,
         water_bus_regions,
@@ -1194,9 +1300,21 @@ if __name__ == "__main__":
         population,
     )
     add_macronutrient_loads(
-        n, snakemake.params.macronutrients, cfg_countries, population
+        n,
+        macronutrient_cfg,
+        cfg_countries,
+        population,
+        nutrient_units,
     )
-    add_food_nutrition_links(n, food_list, foods, food_groups, nutrition, cfg_countries)
+    add_food_nutrition_links(
+        n,
+        food_list,
+        foods,
+        food_groups,
+        nutrition,
+        nutrient_units,
+        cfg_countries,
+    )
 
     # Add crop trading hubs and links (hierarchical trade network)
     add_crop_trade_hubs_and_links(

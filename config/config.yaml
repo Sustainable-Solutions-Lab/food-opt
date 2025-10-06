@@ -116,11 +116,13 @@ crops:
 
 macronutrients:
   carb:
-    min_per_person_per_day: 300  # g/person/day (45-65% of calories, ~2000 cal/day)
+    min: 250     # g/person/day
   protein:
-    min_per_person_per_day: 50   # g/person/day (10-35% of calories)
+    min: 50      # g/person/day
   fat:
-    min_per_person_per_day: 65   # g/person/day (20-35% of calories)
+    min: 50      # g/person/day
+  kcal:
+    equal: 2400  # kcal/person/day (source: EAT/Lancet 2025)
 
 animal_products:
   include:
