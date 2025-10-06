@@ -9,52 +9,6 @@ planning_horizon: 2030
 downloads:
   show_progress: true
 
-plotting:
-  colors:
-    crops:
-      wheat: "#C58E2D"
-      'dryland-rice': "#E0B341"
-      'wetland-rice': "#F7E29E"
-      maize: "#F1C232"
-      barley: "#B68D23"
-      oat: "#D4B483"
-      rye: "#A67C52"
-      sorghum: "#A0522D"
-      buckwheat: "#8B5A2B"
-      'foxtail-millet': "#E3C878"
-      'pearl-millet': "#D9A441"
-      soybean: "#7B4F2A"
-      'dry-pea': "#B9925B"
-      chickpea: "#D7B377"
-      cowpea: "#8C5C38"
-      gram: "#A47038"
-      'phaseolus-bean': "#6E3B1E"
-      pigeonpea: "#9C6B3E"
-      'white-potato': "#8FB98B"
-      'sweet-potato': "#CE7B3A"
-      cassava: "#6E8B3D"
-      yam: "#4F6F2C"
-      tomato: "#C0392B"
-      carrot: "#E67E22"
-      onion: "#D35400"
-      cabbage: "#27AE60"
-      banana: "#F7DC6F"
-      citrus: "#F39C12"
-      coconut: "#8E735B"
-      sunflower: "#F1C40F"
-      rapeseed: "#F5B041"
-      groundnut: "#A8683C"
-      sesame: "#C97A2B"
-      'oil-palm': "#A04000"
-      olive: "#6E7D57"
-      sugarcane: "#9B59B6"
-      sugarbeet: "#AF7AC5"
-      alfalfa: "#1ABC9C"
-      'biomass-sorghum': "#16A085"
-      grassland: "#7FB77E"
-  fallback_cmaps:
-    crops: "Set3"
-
 primary:
   land:
     regional_limit: 0.7 # fraction of each region's potential cropland that is made available.
@@ -523,3 +477,49 @@ solving:
   options_highs:
     solver: "ipm"
     mip_rel_gap: 0.001  # align relative gap with gurobi setting
+
+plotting:
+  colors:
+    crops:
+      wheat: "#C58E2D"
+      'dryland-rice': "#E0B341"
+      'wetland-rice': "#F7E29E"
+      maize: "#F1C232"
+      barley: "#B68D23"
+      oat: "#D4B483"
+      rye: "#A67C52"
+      sorghum: "#A0522D"
+      buckwheat: "#8B5A2B"
+      'foxtail-millet': "#E3C878"
+      'pearl-millet': "#D9A441"
+      soybean: "#7B4F2A"
+      'dry-pea': "#B9925B"
+      chickpea: "#D7B377"
+      cowpea: "#8C5C38"
+      gram: "#A47038"
+      'phaseolus-bean': "#6E3B1E"
+      pigeonpea: "#9C6B3E"
+      'white-potato': "#8FB98B"
+      'sweet-potato': "#CE7B3A"
+      cassava: "#6E8B3D"
+      yam: "#4F6F2C"
+      tomato: "#C0392B"
+      carrot: "#E67E22"
+      onion: "#D35400"
+      cabbage: "#27AE60"
+      banana: "#F7DC6F"
+      citrus: "#F39C12"
+      coconut: "#8E735B"
+      sunflower: "#F1C40F"
+      rapeseed: "#F5B041"
+      groundnut: "#A8683C"
+      sesame: "#C97A2B"
+      'oil-palm': "#A04000"
+      olive: "#6E7D57"
+      sugarcane: "#9B59B6"
+      sugarbeet: "#AF7AC5"
+      alfalfa: "#1ABC9C"
+      'biomass-sorghum': "#16A085"
+      grassland: "#7FB77E"
+  fallback_cmaps:
+    crops: "Set3"
