@@ -792,58 +792,29 @@ def _resolve_trade_costs(
 ) -> tuple[dict[str, float], float]:
     """Map each item to its configured trade cost per kilometre."""
 
-    default_cost = float(
-        trade_config.get(
-            default_cost_key,
-            trade_config.get(
-                fallback_cost_key,
-                trade_config.get("crop_trade_marginal_cost_per_km", 0.0),
-            ),
-        )
-        if default_cost_key is not None
-        else trade_config.get(
-            fallback_cost_key, trade_config.get("crop_trade_marginal_cost_per_km", 0.0)
-        )
-    )
+    # Get default cost from config hierarchy
+    if default_cost_key is not None:
+        default_cost = float(trade_config[default_cost_key])
+    else:
+        default_cost = float(trade_config[fallback_cost_key])
 
-    item_costs = {str(item): float(default_cost) for item in items}
+    item_costs = {str(item): default_cost for item in items}
 
     if categories_key is None:
-        return item_costs, float(default_cost)
+        return item_costs, default_cost
 
-    categories = trade_config.get(categories_key, {}) or {}
+    # Override with category-specific costs
+    categories = trade_config.get(categories_key, {})
     for category, cfg in categories.items():
-        if not isinstance(cfg, dict):
-            logger.warning(
-                "Skipping malformed trade cost category '%s': expected mapping, got %s",
-                category,
-                type(cfg).__name__,
-            )
-            continue
-
         category_cost = float(cfg.get("cost_per_km", default_cost))
         configured_items = cfg.get(category_item_key, [])
-        if not configured_items:
-            logger.info(
-                "Trade cost category '%s' has no configured %s; skipping",
-                category,
-                category_item_key,
-            )
-            continue
 
         for item in configured_items:
             item_label = str(item)
-            if item_label not in item_costs:
-                logger.warning(
-                    "Configured %s '%s' in trade cost category '%s' but item is not tradable",
-                    category_item_key,
-                    item_label,
-                    category,
-                )
-                continue
-            item_costs[item_label] = category_cost
+            if item_label in item_costs:
+                item_costs[item_label] = category_cost
 
-    return item_costs, float(default_cost)
+    return item_costs, default_cost
 
 
 def _add_trade_hubs_and_links(
@@ -867,7 +838,7 @@ def _add_trade_hubs_and_links(
 ) -> None:
     """Shared implementation for adding trade hubs and links for a set of items."""
 
-    n_hubs = int(trade_config.get(hub_count_key, trade_config.get("crop_hubs", 0)))
+    n_hubs = int(trade_config[hub_count_key])
     item_costs, default_cost = _resolve_trade_costs(
         trade_config,
         items,
@@ -887,7 +858,7 @@ def _add_trade_hubs_and_links(
         return
 
     non_tradable = {
-        str(item) for item in trade_config.get(non_tradable_key, []) if item in items
+        str(item) for item in trade_config[non_tradable_key] if item in items
     }
     tradable_items = [item for item in items if item not in non_tradable]
     if non_tradable:
@@ -1278,7 +1249,7 @@ if __name__ == "__main__":
         set(cfg_countries),
         crop_prices,
     )
-    if snakemake.params.grazing.get("enabled", False):
+    if snakemake.params.grazing["enabled"]:
         add_grassland_feed_links(
             n,
             grassland_df,
