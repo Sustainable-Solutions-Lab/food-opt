@@ -139,7 +139,7 @@ rule prepare_health_costs:
         rr_max="data/health/raw/RR_max_05282021.csv",
         dr="data/health/raw/dr_05282021.csv",
         population="processing/{name}/population_age.csv",
-        life_table="data/health/raw/lftable_05282021.csv",
+        life_table="data/downloads/WPP_life_table.csv.gz",
         vsl="data/health/raw/VSL_reg_10182021.csv",
     params:
         countries=config["countries"],

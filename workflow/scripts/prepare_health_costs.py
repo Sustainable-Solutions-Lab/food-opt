@@ -5,6 +5,7 @@
 """Pre-compute health data for SOS2 linearisation in the solver."""
 
 import math
+import re
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
@@ -13,9 +14,136 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 
+AGE_BUCKETS = [
+    "<1",
+    "1-4",
+    "5-9",
+    "10-14",
+    "15-19",
+    "20-24",
+    "25-29",
+    "30-34",
+    "35-39",
+    "40-44",
+    "45-49",
+    "50-54",
+    "55-59",
+    "60-64",
+    "65-69",
+    "70-74",
+    "75-79",
+    "80-84",
+    "85-89",
+    "90-94",
+    "95+",
+]
+
+_AGE_BUCKET_PATTERN = re.compile(r"^(?P<start>\d+)\s*-\s*(?P<end>\d+)$")
+
 
 def _load_csv(path: str, names: List[str]) -> pd.DataFrame:
     return pd.read_csv(path, header=None, names=names)
+
+
+def _normalize_age_bucket(label: object) -> str | None:
+    text = str(label).strip().lower()
+    if text in {"<1", "under age 1", "under 1", "0", "0-0", "0 – 0"}:
+        return "<1"
+    if text in {"1-4", "1 – 4", "01-04", "01–04", "1 to 4"}:
+        return "1-4"
+
+    match = _AGE_BUCKET_PATTERN.match(text.replace("–", "-").replace("to", "-"))
+    if match:
+        start = int(match.group("start"))
+        end = int(match.group("end"))
+        if start == 0:
+            return "<1"
+        if start == 1 and end in {4, 5}:
+            return "1-4"
+        if start >= 5 and end == start + 4 and start <= 90:
+            return f"{start}-{end}"
+        if start >= 95:
+            return "95+"
+
+    if text in {"95-99", "95 – 99", "100+", "95+", "95 plus", "100 plus", "100+ years"}:
+        return "95+"
+
+    return None
+
+
+def _load_wpp_life_expectancy(path: str, reference_year: int) -> pd.Series:
+    df = pd.read_csv(path, low_memory=False)
+    if df.empty:
+        raise ValueError("WPP life table file is empty")
+
+    variant_col = df["Variant"].astype(str).str.lower()
+    df = df[variant_col == "medium"]
+    if df.empty:
+        raise ValueError("WPP life table missing 'Medium' variant entries")
+
+    sex_col = df["Sex"].astype(str).str.lower()
+    df = df[sex_col == "total"]
+    if df.empty:
+        raise ValueError("WPP life table missing 'Total' sex entries")
+
+    df["Time"] = pd.to_numeric(df["Time"], errors="coerce")
+    df = df.dropna(subset=["Time"])
+    if df.empty:
+        raise ValueError("WPP life table missing valid 'Time' values")
+
+    available_years = sorted({int(value) for value in df["Time"].unique()})
+    if not available_years:
+        raise ValueError("WPP life table has no available years")
+
+    if reference_year in available_years:
+        target_year = reference_year
+    else:
+        target_year = min(
+            available_years, key=lambda year: (abs(year - reference_year), year)
+        )
+        print(
+            "[prepare_health_costs] WPP life table missing year"
+            f" {reference_year}; using {target_year} instead."
+        )
+
+    df = df[df["Time"].astype(int) == int(target_year)]
+    if df.empty:
+        raise ValueError(f"WPP life table has no data for year {target_year}")
+
+    df = df[df["Location"].astype(str) == "World"]
+    if df.empty:
+        raise ValueError("WPP life table missing 'World' aggregate records")
+
+    age_to_life_exp: Dict[str, float] = {}
+    for _, row in df.iterrows():
+        bucket = _normalize_age_bucket(row.get("AgeGrp"))
+        if bucket is None or bucket in age_to_life_exp:
+            continue
+        try:
+            age_to_life_exp[bucket] = float(row["ex"])
+        except (TypeError, ValueError):
+            continue
+
+    if "95+" not in age_to_life_exp:
+        candidates = df[df["AgeGrp"].astype(str).isin(["95-99", "95+", "100+"])]
+        if not candidates.empty:
+            first = candidates.iloc[0]
+            try:
+                age_to_life_exp["95+"] = float(first["ex"])
+            except (TypeError, ValueError):
+                pass
+
+    missing = [bucket for bucket in AGE_BUCKETS if bucket not in age_to_life_exp]
+    if missing:
+        raise ValueError(
+            "WPP life table missing life expectancy entries for age buckets: "
+            + ", ".join(missing)
+        )
+
+    ordered = {bucket: age_to_life_exp[bucket] for bucket in AGE_BUCKETS}
+    series = pd.Series(ordered, name="life_exp")
+    series.index.name = "age"
+    return series
 
 
 def _build_country_clusters(
@@ -127,7 +255,7 @@ def main() -> None:
     dr = _load_csv(snakemake.input["dr"], ["age", "cause", "country", "year", "value"])
     pop = pd.read_csv(snakemake.input["population"])
     pop["value"] = pd.to_numeric(pop["value"], errors="coerce") / 1_000.0
-    life_exp = _load_csv(snakemake.input["life_table"], ["age", "life_exp"])
+    life_exp = _load_wpp_life_expectancy(snakemake.input["life_table"], reference_year)
     vsl = _load_csv(
         snakemake.input["vsl"],
         ["income_group", "country", "year", "gdp_scenario", "stat", "value"],
@@ -152,7 +280,6 @@ def main() -> None:
         (pop["year"] == reference_year) & (pop["country"].isin(cfg_countries))
     ].copy()
 
-    life_exp = life_exp.set_index("age")["life_exp"].astype(float)
     valid_ages = life_exp.index
     dr = dr[dr["age"].isin(valid_ages)].copy()
     pop_age = pop[pop["age"].isin(valid_ages)].copy()

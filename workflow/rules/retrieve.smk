@@ -168,14 +168,19 @@ rule download_grassland_yield_data:
 
 rule download_wpp_population:
     output:
-        "data/downloads/WPP_population.csv.gz",
+        population="data/downloads/WPP_population.csv.gz",
+        life_table="data/downloads/WPP_life_table.csv.gz",
     params:
-        url=(
+        population_url=(
             "https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/CSV_FILES/WPP2024_Population1JanuaryByAge5GroupSex_Medium.csv.gz"
+        ),
+        life_table_url=(
+            "https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/CSV_FILES/WPP2024_Life_Table_Abridged_Medium_2024-2100.csv.gz"
         ),
     shell:
         r"""
-        wget -O {output} "{params.url}"
+        wget -O {output.population} "{params.population_url}"
+        wget -O {output.life_table} "{params.life_table_url}"
         """
 
 

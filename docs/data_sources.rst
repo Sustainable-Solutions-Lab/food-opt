@@ -119,11 +119,14 @@ UN World Population Prospects (WPP) 2024
 
 **License**: Creative Commons Attribution 3.0 IGO (CC BY 3.0 IGO)
 
-**File used**: ``WPP2024_TotalPopulationBySex.csv.gz``
+**Files used**:
+  * ``WPP2024_TotalPopulationBySex.csv.gz``
+  * ``WPP2024_Life_Table_Abridged_Medium_2024-2100.csv.gz``
 
 **Usage**:
   * Scaling per-capita dietary requirements to total demand
   * Age-structured population for health burden calculations
+  * Global life expectancy schedule for health loss valuation
 
 Health and Epidemiology Data
 -----------------------------
@@ -144,7 +147,6 @@ DIA (Diet Impact Assessment) Model Inputs
   * ``RR_int_05282021.csv``: Relative risk breakpoints
   * ``RR_max_05282021.csv``: Maximum relative risk
   * ``dr_05282021.csv``: Dose-response schedules
-  * ``lftable_05282021.csv``: Life tables
   * ``VSL_reg_10182021.csv``: Value of statistical life by region
 
 **Citation**: Springmann, M., et al. (2018). Health and nutritional aspects of sustainable diet strategies and their association with environmental impacts. *Nature Sustainability*, 1(11), 624-632.
@@ -293,4 +295,3 @@ Planned dataset additions:
 * **Food processing loss factors**: Industry-specific mass balance data
 * **Micronutrient databases**: Iron, zinc, vitamin A content
 * **Trade flow data**: Historical bilateral trade for calibration
-

@@ -50,15 +50,15 @@ Brief descriptions of key external datasets used by this project, with links and
 
 ## UN WPP — World Population Prospects 2024 (UN DESA)
 
-- Description: Official United Nations population estimates and projections prepared by UN DESA’s Population Division. This project uses the TotalPopulationBySex table (Medium variant) to obtain planning-horizon population totals by country and convert them from thousands of persons to persons.
+- Description: Official United Nations population estimates and projections prepared by UN DESA’s Population Division. This project uses the total population table (medium variant) to obtain planning-horizon population totals by country. Additionally, we use the abridged life table for years-of-life-lost calculations.
 - Website: https://population.un.org/wpp/
-- Version/format: 2024 Revision; `WPP2024_TotalPopulationBySex.csv.gz` (CSV, Medium variant) downloaded from the WPP Download Center.
+- Version/format: 2024 Revision; `WPP2024_TotalPopulationBySex.csv.gz` (CSV, medium variant) and `WPP2024_Life_Table_Abridged_Medium_2024-2100` (CSV, medium variant).
 - License/terms (summary): UN population data is made available under the Creative Commons Attribution 3.0 IGO license (CC BY 3.0 IGO)
   - See copyright notice at the bottom of https://population.un.org/wpp/downloads
 
 ## DIA Health Impact Inputs (Diet Impact Assessment)
 
-- Description: Epidemiological inputs used by the Diet Impact Assessment (DIA) model to translate dietary exposures into health burdens. We copy a minimal subset covering dietary risk relative-risk schedules, baseline consumption, mortality, demographic structure, life tables, and regional values of a statistical life year.
+- Description: Epidemiological inputs used by the Diet Impact Assessment (DIA) model to translate dietary exposures into health burdens. We copy a minimal subset covering dietary risk relative-risk schedules, baseline consumption, mortality, demographic structure, and regional values of a statistical life year.
 - Source repository: https://github.com/marco-spr/WHO-DIA
 - Version/format: CSV snapshots dated 2021-05-28 (diet, risk schedules, demographics) and 2021-10-18 (VSL region table).
 - License/terms (summary): Whole repository licensed under the GPL-3.0
