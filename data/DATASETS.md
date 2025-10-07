@@ -62,3 +62,31 @@ Brief descriptions of key external datasets used by this project, with links and
 - Source repository: https://github.com/marco-spr/WHO-DIA
 - Version/format: CSV snapshots dated 2021-05-28 (diet, risk schedules, demographics) and 2021-10-18 (VSL region table).
 - License/terms (summary): Whole repository licensed under the GPL-3.0
+
+## IHME GBD — Global Burden of Disease Study 2021
+
+- Description: Cause-specific mortality rates by country, age, and sex from the Global Burden of Disease (GBD) 2021 study. This project uses death rates for dietary-related chronic diseases (ischemic heart disease, stroke, diabetes, colorectal cancer, chronic respiratory diseases) to calculate health burdens attributable to diet composition.
+- Website: https://vizhub.healthdata.org/gbd-results/
+- Version/format: GBD 2021; downloaded as CSV from the GBD Results Tool with custom query parameters.
+- Query configuration:
+  - Measure: Deaths (Rate per 100,000)
+  - Causes: Ischemic heart disease, Stroke, Diabetes mellitus, Colon and rectum cancer, Chronic respiratory diseases, All causes
+  - Age groups: <1 year, 12-23 months, 2-4 years, 5-9 years, ..., 95+ years (individual bins, not aggregates)
+  - Sex: Both
+  - Year: 2021 (or closest available to reference year)
+- Permalink: https://vizhub.healthdata.org/gbd-results?params=gbd-api-2021-permalink/404078e9ecb4a39b84b70e5268b6687a
+- License/terms (summary): Free for non-commercial use with attribution; GBD data is made available under the IHME Free-of-Charge Non-commercial User Agreement.
+  - Terms: https://www.healthdata.org/data-tools-practices/data-practices/ihme-free-charge-non-commercial-user-agreement
+- Citation: Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2021 (GBD 2021) Results. Seattle, United States: Institute for Health Metrics and Evaluation (IHME), 2024. Available from https://vizhub.healthdata.org/gbd-results/.
+
+## GDD — Global Dietary Database (Tufts University)
+
+- Description: Country-level estimates of dietary intake for major food groups and dietary risk factors based on systematic review and meta-analysis of national dietary surveys. This project uses GDD data to establish baseline dietary intake patterns by country for health risk assessment.
+- Website: https://www.globaldietarydatabase.org/
+- Data download: https://globaldietarydatabase.org/data-download
+- Version/format: Downloaded as CSV (~1.6 GB); coverage circa 2015-2020 depending on country survey availability.
+- Content: Mean daily intake (g/day per capita) for major food groups including vegetables, fruits, whole grains, legumes, nuts & seeds, red meat, processed meat, and seafood, with uncertainty estimates.
+- Coverage: 185+ countries
+- License/terms (summary): Free for non-commercial research, teaching, and private study with attribution. Requires user registration. Data may not be redistributed, shared with third parties, or used for commercial purposes without written permission from Tufts.
+  - Terms and conditions: https://globaldietarydatabase.org/terms-and-conditions-use
+- Citation: Global Dietary Database. Dietary intake data by country. https://www.globaldietarydatabase.org/.

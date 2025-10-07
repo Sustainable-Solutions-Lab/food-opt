@@ -39,19 +39,27 @@ Each risk factor has:
 * **Dose-response curve**: How mortality/morbidity changes with intake
 * **Attributable diseases**: Which conditions are affected (IHD, stroke, diabetes, colorectal cancer, etc.)
 
-Data Source
-~~~~~~~~~~~
+Data Sources
+~~~~~~~~~~~~
 
-Risk factor relationships come from the **Diet Impact Assessment (DIA)** model used by WHO and the Global Burden of Disease study. The model uses CSV snapshots from the `WHO-DIA repository <https://github.com/marco-spr/WHO-DIA>`_ (GPL-3.0 licensed).
+The health module combines data from multiple sources:
 
-Input files (in ``data/health/raw/``):
+**Mortality rates**: `IHME Global Burden of Disease Study 2021 <https://vizhub.healthdata.org/gbd-results/>`_
+  * Cause-specific death rates by country and age
+  * Processed via ``workflow/scripts/prepare_gbd_mortality.py``
+  * See ``data/DATASETS.md`` for download instructions
 
-* ``diet_05282021.csv``: Baseline dietary intake by country
-* ``RR_int_05282021.csv``: Relative risk breakpoints (intake thresholds)
-* ``RR_max_05282021.csv``: Maximum relative risk at extreme intakes
-* ``dr_05282021.csv``: Dose-response schedules (log-linear)
-* ``lftable_05282021.csv``: Life tables for mortality calculations
-* ``VSL_reg_10182021.csv``: Value of statistical life by region
+**Baseline dietary intake**: `Global Dietary Database <https://www.globaldietarydatabase.org/>`_ (Tufts University)
+  * Country-level mean daily intake for major food groups and dietary risk factors
+  * Based on systematic review and meta-analysis of national dietary surveys
+  * Processed via ``workflow/scripts/prepare_gdd_dietary_intake.py``
+  * See ``data/DATASETS.md`` and ``data/manually_downloaded/README.md`` for download instructions
+
+**Risk factor relationships**: `WHO-DIA repository <https://github.com/marco-spr/WHO-DIA>`_ (GPL-3.0 licensed)
+  * Relative risk curves linking dietary intake to disease risk
+  * Input files (in ``data/health/raw/``):
+    - ``RR_int_05282021.csv``: Relative risk breakpoints (intake thresholds)
+    - ``RR_max_05282021.csv``: Maximum relative risk at extreme intakes
 
 Food-to-Risk Mapping
 ---------------------
@@ -115,7 +123,8 @@ The ``prepare_health_costs`` rule (``workflow/scripts/prepare_health_costs.py``)
 1. **Load baseline data**: Country-level dietary intake, mortality, demographics
 2. **Cluster**: Group countries by similar baseline health burdens (k-means on baseline DALYs)
 3. **Compute dose-response**: For each cluster, calculate risk breakpoints and slopes
-4. **Output**:
+4. **Valuation**: Apply the configured value of a statistical life (currently a global constant; the code retains optional hooks for future regional datasets).
+5. **Output**:
 
    * ``processing/{name}/health/risk_breakpoints.csv``: Intake thresholds
    * ``processing/{name}/health/cluster_cause_baseline.csv``: Baseline disease burden
@@ -163,7 +172,7 @@ Configuration
 .. code-block:: yaml
 
    health:
-     value_of_statistical_life: 3_500_000  # USD per life
+    value_of_statistical_life: 3_500_000  # USD per life (global constant)
 
 Options:
 
@@ -221,7 +230,7 @@ Configuration Parameters
      reference_year: 2018              # Baseline year for mortality data
      intake_grid_step: 10              # g/day resolution for breakpoints
      log_rr_points: 10                 # Linearization points for log(RR)
-     value_of_statistical_life: 3_500_000  # USD or "regional"
+    value_of_statistical_life: 3_500_000  # USD (set "regional" only if dataset provided)
      risk_factors:                     # Which risk factors to include
        - fruits
        - vegetables
@@ -300,4 +309,3 @@ Future enhancements:
 * **Micronutrient deficiencies**: Iron, vitamin A, zinc deficiency burdens
 * **Age-structured**: Different optimal intakes for children vs. adults
 * **Dynamic health**: Multi-period model with health transitions
-

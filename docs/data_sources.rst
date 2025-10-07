@@ -131,23 +131,65 @@ UN World Population Prospects (WPP) 2024
 Health and Epidemiology Data
 -----------------------------
 
+IHME GBD 2021 — Mortality Rates
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: Institute for Health Metrics and Evaluation (IHME)
+
+**Description**: Cause-specific mortality rates by country, age, and sex from the Global Burden of Disease Study 2021. Used to calculate baseline disease burden attributable to dietary risk factors.
+
+**Access**: https://vizhub.healthdata.org/gbd-results/
+
+**Version**: GBD 2021
+
+**Query parameters**:
+  * Measure: Deaths (Rate per 100,000 population)
+  * Causes: Ischemic heart disease, Stroke, Diabetes mellitus, Colon and rectum cancer, Chronic respiratory diseases, All causes
+  * Age groups: <1 year, 12-23 months, 2-4 years, 5-9 years, ..., 95+ years (individual age bins)
+  * Sex: Both
+  * Year: 2021
+
+**License**: Free for non-commercial use with attribution (IHME Free-of-Charge Non-commercial User Agreement)
+
+**Citation**: Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2021 (GBD 2021) Results. Seattle, United States: Institute for Health Metrics and Evaluation (IHME), 2024. Available from https://vizhub.healthdata.org/gbd-results/
+
+**Workflow integration**: Automatically processed via ``workflow/scripts/prepare_gbd_mortality.py``
+
+Global Dietary Database (GDD)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: Tufts University Friedman School of Nutrition Science and Policy
+
+**Description**: Country-level estimates of dietary intake for major food groups and dietary risk factors based on systematic review and meta-analysis of national dietary surveys.
+
+**Website**: https://www.globaldietarydatabase.org/
+
+**Coverage**: 185+ countries with data circa 2015-2020
+
+**Content**: Mean daily intake (g/day per capita) for vegetables, fruits, whole grains, legumes, nuts & seeds, red meat, processed meat, seafood, and other food groups with uncertainty estimates.
+
+**License**: Free for non-commercial research, teaching, and private study with attribution. Data may not be redistributed or used commercially without Tufts permission.
+
+**Download**: Requires free registration at https://globaldietarydatabase.org/data-download
+
+**Citation**: Global Dietary Database. Dietary intake data by country. https://www.globaldietarydatabase.org/ [Accessed YYYY-MM-DD].
+
+**Workflow integration**: Automatically processed via ``workflow/scripts/prepare_gdd_dietary_intake.py``
+
 DIA (Diet Impact Assessment) Model Inputs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Provider**: WHO-DIA project (Marco Springmann et al.)
 
-**Description**: Epidemiological inputs for translating dietary risk factors to health burdens (DALYs).
+**Description**: Epidemiological inputs for translating dietary risk factors to health burdens (relative risk curves).
 
 **Source repository**: https://github.com/marco-spr/WHO-DIA
 
 **License**: GPL-3.0
 
 **Files used** (snapshots dated 2021):
-  * ``diet_05282021.csv``: Baseline dietary intake by country
   * ``RR_int_05282021.csv``: Relative risk breakpoints
   * ``RR_max_05282021.csv``: Maximum relative risk
-  * ``dr_05282021.csv``: Dose-response schedules
-  * ``VSL_reg_10182021.csv``: Value of statistical life by region
 
 **Citation**: Springmann, M., et al. (2018). Health and nutritional aspects of sustainable diet strategies and their association with environmental impacts. *Nature Sustainability*, 1(11), 624-632.
 

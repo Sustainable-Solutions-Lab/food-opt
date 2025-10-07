@@ -256,10 +256,15 @@ def main() -> None:
     pop = pd.read_csv(snakemake.input["population"])
     pop["value"] = pd.to_numeric(pop["value"], errors="coerce") / 1_000.0
     life_exp = _load_wpp_life_expectancy(snakemake.input["life_table"], reference_year)
-    vsl = _load_csv(
-        snakemake.input["vsl"],
-        ["income_group", "country", "year", "gdp_scenario", "stat", "value"],
-    )
+    # Regional value of statistical life CSV was removed; keep optional support in
+    # case future workflows reintroduce a dataset. snakemake.input may omit "vsl".
+    vsl_input = snakemake.input.get("vsl") if hasattr(snakemake.input, "get") else None
+    vsl: pd.DataFrame | None = None
+    if not use_constant_vsl and vsl_input:
+        vsl = _load_csv(
+            vsl_input,
+            ["income_group", "country", "year", "gdp_scenario", "stat", "value"],
+        )
 
     diet = diet[
         (diet["scenario"] == "BMK")
@@ -321,7 +326,13 @@ def main() -> None:
         yll_by_country / deaths_by_country.replace({0.0: np.nan})
     ).replace([np.inf, -np.inf], np.nan)
 
-    if use_constant_vsl:
+    if not use_constant_vsl and vsl is None:
+        raise ValueError(
+            "Regional VSL dataset is not available; set health.value_of_statistical_life"
+            " to a numeric constant or reintroduce a regional dataset."
+        )
+
+    if use_constant_vsl or vsl is None:
         vsl_per_country = pd.Series(constant_vsl_value, index=cfg_countries)
     else:
         vsl_filtered = vsl[

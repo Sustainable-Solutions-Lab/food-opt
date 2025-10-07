@@ -249,7 +249,7 @@ Health Configuration
      reference_year: 2018                   # Baseline health data year
      intake_grid_step: 10                   # g/day resolution for dose-response
      log_rr_points: 10                      # Linearization points for log(RR)
-     value_of_statistical_life: 3_500_000   # USD or "regional"
+     value_of_statistical_life: 3_500_000   # USD (set "regional" only if a dataset is provided)
      risk_factors:
        - fruits
        - vegetables
@@ -349,4 +349,3 @@ Configuration Best Practices
 **Version control**: Track config files in Git to reproduce results
 
 **Compare scenarios**: Use consistent naming (``baseline``, ``high_carbon_price``, etc.)
-

@@ -131,16 +131,26 @@ rule build_regions:
         "scripts/build_regions.py"
 
 
+rule prepare_gdd_dietary_intake:
+    input:
+        gdd_dir="data/manually_downloaded/GDD-dietary-intake",
+    params:
+        reference_year=config["health"]["reference_year"],
+    output:
+        diet="processing/{name}/gdd_dietary_intake.csv",
+    script:
+        "scripts/prepare_gdd_dietary_intake.py"
+
+
 rule prepare_health_costs:
     input:
         regions="processing/{name}/regions.geojson",
-        diet="data/health/raw/diet_05282021.csv",
+        diet="processing/{name}/gdd_dietary_intake.csv",
         rr_int="data/health/raw/RR_int_05282021.csv",
         rr_max="data/health/raw/RR_max_05282021.csv",
         dr="data/health/raw/dr_05282021.csv",
         population="processing/{name}/population_age.csv",
         life_table="data/downloads/WPP_life_table.csv.gz",
-        vsl="data/health/raw/VSL_reg_10182021.csv",
     params:
         countries=config["countries"],
         health=config["health"],
