@@ -2,8 +2,7 @@
 #
 # SPDX-License-Identifier: CC-BY-4.0
 
-name: "toy"
-
+# Default configuration - override in project-specific configs
 planning_horizon: 2030
 
 downloads:

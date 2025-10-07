@@ -12,7 +12,7 @@ min_version("9.0")
 os.makedirs("data/downloads", exist_ok=True)
 
 
-configfile: "config/config.yaml"
+configfile: "config/default.yaml"
 
 
 name = config["name"]
