@@ -39,6 +39,79 @@ Data Inputs
   ``processing/{name}/life_table.csv``): age-structured population counts and
   remaining life expectancy schedules.
 
+Dietary Risk Factors
+--------------------
+
+The model incorporates dietary risk factors as defined by the Global Burden of Disease (GBD) Study 2021 [Brauer2024]_. These risk factors link dietary intake patterns to specific disease outcomes through dose-response relationships.
+
+GBD Risk Factor Definitions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following table reproduces the GBD 2021 dietary risk factor definitions from Brauer et al. (2024, Supplementary Appendix 1, p. 171). All intake quantities are expressed in terms of **fresh (as consumed) weight** unless otherwise specified. The optimal intake levels represent the theoretical minimum risk exposure level (TMREL) used in GBD burden calculations:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 40 35
+
+   * - Risk Factor
+     - Definition of Exposure
+     - Optimal Level or Range
+   * - Diet low in fruit
+     - Average daily consumption (in grams per day) of fruit including fresh, frozen, cooked, canned, or dried fruit, excluding fruit juices and salted or pickled fruits
+     - 340–350 g/day
+   * - Diet low in vegetables
+     - Average daily consumption (in grams per day) of vegetables, including fresh, frozen, cooked, canned, or dried vegetables and excluding legumes and salted or pickled vegetables, juices, nuts and seeds, and starchy vegetables such as potatoes or corn
+     - 306–372 g/day
+   * - Diet low in whole grains
+     - Average daily consumption (in grams per day) of whole grains (bran, germ, and endosperm in their natural proportion) from breakfast cereals, bread, rice, pasta, biscuits, muffins, tortillas, pancakes, and other sources
+     - 160–210 g/day
+   * - Diet low in nuts and seeds
+     - Average daily consumption (in grams per day) of nuts and seeds, including tree nuts and seeds and peanuts
+     - 19–24 g/day
+   * - Diet low in fibre
+     - Average daily consumption (in grams per day) of fibre from all sources including fruits, vegetables, grains, legumes, and pulses
+     - 22–25 g/day
+   * - Diet low in seafood omega-3 fatty acids
+     - Average daily consumption (in milligrams per day) of eicosapentaenoic acid (EPA) and docosahexaenoic acid (DHA)
+     - 470–660 mg/day
+   * - Diet low in omega-6 polyunsaturated fatty acids
+     - Average daily consumption (in % daily energy) from omega-6 polyunsaturated fatty acids (PUFA) (specifically linoleic acid, γ-linolenic acid, eicosadienoic acid, dihomo-γ-linolenic acid, arachidonic acid)
+     - 9–10% of total daily energy
+   * - Diet low in calcium
+     - Average daily consumption (in grams per day) of calcium from all sources, including milk, yogurt, and cheese
+     - 0.72–0.86 g/day (males), 1.1–1.2 g/day (females)
+   * - Diet low in milk
+     - Average daily consumption (in grams per day) of dairy milk including non-fat, low-fat, and full-fat milk, but excluding plant-based milks, fermented milk products such as buttermilk, and other dairy products such as cheese
+     - 280–340 g/day (males), 500–610 g/day (females)
+   * - Diet low in legumes
+     - Average daily consumption (in grams per day) of legumes and pulses, including fresh, frozen, cooked, canned, or dried legumes
+     - 100–110 g/day
+   * - Diet high in red meat
+     - Average daily consumption (in grams per day) of unprocessed red meat including pork and bovine meats such as beef, pork, lamb, and goat, but excluding all processed meats, poultry, fish, and eggs
+     - 0–200 g/day
+   * - Diet high in processed meat
+     - Average daily consumption (in grams per day) of meat preserved by smoking, curing, salting, or addition of chemical preservatives
+     - 0 g/day
+   * - Diet high in sugar-sweetened beverages (SSBs)
+     - Average daily consumption (in grams per day) of beverages with ≥50 kcal per 226.8 gram serving, including carbonated beverages, sodas, energy drinks, and fruit drinks, but excluding 100% fruit and vegetable juices
+     - 0 g/day
+   * - Diet high in trans fatty acids
+     - Average daily consumption (in percent daily energy) of trans fat from all sources, mainly partially hydrogenated vegetable oils and ruminant products
+     - 0–1.1% of total daily energy
+   * - Diet high in sodium
+     - Average 24-hour urinary sodium excretion (in grams per day)
+     - 1–5 g/day
+
+**Notes:**
+
+* All intake quantities are in **fresh (as consumed) weight**, matching the GDD dietary intake data convention (see :doc:`current_diets`)
+* **GBD risk factors are evaluated for adult populations (≥25 years)** - the current implementation uses population-weighted "All ages" dietary intake averages, which may underestimate risk for adult-only populations
+* The model currently implements a subset of these risk factors based on data availability and model scope
+* Risk factor definitions specify both the intake measure (e.g., grams per day) and the threshold or optimal range
+* "Diet low in" risk factors specify minimum recommended intakes; "diet high in" risk factors treat any intake as risk-increasing
+* Milk/dairy measurements use milk equivalents, where cheese and yogurt are converted to their milk equivalent weight
+* See :doc:`current_diets` for detailed mapping between GDD dietary intake data and these risk factors
+
 Preparation Workflow
 --------------------
 
@@ -200,6 +273,11 @@ baseline versus optimised health outcomes.
 Limitations and Future Work
 ---------------------------
 
+- **Age mismatch** – GBD risk factors are defined for adult populations (≥25 years),
+  but the current implementation uses "All ages" dietary intake averages including
+  children. This may underestimate adult dietary risk exposure and should be
+  addressed by filtering to adult age groups and computing adult population-weighted
+  averages.
 - **Mortality focus** – only years of life lost are modelled; years lived with
   disability are currently excluded.
 - **Static risk mapping** – all foods mapped to a risk factor contribute in
@@ -212,3 +290,8 @@ Limitations and Future Work
 
 Future extensions may add morbidity effects, age-dependent optimal intakes, or
 multi-period health dynamics that capture delayed impacts of dietary change.
+
+References
+----------
+
+.. [Brauer2024] Brauer M, Roth GA, Aravkin AY, et al. Global Burden and Strength of Evidence for 88 Risk Factors in 204 Countries and 811 Subnational Locations, 1990–2021: A Systematic Analysis for the Global Burden of Disease Study 2021. *The Lancet*, 2024;403(10440):2162–203. https://doi.org/10.1016/S0140-6736(24)00933-4

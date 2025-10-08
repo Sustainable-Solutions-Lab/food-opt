@@ -206,6 +206,11 @@ def _filter_and_prepare_data(
     """Filter datasets to reference year and compute derived quantities."""
     # Filter dietary intake data
     # Use "All ages" aggregate for now (age-specific matching is future work)
+    # TODO: GBD risk factors are evaluated for adult populations (≥25 years).
+    #       Currently using "All ages" aggregate which includes children, potentially
+    #       underestimating adult dietary risk exposure. Should filter to adult age groups
+    #       (e.g., "11-74 years" and "75+ years") and compute adult population-weighted
+    #       averages to properly match GBD risk factor definitions.
     diet = diet[
         (diet["age"] == "All ages")
         & (diet["year"] == reference_year)
