@@ -36,7 +36,7 @@ def main():
     # Map GDD variable codes (vXX) to model food groups
     # Based on GDD codebook and canonical food_groups.csv
     gdd_to_model_items = {
-        "v01": "fruits",  # Fruits (all types)
+        "v01": "fruits",  # Fruits (all types, excluding juices)
         "v02": "vegetables",  # Non-starchy vegetables
         "v03": "starchy_vegetable",  # Potatoes
         "v04": "starchy_vegetable",  # Other starchy vegetables (yam, cassava, etc.)
@@ -50,13 +50,15 @@ def main():
         "v12": "eggs",  # Eggs
         "v57": "dairy",  # Total Milk (includes milk equivalents from all dairy)
         "v15": None,  # Sugar-sweetened beverages (not tracked as food group)
-        "v16": "fruits",  # Fruit juices (count as fruits)
+        "v16": None,  # Fruit juices (excluded - not part of GBD fruit risk factor)
         "v17": None,  # Coffee (not tracked as food group)
         "v18": None,  # Tea (not tracked as food group)
         # Note: We use v57 "Total Milk" for dairy, which aligns with the GBD dairy
         # risk factor definition and includes milk equivalents from all dairy products.
         # Individual components (v13 cheese, v14 yogurt) are not used separately
         # to avoid double-counting.
+        # Fruit juices (v16) are excluded from fruits to match GBD fruit risk factor,
+        # which only includes whole fruits, not juices.
     }
 
     # Filter to only food groups that are in the config

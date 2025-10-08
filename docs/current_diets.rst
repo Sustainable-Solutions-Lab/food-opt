@@ -8,7 +8,7 @@ Current Diets
 Overview
 --------
 
-The model uses empirical dietary intake data from the Global Dietary Database (GDD) [Miller2017]_ [Miller2022]_ [GDD2024]_ to represent current consumption patterns. This baseline data serves multiple purposes:
+The model uses empirical dietary intake data from the Global Dietary Database (GDD) [GDD2024]_ [Miller2021]_ to represent current consumption patterns. This baseline data serves multiple purposes:
 
 * **Health impact assessment**: Calculating disease burden attributable to current dietary patterns
 * **Baseline reference**: Comparing optimized diets against current consumption
@@ -29,7 +29,7 @@ The GDD compiles and harmonizes national dietary surveys from around the world u
 Weight Conventions
 ~~~~~~~~~~~~~~~~~~
 
-GDD reports all dietary intake values in **grams per day using "as consumed" weights** (Miller et al., 2017). This means:
+GDD reports all dietary intake values in **grams per day using "as consumed" weights** [Miller2021]_. This means:
 
 * **Fresh vegetables and fruits**: Reported in fresh weight (e.g., a raw apple, fresh tomato)
 * **Grains**: Reported in cooked weight (e.g., cooked rice, prepared bread)
@@ -56,8 +56,8 @@ The following food groups are populated from GDD variables:
      - GDD Code
      - Description
    * - ``fruits``
-     - v01, v16
-     - Total fruits + fruit juices (aggregated)
+     - v01
+     - Total fruits (whole fruits only, excluding juices)
    * - ``vegetables``
      - v02
      - Non-starchy vegetables
@@ -94,10 +94,10 @@ The following food groups are populated from GDD variables:
 
 **Notes:**
 
-* Multiple GDD variables can map to a single food group (e.g., fruits = v01 + v16)
-* When aggregating, values are summed (e.g., starchy_vegetable = potatoes + other starchy veg)
+* Multiple GDD variables can map to a single food group (e.g., starchy_vegetable = v03 potatoes + v04 other starchy veg)
+* When aggregating, values are summed within each food group
 * The ``dairy`` food group uses v57 "Total Milk", which represents milk equivalents from all dairy consumption including liquid milk, cheese, yogurt, and other dairy products
-* This aligns with the GBD dairy risk factor definition used in health impact modeling
+* The ``fruits`` food group uses only v01 (whole fruits), excluding v16 (fruit juices), to align with the GBD fruit risk factor definition used in health impact modeling
 
 Food Groups Without GDD Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -297,8 +297,6 @@ Planned enhancements for current diet integration:
 References
 ----------
 
-.. [Miller2017] Miller V, Yusuf S, Chow CK, et al. Availability, affordability, and consumption of fruits and vegetables in 18 countries across income levels: findings from the Prospective Urban Rural Epidemiology (PURE) study. *Lancet Global Health*, 2016;4(10):e695-e703. doi:10.1016/S2214-109X(16)30186-3
-
-.. [Miller2022] Miller V, Reedy J, Cudhea F, et al. Global, regional, and national consumption of animal-source foods between 1990 and 2018: findings from the Global Dietary Database. *The Lancet Planetary Health*, 2022;6(3):e243-e256. doi:10.1016/S2542-5196(21)00352-1
-
 .. [GDD2024] Global Dietary Database. Dietary intake data by country, 2018. Tufts University Friedman School of Nutrition Science and Policy. https://www.globaldietarydatabase.org/ (accessed 2025)
+
+.. [Miller2021] Miller V, Singh GM, Onopa J, et al. Global Dietary Database 2017: Data Availability and Gaps on 54 Major Foods, Beverages and Nutrients among 5.6 Million Children and Adults from 1220 Surveys Worldwide. *BMJ Global Health*, 2021;6(2):e003585. https://doi.org/10.1136/bmjgh-2020-003585
