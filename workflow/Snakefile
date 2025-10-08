@@ -149,10 +149,10 @@ rule prepare_gdd_dietary_intake:
         gdd_dir="data/manually_downloaded/GDD-dietary-intake",
     params:
         countries=config["countries"],
-        risk_factors=config["health"]["risk_factors"],
+        food_groups=list(config["food_groups"].keys()),
         reference_year=config["health"]["reference_year"],
     output:
-        diet="processing/{name}/health/gdd_dietary_intake.csv",
+        diet="processing/{name}/gdd_dietary_intake.csv",
     script:
         "scripts/prepare_gdd_dietary_intake.py"
 
@@ -184,7 +184,7 @@ rule prepare_life_table:
 rule prepare_health_costs:
     input:
         regions="processing/{name}/regions.geojson",
-        diet="processing/{name}/health/gdd_dietary_intake.csv",
+        diet="processing/{name}/gdd_dietary_intake.csv",
         relative_risks="processing/{name}/health/relative_risks.csv",
         dr="processing/{name}/health/gbd_mortality_rates.csv",
         population="processing/{name}/population_age.csv",

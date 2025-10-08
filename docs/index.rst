@@ -18,6 +18,7 @@ A global food systems optimization model that explores trade-offs between enviro
    livestock
    food_processing
    nutrition
+   current_diets
    health
    environment
    configuration
