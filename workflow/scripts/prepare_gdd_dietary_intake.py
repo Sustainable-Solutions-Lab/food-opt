@@ -173,6 +173,69 @@ def main():
         f"[prepare_gdd_dietary_intake] Risk factors: {sorted(result['item'].unique())}"
     )
 
+    # Fill in missing countries using proxy data from similar countries
+    # This is for territories/dependencies that don't have separate GDD data
+    COUNTRY_PROXIES = {
+        "ASM": "WSM",  # American Samoa -> Samoa
+        "GUF": "FRA",  # French Guiana -> France
+        "PRI": "USA",  # Puerto Rico -> USA
+        "SOM": "ETH",  # Somalia -> Ethiopia (similar region, data available)
+    }
+
+    required_countries = set(snakemake.params["countries"])
+    required_risk_factors = set(snakemake.params["risk_factors"])
+    output_countries = set(result["country"].unique())
+    output_risk_factors = set(result["item"].unique())
+
+    missing_countries = required_countries - output_countries
+    if missing_countries:
+        filled = []
+        still_missing = []
+        for missing in sorted(missing_countries):
+            if missing in COUNTRY_PROXIES:
+                proxy = COUNTRY_PROXIES[missing]
+                if proxy in output_countries:
+                    # Duplicate proxy country's data for the missing country
+                    proxy_data = result[result["country"] == proxy].copy()
+                    proxy_data["country"] = missing
+                    result = pd.concat([result, proxy_data], ignore_index=True)
+                    filled.append(f"{missing} (using {proxy} data)")
+                else:
+                    still_missing.append(missing)
+            else:
+                still_missing.append(missing)
+
+        if filled:
+            print(
+                f"[prepare_gdd_dietary_intake] Filled {len(filled)} missing countries using proxies:"
+            )
+            for entry in filled:
+                print(f"  - {entry}")
+
+        # Update missing list after filling
+        output_countries = set(result["country"].unique())
+        missing_countries = required_countries - output_countries
+
+    # Validate that we have all required countries and risk factors
+    if missing_countries:
+        raise ValueError(
+            f"[prepare_gdd_dietary_intake] ERROR: GDD dietary data is missing {len(missing_countries)} required countries: "
+            f"{sorted(list(missing_countries))[:20]}{'...' if len(missing_countries) > 20 else ''}. "
+            f"Please ensure the GDD download includes all countries listed in config."
+        )
+
+    missing_risk_factors = required_risk_factors - output_risk_factors
+    if missing_risk_factors:
+        raise ValueError(
+            f"[prepare_gdd_dietary_intake] ERROR: GDD dietary data is missing {len(missing_risk_factors)} required risk factors: "
+            f"{sorted(missing_risk_factors)}. Available: {sorted(output_risk_factors)}. "
+            f"Please ensure the GDD download includes all risk factors listed in config.health.risk_factors."
+        )
+
+    print(
+        "[prepare_gdd_dietary_intake] ✓ Validation passed: all required countries and risk factors present"
+    )
+
     # Write output
     result.to_csv(output_file, index=False)
     print(f"[prepare_gdd_dietary_intake] Wrote output to {output_file}")

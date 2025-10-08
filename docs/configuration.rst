@@ -250,6 +250,7 @@ Health Configuration
      intake_grid_step: 10                   # g/day resolution for dose-response
      log_rr_points: 10                      # Linearization points for log(RR)
      value_of_statistical_life: 3_500_000   # USD (set "regional" only if a dataset is provided)
+     omega3_per_100g_fish: 1.5              # g EPA+DHA per 100 g edible fish (for omega-3 exposure)
      risk_factors:
        - fruits
        - vegetables

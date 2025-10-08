@@ -89,24 +89,30 @@ grazing:
   enabled: true
 
 food_groups:
-  whole grain:
+  whole_grains:
     # min_per_person_per_day: 170  # g/person/day (WHO recommendations)
     min_per_person_per_day: 50
   grain:
     # min_per_person_per_day: 150  # g/person/day (refined grains)
     min_per_person_per_day: 50
-  fruit:
+  fruits:
     # min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
     min_per_person_per_day: 50
-  vegetable:
+  vegetables:
     # min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
     min_per_person_per_day: 50
-  starchy vegetable:
+  legumes:
+    min_per_person_per_day: 50   # g/person/day (beans, lentils, peas)
+  nuts_seeds:
+    min_per_person_per_day: 20   # g/person/day (nuts and seeds)
+  starchy_vegetable:
     # min_per_person_per_day: 100  # g/person/day (potatoes, etc.)
     min_per_person_per_day: 50
   oil:
     min_per_person_per_day: 25   # g/person/day (essential fats)
-  animal protein:
+  red_meat:
+    min_per_person_per_day: 10   # g/person/day (minimize for health)
+  dairy:
     min_per_person_per_day: 30
 
 trade:
@@ -164,11 +170,13 @@ trade:
 health:
   region_clusters: 30
   reference_year: 2018
-  intake_grid_step: 10
+  intake_grid_step: 20   # Intake resolution in g/person/day
   log_rr_points: 10
+  omega3_per_100g_fish: 1.5
   # value_of_statistical_life: "regional" to use DIA regional values, or a
   # numeric constant in USD to override
   value_of_statistical_life: 3_500_000
+  # Dietary risk factors to consider (must match GDD data items)
   risk_factors:
   - fruits
   - vegetables
@@ -178,6 +186,12 @@ health:
   - red_meat
   - prc_meat
   - whole_grains
+  # Health outcomes/causes to consider (must be present in IHME GBD data and relative risks)
+  causes:
+  - CHD              # Coronary/Ischemic Heart Disease
+  - Stroke           # Stroke (all types)
+  - T2DM             # Type 2 Diabetes Mellitus
+  - CRC              # Colorectal Cancer
 
 aggregation:
   regions:
@@ -375,7 +389,7 @@ countries:
 - PNG
 - POL
 - PRI
-- PRK
+# - PRK  # excluded: no health data available for North Korea
 - PRT
 - PRY
 - PSE

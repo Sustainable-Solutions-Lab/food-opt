@@ -65,19 +65,21 @@ Brief descriptions of key external datasets used by this project, with links and
 
 ## IHME GBD — Global Burden of Disease Study 2021
 
-- Description: Cause-specific mortality rates by country, age, and sex from the Global Burden of Disease (GBD) 2021 study. This project uses death rates for dietary-related chronic diseases (ischemic heart disease, stroke, diabetes, colorectal cancer, chronic respiratory diseases) to calculate health burdens attributable to diet composition.
-- Website: https://vizhub.healthdata.org/gbd-results/
-- Version/format: GBD 2021; downloaded as CSV from the GBD Results Tool with custom query parameters.
-- Query configuration:
+- Description: Cause-specific mortality rates and dietary risk relative-risk parameters from the Global Burden of Disease (GBD) studies. Death rates feed the baseline disease burden calculation; Appendix Table 7a provides dietary relative risk rates that we resample into optimization breakpoints.
+- Website: https://vizhub.healthdata.org/gbd-results/ (mortality); https://ghdx.healthdata.org/record/ihme-data/gbd-2019-relative-risks (relative risks)
+- Version/format: GBD 2021 death rates (CSV) and GBD 2019 Appendix Table 7a (XLSX).
+- Query configuration for mortality data:
   - Measure: Deaths (Rate per 100,000)
   - Causes: Ischemic heart disease, Stroke, Diabetes mellitus, Colon and rectum cancer, Chronic respiratory diseases, All causes
   - Age groups: <1 year, 12-23 months, 2-4 years, 5-9 years, ..., 95+ years (individual bins, not aggregates)
   - Sex: Both
   - Year: 2021 (or closest available to reference year)
-- Permalink: https://vizhub.healthdata.org/gbd-results?params=gbd-api-2021-permalink/404078e9ecb4a39b84b70e5268b6687a
+- Permalink (mortality): https://vizhub.healthdata.org/gbd-results?params=gbd-api-2021-permalink/8e5d55f174855a4e62a0ac13c52acf9c
+- Permalink (dietary relative risks): https://ghdx.healthdata.org/sites/default/files/record-attached-files/IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX
 - License/terms (summary): Free for non-commercial use with attribution; GBD data is made available under the IHME Free-of-Charge Non-commercial User Agreement.
   - Terms: https://www.healthdata.org/data-tools-practices/data-practices/ihme-free-charge-non-commercial-user-agreement
-- Citation: Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2021 (GBD 2021) Results. Seattle, United States: Institute for Health Metrics and Evaluation (IHME), 2024. Available from https://vizhub.healthdata.org/gbd-results/.
+- Citation (mortality): Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2021 (GBD 2021) Results. Seattle, United States: Institute for Health Metrics and Evaluation (IHME), 2024. Available from https://vizhub.healthdata.org/gbd-results/.
+- Citation (relative risks): Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2019 (GBD 2019) Results. Seattle, United States of America: Institute for Health Metrics and Evaluation (IHME), 2020.
 
 ## GDD — Global Dietary Database (Tufts University)
 

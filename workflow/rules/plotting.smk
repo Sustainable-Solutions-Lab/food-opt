@@ -80,10 +80,11 @@ rule plot_health_impacts:
         health_cluster_summary=f"processing/{name}/health/cluster_summary.csv",
         health_clusters=f"processing/{name}/health/country_clusters.csv",
         health_cluster_risk_baseline=f"processing/{name}/health/cluster_risk_baseline.csv",
-        food_risk_map="data/health/food_to_risk_factor.csv",
         population=f"processing/{name}/population.csv",
+        food_groups="data/food_groups.csv",
     params:
         ghg_price=config["emissions"]["ghg_price"],
+        health_risk_factors=config["health"]["risk_factors"],
     output:
         breakdown_pdf="results/{name}/plots/objective_breakdown.pdf",
         breakdown_csv="results/{name}/plots/objective_breakdown.csv",

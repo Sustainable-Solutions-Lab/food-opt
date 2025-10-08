@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 import pypsa
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +36,6 @@ class HealthInputs:
     cause_log_breakpoints: pd.DataFrame
     cluster_summary: pd.DataFrame
     clusters: pd.DataFrame
-    food_map: pd.DataFrame
     population: pd.DataFrame
     cluster_risk_baseline: pd.DataFrame
 
@@ -126,6 +126,7 @@ def _cluster_population(
 
 def _prepare_health_inputs(
     inputs: HealthInputs,
+    risk_factors: list[str],
 ) -> tuple[
     Dict[str, pd.DataFrame],
     Dict[str, pd.DataFrame],
@@ -153,7 +154,11 @@ def _prepare_health_inputs(
         for cause, df in inputs.cause_log_breakpoints.groupby("cause")
     }
 
-    food_map = inputs.food_map.copy()
+    # Load food→risk factor mapping from food_groups.csv (only GBD risk factors)
+    food_groups_df = pd.read_csv(snakemake.input.food_groups)
+    food_map = food_groups_df[food_groups_df["group"].isin(risk_factors)].copy()
+    food_map = food_map.rename(columns={"group": "risk_factor"})
+    food_map["share"] = 1.0
     food_map["sanitized"] = food_map["food"].apply(sanitize_food_name)
     food_lookup = _build_food_lookup(food_map)
 
@@ -188,7 +193,9 @@ def _prepare_health_inputs(
     )
 
 
-def compute_health_results(n: pypsa.Network, inputs: HealthInputs) -> HealthResults:
+def compute_health_results(
+    n: pypsa.Network, inputs: HealthInputs, risk_factors: list[str]
+) -> HealthResults:
     (
         risk_tables,
         cause_tables,
@@ -196,7 +203,7 @@ def compute_health_results(n: pypsa.Network, inputs: HealthInputs) -> HealthResu
         cluster_lookup,
         value_per_yll,
         cluster_population,
-    ) = _prepare_health_inputs(inputs)
+    ) = _prepare_health_inputs(inputs, risk_factors)
 
     cluster_cause = inputs.cluster_cause.assign(
         health_cluster=lambda df: df["health_cluster"].astype(int)
@@ -292,10 +299,18 @@ def compute_health_results(n: pypsa.Network, inputs: HealthInputs) -> HealthResu
             }
         )
 
-        if abs(total_log) > 1e-12 and cost != 0.0:
-            for risk, contribution in risk_contribs.items():
-                share = contribution / total_log if total_log != 0 else 0.0
-                risk_costs[(cluster, risk)] += cost * share
+        # Compute cost for each risk factor in isolation (comparing intake vs zero)
+        # This avoids the problematic "share" calculation with mixed signs
+        for risk, log_rr_at_intake in risk_contribs.items():
+            # Cost if we change this risk factor from current intake to zero,
+            # holding all other risk factors at their current levels
+            log_total_without_risk = total_log - log_rr_at_intake
+            rr_without_risk = float(
+                np.interp(log_total_without_risk, log_points, rr_points)
+            )
+            cost_without_risk = coeff / rr_ref * rr_without_risk - coeff
+            risk_cost_contribution = cost - cost_without_risk
+            risk_costs[(cluster, risk)] += risk_cost_contribution
 
     cause_df = pd.DataFrame(cause_records)
     risk_df = pd.DataFrame(
@@ -317,7 +332,17 @@ def compute_health_results(n: pypsa.Network, inputs: HealthInputs) -> HealthResu
     )
 
 
-def compute_baseline_risk_costs(inputs: HealthInputs) -> pd.DataFrame:
+def compute_baseline_risk_costs(
+    inputs: HealthInputs, risk_factors: list[str]
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Compute baseline health costs by risk factor and by cause.
+
+    Returns:
+        (risk_costs_df, cause_costs_df) where risk_costs has columns
+        (cluster, risk_factor, cost) and cause_costs has columns
+        (cluster, cause, cost, log_total, rr_total, coeff).
+    """
     (
         risk_tables,
         cause_tables,
@@ -325,7 +350,7 @@ def compute_baseline_risk_costs(inputs: HealthInputs) -> pd.DataFrame:
         _cluster_lookup,
         value_per_yll,
         _cluster_population,
-    ) = _prepare_health_inputs(inputs)
+    ) = _prepare_health_inputs(inputs, risk_factors)
 
     baseline = inputs.cluster_risk_baseline.assign(
         health_cluster=lambda df: df["health_cluster"].astype(int),
@@ -342,7 +367,8 @@ def compute_baseline_risk_costs(inputs: HealthInputs) -> pd.DataFrame:
         health_cluster=lambda df: df["health_cluster"].astype(int)
     )
 
-    records: list[dict[str, float | int | str]] = []
+    risk_records: list[dict[str, float | int | str]] = []
+    cause_records: list[dict[str, float | int]] = []
 
     for (cluster, cause), row in cluster_cause.set_index(
         [
@@ -372,23 +398,62 @@ def compute_baseline_risk_costs(inputs: HealthInputs) -> pd.DataFrame:
             contributions[risk] = contribution
             total_log += contribution
 
-        if not contributions or abs(total_log) <= 1e-12:
+        if not contributions:
             continue
 
-        for risk, contribution in contributions.items():
-            share = contribution / total_log if total_log != 0 else 0.0
-            records.append(
+        # Get cause breakpoints for RR interpolation
+        cause_bp = cause_tables.get(cause)
+        if cause_bp is None or cause_bp.empty:
+            continue
+
+        log_points = cause_bp["log_rr_total"].to_numpy(dtype=float)
+        rr_points = cause_bp["rr_total"].to_numpy(dtype=float)
+
+        # Compute total baseline cost for this cause
+        rr_ref = exp(float(row.get("log_rr_total_ref", 0.0)))
+        rr_total = float(np.interp(total_log, log_points, rr_points))
+        total_cost = coeff / rr_ref * rr_total - coeff
+
+        # Record cause-level cost
+        cause_records.append(
+            {
+                "cluster": cluster,
+                "cause": cause,
+                "cost": total_cost,
+                "log_total": total_log,
+                "rr_total": rr_total,
+                "coeff": coeff,
+            }
+        )
+
+        # Compute cost for each risk factor in isolation (comparing baseline vs zero)
+        for risk, log_rr_at_baseline in contributions.items():
+            # Cost if we change this risk factor from baseline to zero,
+            # holding all other risk factors at their baseline levels
+            log_total_without_risk = total_log - log_rr_at_baseline
+            rr_without_risk = float(
+                np.interp(log_total_without_risk, log_points, rr_points)
+            )
+            cost_without_risk = coeff / rr_ref * rr_without_risk - coeff
+            risk_cost_contribution = total_cost - cost_without_risk
+
+            risk_records.append(
                 {
                     "cluster": cluster,
                     "risk_factor": risk,
-                    "cost": coeff * share,
+                    "cost": risk_cost_contribution,
                 }
             )
 
-    result = pd.DataFrame(records)
-    if not result.empty:
-        result["cluster"] = result["cluster"].astype(int)
-    return result.reset_index(drop=True)
+    risk_df = pd.DataFrame(risk_records)
+    if not risk_df.empty:
+        risk_df["cluster"] = risk_df["cluster"].astype(int)
+
+    cause_df = pd.DataFrame(cause_records)
+    if not cause_df.empty:
+        cause_df["cluster"] = cause_df["cluster"].astype(int)
+
+    return risk_df.reset_index(drop=True), cause_df.reset_index(drop=True)
 
 
 def compute_system_costs(n: pypsa.Network) -> pd.Series:
@@ -486,6 +551,30 @@ def build_cluster_risk_tables(
     return cost_map, per_capita_map
 
 
+def compute_total_health_costs_per_capita(
+    cause_costs: pd.DataFrame,
+    cluster_population: Mapping[int, float],
+) -> dict[int, float]:
+    """
+    Compute total health costs per capita for each cluster.
+
+    The total cost per cluster is the sum across causes (health costs are
+    additive across different health outcomes).
+    """
+    if cause_costs.empty:
+        return {}
+
+    total_per_cluster = cause_costs.groupby("cluster")["cost"].sum().to_dict()
+
+    result: dict[int, float] = {}
+    for cluster, total_cost in total_per_cluster.items():
+        pop = cluster_population.get(int(cluster), 0.0)
+        if pop > 0:
+            result[int(cluster)] = float(total_cost) / pop
+
+    return result
+
+
 def plot_health_map(
     gdf: gpd.GeoDataFrame,
     cluster_lookup: Mapping[str, int],
@@ -495,6 +584,7 @@ def plot_health_map(
     *,
     diverging: bool = True,
     value_label: str = "Health cost per capita (USD)",
+    total_per_capita: Mapping[int, float] | None = None,
 ) -> None:
     risks = list(top_risks)
     if not risks:
@@ -517,17 +607,28 @@ def plot_health_map(
         return
 
     plate = ccrs.PlateCarree()
+    # Add one extra panel for total if provided
+    num_panels = len(risks) + (1 if total_per_capita is not None else 0)
+
+    # Calculate grid dimensions (prefer 3 columns)
+    ncols = min(3, num_panels)
+    nrows = (num_panels + ncols - 1) // ncols  # ceiling division
+
     fig, axes = plt.subplots(
-        1,
-        len(risks),
-        figsize=(5.2 * len(risks), 5.4),
+        nrows,
+        ncols,
+        figsize=(5.2 * ncols, 5.4 * nrows),
         dpi=150,
         subplot_kw={"projection": ccrs.EqualEarth()},
     )
 
-    if len(risks) == 1:
+    # Flatten axes array for easy iteration
+    if num_panels == 1:
         axes = [axes]  # type: ignore[list-item]
+    else:
+        axes = axes.flatten()  # type: ignore[union-attr]
 
+    # Plot individual risk factors
     for ax, risk in zip(axes, risks):
         data = gdf.copy()
         cluster_map = per_capita_by_risk.get(risk, {})
@@ -594,6 +695,77 @@ def plot_health_map(
 
         ax.set_title(risk.replace("_", " ").title(), fontsize=11)
 
+    # Plot total health costs in the final panel if provided
+    if total_per_capita is not None:
+        ax = axes[-1]
+        data = gdf.copy()
+        data["value"] = data["country"].map(
+            lambda iso: total_per_capita.get(cluster_lookup.get(iso, -1))
+        )
+
+        values = data["value"].dropna()
+        if diverging:
+            if values.empty:
+                vmin, vmax = -1.0, 1.0
+            else:
+                vmin, vmax = values.min(), values.max()
+            bound = max(abs(vmin), abs(vmax), 1e-6)
+            norm = mcolors.TwoSlopeNorm(vmin=-bound, vcenter=0, vmax=bound)
+            cmap = matplotlib.colormaps["RdBu_r"]
+        else:
+            vmax = float(values.max()) if not values.empty else 1.0
+            if not np.isfinite(vmax) or vmax <= 0:
+                vmax = 1.0
+            norm = mcolors.Normalize(vmin=0.0, vmax=vmax)
+            cmap = matplotlib.colormaps["Blues"]
+
+        ax.set_facecolor("#f7f9fb")
+        ax.set_global()
+
+        data.plot(
+            ax=ax,
+            transform=plate,
+            column="value",
+            cmap=cmap,
+            norm=norm,
+            linewidth=0.2,
+            edgecolor="#666666",
+            missing_kwds={
+                "color": "#eeeeee",
+                "edgecolor": "#999999",
+                "hatch": "///",
+                "label": "No data",
+            },
+        )
+
+        gl = ax.gridlines(
+            draw_labels=True,
+            crs=plate,
+            linewidth=0.3,
+            color="#aaaaaa",
+            alpha=0.5,
+            linestyle="--",
+        )
+        gl.xlocator = mticker.FixedLocator(np.arange(-180, 181, 60))
+        gl.ylocator = mticker.FixedLocator(np.arange(-60, 61, 30))
+        gl.xformatter = LongitudeFormatter(number_format=".0f")
+        gl.yformatter = LatitudeFormatter(number_format=".0f")
+        gl.xlabel_style = {"size": 7, "color": "#555555"}
+        gl.ylabel_style = {"size": 7, "color": "#555555"}
+        gl.top_labels = False
+        gl.right_labels = False
+
+        sm = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
+        cbar = fig.colorbar(sm, ax=ax, orientation="horizontal", pad=0.05, shrink=0.75)
+        cbar.ax.set_xlabel(value_label, fontsize=8)
+        cbar.ax.tick_params(labelsize=7)
+
+        ax.set_title("Total Health Cost", fontsize=11)
+
+    # Hide any unused subplots
+    for idx in range(num_panels, len(axes)):
+        axes[idx].set_visible(False)
+
     plt.tight_layout()
     fig.savefig(output_path, bbox_inches="tight", dpi=300)
     plt.close(fig)
@@ -639,16 +811,13 @@ def main() -> None:
         cause_log_breakpoints=pd.read_csv(snakemake.input.health_cause_log),
         cluster_summary=pd.read_csv(snakemake.input.health_cluster_summary),
         clusters=pd.read_csv(snakemake.input.health_clusters),
-        food_map=pd.read_csv(
-            snakemake.input.food_risk_map,  # type: ignore[attr-defined]
-            comment="#",
-            names=["food", "risk_factor", "share"],
-        ),
         population=pd.read_csv(snakemake.input.population),
         cluster_risk_baseline=pd.read_csv(snakemake.input.health_cluster_risk_baseline),
     )
 
-    health_results = compute_health_results(n, health_inputs)
+    health_results = compute_health_results(
+        n, health_inputs, snakemake.params.health_risk_factors
+    )
 
     system_costs = compute_system_costs(n)
     ghg_price = float(snakemake.params.ghg_price)
@@ -699,17 +868,13 @@ def main() -> None:
     )
     regions_gdf = regions_gdf.assign(country=lambda df: df["country"].str.upper())
 
-    risk_totals = (
-        health_results.risk_costs.groupby("risk_factor")["cost"].sum()
-        if not health_results.risk_costs.empty
-        else pd.Series(dtype=float)
+    # Use all risk factors from config instead of just top 3
+    all_risks = snakemake.params.health_risk_factors
+
+    # Compute total health costs per capita
+    total_per_capita = compute_total_health_costs_per_capita(
+        health_results.cause_costs, health_results.cluster_population
     )
-    if not risk_totals.empty:
-        top_risks = risk_totals.reindex(
-            risk_totals.abs().sort_values(ascending=False).index
-        ).index[: min(3, len(risk_totals))]
-    else:
-        top_risks = list(per_capita_by_risk.keys())[:3]
 
     map_pdf = Path(snakemake.output.health_map_pdf)
     plot_health_map(
@@ -717,9 +882,10 @@ def main() -> None:
         cluster_lookup,
         per_capita_by_risk,
         map_pdf,
-        top_risks,
+        all_risks,
         diverging=True,
         value_label="Health cost per capita (USD)",
+        total_per_capita=total_per_capita,
     )
     logger.info("Saved health risk map to %s", map_pdf)
 
@@ -733,7 +899,9 @@ def main() -> None:
     logger.info("Wrote regional health table to %s", snakemake.output.health_map_csv)
 
     # Baseline health burden maps
-    baseline_risk_costs = compute_baseline_risk_costs(health_inputs)
+    baseline_risk_costs, baseline_cause_costs = compute_baseline_risk_costs(
+        health_inputs, snakemake.params.health_risk_factors
+    )
     (
         baseline_cost_by_risk,
         baseline_per_capita_by_risk,
@@ -742,17 +910,10 @@ def main() -> None:
         health_results.cluster_population,
     )
 
-    baseline_totals = (
-        baseline_risk_costs.groupby("risk_factor")["cost"].sum()
-        if not baseline_risk_costs.empty
-        else pd.Series(dtype=float)
+    # Compute baseline total costs from cause-level costs
+    baseline_total_per_capita = compute_total_health_costs_per_capita(
+        baseline_cause_costs, health_results.cluster_population
     )
-    if not baseline_totals.empty:
-        baseline_top = baseline_totals.reindex(
-            baseline_totals.abs().sort_values(ascending=False).index
-        ).index[: min(3, len(baseline_totals))]
-    else:
-        baseline_top = list(baseline_per_capita_by_risk.keys())[:3]
 
     baseline_map_pdf = Path(snakemake.output.health_baseline_map_pdf)
     plot_health_map(
@@ -760,9 +921,10 @@ def main() -> None:
         cluster_lookup,
         baseline_per_capita_by_risk,
         baseline_map_pdf,
-        baseline_top,
+        all_risks,
         diverging=True,
         value_label="Baseline health cost per capita (USD)",
+        total_per_capita=baseline_total_per_capita,
     )
     logger.info("Saved baseline health risk map to %s", baseline_map_pdf)
 

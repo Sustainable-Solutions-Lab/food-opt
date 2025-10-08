@@ -135,9 +135,11 @@ rule prepare_gbd_mortality:
     input:
         gbd_mortality="data/manually_downloaded/IHME-GBD_2021-dealth-rates.csv",
     params:
+        countries=config["countries"],
+        causes=config["health"]["causes"],
         reference_year=config["health"]["reference_year"],
     output:
-        mortality="processing/{name}/gbd_mortality_rates.csv",
+        mortality="processing/{name}/health/gbd_mortality_rates.csv",
     script:
         "scripts/prepare_gbd_mortality.py"
 
@@ -146,22 +148,47 @@ rule prepare_gdd_dietary_intake:
     input:
         gdd_dir="data/manually_downloaded/GDD-dietary-intake",
     params:
+        countries=config["countries"],
+        risk_factors=config["health"]["risk_factors"],
         reference_year=config["health"]["reference_year"],
     output:
-        diet="processing/{name}/gdd_dietary_intake.csv",
+        diet="processing/{name}/health/gdd_dietary_intake.csv",
     script:
         "scripts/prepare_gdd_dietary_intake.py"
+
+
+rule prepare_relative_risks:
+    input:
+        gbd_rr="data/manually_downloaded/IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX",
+    params:
+        risk_factors=config["health"]["risk_factors"],
+        causes=config["health"]["causes"],
+        omega3_per_100g=config["health"].get("omega3_per_100g_fish", 1.5),
+    output:
+        relative_risks=f"processing/{name}/health/relative_risks.csv",
+    script:
+        "scripts/prepare_relative_risks.py"
+
+
+rule prepare_life_table:
+    input:
+        wpp_life_table="data/downloads/WPP_life_table.csv.gz",
+    params:
+        reference_year=config["health"]["reference_year"],
+    output:
+        life_table="processing/{name}/health/life_table.csv",
+    script:
+        "scripts/prepare_life_table.py"
 
 
 rule prepare_health_costs:
     input:
         regions="processing/{name}/regions.geojson",
-        diet="processing/{name}/gdd_dietary_intake.csv",
-        rr_int="data/health/raw/RR_int_05282021.csv",
-        rr_max="data/health/raw/RR_max_05282021.csv",
-        dr="processing/{name}/gbd_mortality_rates.csv",
+        diet="processing/{name}/health/gdd_dietary_intake.csv",
+        relative_risks="processing/{name}/health/relative_risks.csv",
+        dr="processing/{name}/health/gbd_mortality_rates.csv",
         population="processing/{name}/population_age.csv",
-        life_table="data/downloads/WPP_life_table.csv.gz",
+        life_table="processing/{name}/health/life_table.csv",
     params:
         countries=config["countries"],
         health=config["health"],
@@ -171,6 +198,7 @@ rule prepare_health_costs:
         cause_log="processing/{name}/health/cause_log_breakpoints.csv",
         cluster_summary="processing/{name}/health/cluster_summary.csv",
         clusters="processing/{name}/health/country_clusters.csv",
+        cluster_risk_baseline="processing/{name}/health/cluster_risk_baseline.csv",
     script:
         "scripts/prepare_health_costs.py"
 
@@ -381,11 +409,12 @@ rule solve_model:
         health_cause_log="processing/{name}/health/cause_log_breakpoints.csv",
         health_cluster_summary="processing/{name}/health/cluster_summary.csv",
         health_clusters="processing/{name}/health/country_clusters.csv",
-        food_risk_map="data/health/food_to_risk_factor.csv",
         population="processing/{name}/population.csv",
+        food_groups="data/food_groups.csv",
     params:
         primary=config["primary"],
         ghg_price=config["emissions"]["ghg_price"],
+        health_risk_factors=config["health"]["risk_factors"],
         solver=config["solving"]["solver"],
         solver_options=config["solving"].get(
             f"options_{config['solving']['solver']}", {}

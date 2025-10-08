@@ -1,42 +1,42 @@
 food,group
 flour (white),grain
-flour (wholemeal),whole grain
+flour (wholemeal),whole_grains
 rice,grain
 maize,grain
-sorghum,whole grain
-buckwheat,whole grain
-foxtail millet,whole grain
-pearl millet,whole grain
-soy,legume
-cowpea,legume
-gram,legume
-phaseolus bean,legume
-pigeon pea,legume
-sesame seed,oil
+sorghum,whole_grains
+buckwheat,whole_grains
+foxtail millet,whole_grains
+pearl millet,whole_grains
+soy,legumes
+cowpea,legumes
+gram,legumes
+phaseolus bean,legumes
+pigeon pea,legumes
+sesame seed,nuts_seeds
 palm oil,oil
 olive oil,oil
-potato,starchy vegetable
-apple,fruit
-citrus,fruit
-coconut,fruit
-tomato,vegetable
-barley (hulled),whole grain
-oat,whole grain
+potato,starchy_vegetable
+apple,fruits
+citrus,fruits
+coconut,nuts_seeds
+tomato,vegetables
+barley (hulled),whole_grains
+oat,whole_grains
 sunflower oil,oil
-carrot,vegetable
-onion,vegetable
-cabbage,vegetable
-banana,fruit
-cassava,starchy vegetable
-sweet potato,starchy vegetable
-yam,starchy vegetable
-rye,whole grain
+carrot,vegetables
+onion,vegetables
+cabbage,vegetables
+banana,fruits
+cassava,starchy_vegetable
+sweet potato,starchy_vegetable
+yam,starchy_vegetable
+rye,whole_grains
 rapeseed oil,oil
-groundnut,legume
-dry pea,legume
-chickpea,legume
-cattle meat,animal protein
-pig meat,animal protein
-chicken meat,animal protein
+groundnut,nuts_seeds
+dry pea,legumes
+chickpea,legumes
+cattle meat,red_meat
+pig meat,red_meat
+chicken meat,poultry
 dairy,dairy
-eggs,animal protein
+eggs,eggs

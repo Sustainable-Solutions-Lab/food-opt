@@ -15,6 +15,7 @@ import xarray as xr
 from pypsa._options import options
 from pypsa.optimization.optimize import _optimize_guard
 
+
 HEALTH_AUX_MAP: dict[int, set[str]] = {}
 
 
@@ -224,8 +225,8 @@ def add_health_objective(
     cause_log_path: str,
     cluster_summary_path: str,
     clusters_path: str,
-    food_map_path: str,
     population_totals_path: str,
+    risk_factors: list[str],
     solver_name: str,
 ) -> None:
     """Add SOS2-based health costs with log-linear aggregation."""
@@ -239,14 +240,13 @@ def add_health_objective(
     cluster_map = pd.read_csv(clusters_path)
     population_totals = pd.read_csv(population_totals_path)
 
-    food_map = pd.read_csv(
-        food_map_path,
-        comment="#",
-        names=["food", "risk_factor", "share"],
-    )
-
+    # Load food→risk factor mapping from food_groups.csv (only GBD risk factors)
+    food_groups_df = pd.read_csv(snakemake.input.food_groups)
+    food_map = food_groups_df[food_groups_df["group"].isin(risk_factors)].copy()
+    food_map = food_map.rename(columns={"group": "risk_factor"})
+    food_map["share"] = 1.0
     food_map["sanitized"] = food_map["food"].apply(sanitize_food_name)
-    food_map = food_map.set_index("sanitized")
+    food_map = food_map.set_index("sanitized")[["risk_factor", "share"]]
 
     cluster_lookup = cluster_map.set_index("country_iso3")["health_cluster"].to_dict()
     cluster_population_baseline = cluster_summary.set_index("health_cluster")[
@@ -534,7 +534,9 @@ if __name__ == "__main__":
     n = pypsa.Network(snakemake.input.network)
 
     # Create the linopy model
+    logger.info("Creating linopy model...")
     n.optimize.create_model()
+    logger.info("Linopy model created.")
 
     # Add GHG constraint if specified
     add_ghg_constraint(n, snakemake.params.primary)
@@ -553,8 +555,8 @@ if __name__ == "__main__":
         snakemake.input.health_cause_log,
         snakemake.input.health_cluster_summary,
         snakemake.input.health_clusters,
-        snakemake.input.food_risk_map,
         snakemake.input.population,
+        snakemake.params.health_risk_factors,
         solver_name,
     )
 

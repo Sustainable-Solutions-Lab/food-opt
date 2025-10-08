@@ -18,6 +18,15 @@ SPDX-FileCopyrightText = "Tufts University"
 SPDX-License-Identifier = "LicenseRef-GDD-NonCommercial"
 
 [[annotations]]
+path = [
+    "data/manually_downloaded/IHME-GBD_2021-dealth-rates.csv",
+    "data/manually_downloaded/IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX"
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Institute for Health Metrics and Evaluation (IHME)"
+SPDX-License-Identifier = "LicenseRef-IHME-NonCommercial"
+
+[[annotations]]
 path = "data/**.csv"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Koen van Greevenbroek"

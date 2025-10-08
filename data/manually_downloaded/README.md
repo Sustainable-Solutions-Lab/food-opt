@@ -50,7 +50,7 @@ This specific query can also be found at the following URL: https://vizhub.healt
 
 ---
 
-### GDD-dietary-intake.csv
+### GDD-dietary-intake (directory)
 
 **Source:** Global Dietary Database (Tufts University)
 **Download:** https://globaldietarydatabase.org/data-download
@@ -81,6 +81,34 @@ Downloading requires free user registration and acceptance of terms of use.
 
 ---
 
+### IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX
+
+**Source:** IHME Global Burden of Disease Study 2019
+**Download:** https://ghdx.healthdata.org/record/ihme-data/gbd-2019-relative-risks
+
+Direct file link: https://ghdx.healthdata.org/sites/default/files/record-attached-files/IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX
+
+**Query parameters:**
+- **Measure:** Relative Risk
+- **Risk factors:** Diet-related risks (high red meat, low vegetables, low fruits, etc.)
+- **Causes:** Ischemic heart disease, Stroke, Diabetes, Colon and rectum cancer, Chronic respiratory diseases
+- **Age groups:** All age groups
+- **Sex:** Both
+- **Year:** 2019
+
+**Processing:** The Snakemake workflow processes this file via `workflow/scripts/prepare_relative_risks.py` to:
+1. Extract relative risk values for dietary risk factors
+2. Map age groups to model age buckets
+3. Map causes to model cause codes
+4. Output to `processing/{name}/relative_risks.csv`
+
+**License:** IHME Free-of-Charge Non-commercial User Agreement
+
+**Citation:**
+> Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2019 (GBD 2019) Relative Risks. Seattle, United States: Institute for Health Metrics and Evaluation (IHME), 2020. Available from https://vizhub.healthdata.org/gbd-results/.
+
+---
+
 ## Updating Data
 
 ### IHME GBD Mortality Data
@@ -104,3 +132,13 @@ When updating GDD data:
 4. Replace `GDD-dietary-intake.csv` in this directory
 5. Update access date in citations and documentation
 6. Rerun workflow: `tools/smk processing/{name}/dietary_intake_baseline.csv`
+
+### IHME GBD Relative Risks
+
+When new GBD relative risks data is released:
+
+1. Visit https://ghdx.healthdata.org/record/ihme-data/gbd-2019-relative-risks
+2. Download the XLSX file (Appendix Table 7a)
+3. Replace `IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX` (or create new file with updated year)
+4. Update `workflow/Snakefile` rule `prepare_relative_risks` if filename changes
+5. Rerun workflow: `tools/smk processing/{name}/relative_risks.csv`

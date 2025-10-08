@@ -176,22 +176,22 @@ Global Dietary Database (GDD)
 
 **Workflow integration**: Automatically processed via ``workflow/scripts/prepare_gdd_dietary_intake.py``
 
-DIA (Diet Impact Assessment) Model Inputs
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IHME GBD — Relative Risk Curves
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Provider**: WHO-DIA project (Marco Springmann et al.)
+**Provider**: Institute for Health Metrics and Evaluation (IHME)
 
-**Description**: Epidemiological inputs for translating dietary risk factors to health burdens (relative risk curves).
+**Description**: Appendix Table 7a from the Global Burden of Disease Study 2019, listing relative risks by dietary risk factor, outcome, age, and exposure level.
 
-**Source repository**: https://github.com/marco-spr/WHO-DIA
+**Access**: Manual download from https://vizhub.healthdata.org/gbd-results/ (requires free account)
 
-**License**: GPL-3.0
+**License/terms**: IHME free-of-charge, non-commercial user agreement. Redistribution is not permitted.
 
-**Files used** (snapshots dated 2021):
-  * ``RR_int_05282021.csv``: Relative risk breakpoints
-  * ``RR_max_05282021.csv``: Maximum relative risk
+**Files used**:
+  * ``data/manually_downloaded/IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX`` (raw manual download)
+  * ``data/health/processed/relative_risks.csv`` (processed output via ``workflow/scripts/prepare_relative_risks.py``)
 
-**Citation**: Springmann, M., et al. (2018). Health and nutritional aspects of sustainable diet strategies and their association with environmental impacts. *Nature Sustainability*, 1(11), 624-632.
+**Citation**: Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2019 (GBD 2019) Results. Seattle, United States of America: Institute for Health Metrics and Evaluation (IHME), 2020.
 
 Water Resources Data
 --------------------

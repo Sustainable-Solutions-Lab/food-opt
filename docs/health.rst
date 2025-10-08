@@ -55,23 +55,21 @@ The health module combines data from multiple sources:
   * Processed via ``workflow/scripts/prepare_gdd_dietary_intake.py``
   * See ``data/DATASETS.md`` and ``data/manually_downloaded/README.md`` for download instructions
 
-**Risk factor relationships**: `WHO-DIA repository <https://github.com/marco-spr/WHO-DIA>`_ (GPL-3.0 licensed)
-  * Relative risk curves linking dietary intake to disease risk
-  * Input files (in ``data/health/raw/``):
-    - ``RR_int_05282021.csv``: Relative risk breakpoints (intake thresholds)
-    - ``RR_max_05282021.csv``: Maximum relative risk at extreme intakes
+**Risk factor relationships**: `IHME Global Burden of Disease Study 2019 <https://vizhub.healthdata.org/gbd-results/>`_
+  * Appendix Table 7a (relative risks by diet risk, outcome, and exposure)
+  * Parsed via ``workflow/scripts/prepare_relative_risks.py`` into ``data/health/processed/relative_risks.csv``
+  * Manual download required (see ``data/DATASETS.md``)
 
 Food-to-Risk Mapping
 ---------------------
 
-Foods are mapped to risk factors in ``data/health/food_to_risk_factor.csv``. Example:
+Foods map one-to-one to dietary risk factors via the static dictionary in
+``workflow/scripts/health_food_mapping.py`` (all shares are currently 1.0). Example:
 
-* ``apple`` → ``fruits`` (1.0 weight)
-* ``beef`` → ``red_meat`` (1.0 weight)
-* ``sausage`` → ``prc_meat`` (1.0 weight)
-* ``whole_wheat_bread`` → ``whole_grains`` (1.0 weight)
-
-Some foods contribute to multiple risk factors or with fractional weights.
+* ``apple`` → ``fruits``
+* ``beef`` → ``red_meat``
+* ``sausage`` → ``prc_meat``
+* ``whole_wheat_bread`` → ``whole_grains``
 
 Dose-Response Relationships
 ----------------------------
@@ -114,6 +112,7 @@ Configuration
      reference_year: 2018        # Baseline year for health data
      intake_grid_step: 10        # g/day granularity for dose-response
      log_rr_points: 10           # Points for log(RR) linearization
+     omega3_per_100g_fish: 1.5   # g EPA+DHA per 100 g edible fish
 
 Clustering Process
 ~~~~~~~~~~~~~~~~~~
@@ -231,6 +230,7 @@ Configuration Parameters
      intake_grid_step: 10              # g/day resolution for breakpoints
      log_rr_points: 10                 # Linearization points for log(RR)
     value_of_statistical_life: 3_500_000  # USD (set "regional" only if dataset provided)
+    omega3_per_100g_fish: 1.5            # g EPA+DHA per 100 g edible fish
      risk_factors:                     # Which risk factors to include
        - fruits
        - vegetables

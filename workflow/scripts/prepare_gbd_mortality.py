@@ -27,9 +27,11 @@ COUNTRY_NAME_OVERRIDES = {
     "Côte d'Ivoire": "CIV",
     "Democratic People's Republic of Korea": "PRK",
     "Democratic Republic of the Congo": "COD",
+    "French Guiana": "GUF",  # Use French data for French Guiana
     "Iran (Islamic Republic of)": "IRN",
     "Lao People's Democratic Republic": "LAO",
     "Micronesia (Federated States of)": "FSM",
+    "Niger": "NER",  # pycountry fuzzy search confuses with Nigeria (NGA)
     "Republic of Korea": "KOR",
     "Republic of Moldova": "MDA",
     "Republic of the Congo": "COG",
@@ -50,7 +52,7 @@ CAUSE_MAP = {
     "Ischemic heart disease": "CHD",
     "Stroke": "Stroke",
     "Diabetes mellitus": "T2DM",
-    "Colon and rectum cancer": "Colon and rectum cancers",
+    "Colon and rectum cancer": "CRC",
     "Chronic respiratory diseases": "Resp_Dis",
     "All causes": "all-c",
 }
@@ -109,6 +111,8 @@ def main() -> None:
     input_path = snakemake.input["gbd_mortality"]
     output_path = snakemake.output["mortality"]
     reference_year = int(snakemake.params["reference_year"])
+    set(snakemake.params["countries"])
+    set(snakemake.params["causes"])
 
     print(f"[prepare_gbd_mortality] Reading GBD mortality data from {input_path}")
     df = pd.read_csv(input_path)
@@ -221,12 +225,77 @@ def main() -> None:
 
     # Build output dataframe matching old format: age, cause, country, year, value
     output = df[
-        ["age_code", "cause_code", "country_iso3", "year", "death_rate_per_1000"]
+        ["age_code", "cause_code", "country_iso3", "death_rate_per_1000"]
     ].copy()
-    output.columns = ["age", "cause", "country", "year", "value"]
+    output.columns = ["age", "cause", "country", "value"]
+    # Use reference year in output to ensure consistency across datasets
+    output.insert(3, "year", reference_year)
 
     # Sort for readability
     output = output.sort_values(["country", "cause", "age"]).reset_index(drop=True)
+
+    # Fill in missing countries using proxy data from similar countries
+    # This is for territories/dependencies that don't have separate IHME data
+    COUNTRY_PROXIES = {
+        "ASM": "WSM",  # American Samoa -> Samoa (if needed)
+        "GUF": "FRA",  # French Guiana -> France
+        "PRI": "USA",  # Puerto Rico -> USA (if needed)
+        "SOM": "ETH",  # Somalia -> Ethiopia (if needed)
+    }
+
+    required_countries = set(snakemake.params["countries"])
+    output_countries = set(output["country"].unique())
+    missing_countries = required_countries - output_countries
+
+    if missing_countries:
+        filled = []
+        still_missing = []
+        for missing in sorted(missing_countries):
+            if missing in COUNTRY_PROXIES:
+                proxy = COUNTRY_PROXIES[missing]
+                if proxy in output_countries:
+                    # Duplicate proxy country's data for the missing country
+                    proxy_data = output[output["country"] == proxy].copy()
+                    proxy_data["country"] = missing
+                    output = pd.concat([output, proxy_data], ignore_index=True)
+                    filled.append(f"{missing} (using {proxy} data)")
+                else:
+                    still_missing.append(missing)
+            else:
+                still_missing.append(missing)
+
+        if filled:
+            print(
+                f"[prepare_gbd_mortality] Filled {len(filled)} missing countries using proxies:"
+            )
+            for entry in filled:
+                print(f"  - {entry}")
+
+        # Update missing list after filling
+        output_countries = set(output["country"].unique())
+        missing_countries = required_countries - output_countries
+
+    # Validate that we have all required countries and causes
+    required_causes = set(snakemake.params["causes"])
+    output_causes = set(output["cause"].unique())
+    if missing_countries:
+        raise ValueError(
+            f"[prepare_gbd_mortality] ERROR: Mortality data is missing {len(missing_countries)} required countries: "
+            f"{sorted(list(missing_countries))[:20]}{'...' if len(missing_countries) > 20 else ''}. "
+            f"Please ensure the IHME GBD download includes all countries listed in config."
+        )
+
+    missing_causes = required_causes - output_causes
+    if missing_causes:
+        raise ValueError(
+            f"[prepare_gbd_mortality] ERROR: Mortality data is missing {len(missing_causes)} required causes: "
+            f"{sorted(missing_causes)}. Available causes: {sorted(output_causes)}. "
+            f"Please ensure the IHME GBD download includes all causes listed in config.health.causes."
+        )
+
+    print(
+        "[prepare_gbd_mortality] ✓ Validation passed: all required countries and causes present"
+    )
 
     # Ensure output directory exists
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)

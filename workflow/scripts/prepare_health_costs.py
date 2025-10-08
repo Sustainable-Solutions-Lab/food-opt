@@ -5,7 +5,6 @@
 """Pre-compute health data for SOS2 linearisation in the solver."""
 
 import math
-import re
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
@@ -38,111 +37,27 @@ AGE_BUCKETS = [
     "95+",
 ]
 
-_AGE_BUCKET_PATTERN = re.compile(r"^(?P<start>\d+)\s*-\s*(?P<end>\d+)$")
 
-
-def _load_csv(path: str, names: List[str]) -> pd.DataFrame:
-    return pd.read_csv(path, header=None, names=names)
-
-
-def _normalize_age_bucket(label: object) -> str | None:
-    text = str(label).strip().lower()
-    if text in {"<1", "under age 1", "under 1", "0", "0-0", "0 – 0"}:
-        return "<1"
-    if text in {"1-4", "1 – 4", "01-04", "01–04", "1 to 4"}:
-        return "1-4"
-
-    match = _AGE_BUCKET_PATTERN.match(text.replace("–", "-").replace("to", "-"))
-    if match:
-        start = int(match.group("start"))
-        end = int(match.group("end"))
-        if start == 0:
-            return "<1"
-        if start == 1 and end in {4, 5}:
-            return "1-4"
-        if start >= 5 and end == start + 4 and start <= 90:
-            return f"{start}-{end}"
-        if start >= 95:
-            return "95+"
-
-    if text in {"95-99", "95 – 99", "100+", "95+", "95 plus", "100 plus", "100+ years"}:
-        return "95+"
-
-    return None
-
-
-def _load_wpp_life_expectancy(path: str, reference_year: int) -> pd.Series:
-    df = pd.read_csv(path, low_memory=False)
+def _load_life_expectancy(path: str) -> pd.Series:
+    """Load processed life expectancy data from prepare_life_table.py output."""
+    df = pd.read_csv(path)
     if df.empty:
-        raise ValueError("WPP life table file is empty")
+        raise ValueError("Life table file is empty")
 
-    variant_col = df["Variant"].astype(str).str.lower()
-    df = df[variant_col == "medium"]
-    if df.empty:
-        raise ValueError("WPP life table missing 'Medium' variant entries")
+    required_cols = {"age", "life_exp"}
+    if not required_cols.issubset(df.columns):
+        raise ValueError(f"Life table missing required columns: {required_cols}")
 
-    sex_col = df["Sex"].astype(str).str.lower()
-    df = df[sex_col == "total"]
-    if df.empty:
-        raise ValueError("WPP life table missing 'Total' sex entries")
-
-    df["Time"] = pd.to_numeric(df["Time"], errors="coerce")
-    df = df.dropna(subset=["Time"])
-    if df.empty:
-        raise ValueError("WPP life table missing valid 'Time' values")
-
-    available_years = sorted({int(value) for value in df["Time"].unique()})
-    if not available_years:
-        raise ValueError("WPP life table has no available years")
-
-    if reference_year in available_years:
-        target_year = reference_year
-    else:
-        target_year = min(
-            available_years, key=lambda year: (abs(year - reference_year), year)
-        )
-        print(
-            "[prepare_health_costs] WPP life table missing year"
-            f" {reference_year}; using {target_year} instead."
-        )
-
-    df = df[df["Time"].astype(int) == int(target_year)]
-    if df.empty:
-        raise ValueError(f"WPP life table has no data for year {target_year}")
-
-    df = df[df["Location"].astype(str) == "World"]
-    if df.empty:
-        raise ValueError("WPP life table missing 'World' aggregate records")
-
-    age_to_life_exp: Dict[str, float] = {}
-    for _, row in df.iterrows():
-        bucket = _normalize_age_bucket(row.get("AgeGrp"))
-        if bucket is None or bucket in age_to_life_exp:
-            continue
-        try:
-            age_to_life_exp[bucket] = float(row["ex"])
-        except (TypeError, ValueError):
-            continue
-
-    if "95+" not in age_to_life_exp:
-        candidates = df[df["AgeGrp"].astype(str).isin(["95-99", "95+", "100+"])]
-        if not candidates.empty:
-            first = candidates.iloc[0]
-            try:
-                age_to_life_exp["95+"] = float(first["ex"])
-            except (TypeError, ValueError):
-                pass
-
-    missing = [bucket for bucket in AGE_BUCKETS if bucket not in age_to_life_exp]
+    # Validate all expected age buckets are present
+    missing = [bucket for bucket in AGE_BUCKETS if bucket not in df["age"].values]
     if missing:
         raise ValueError(
-            "WPP life table missing life expectancy entries for age buckets: "
+            "Life table missing life expectancy entries for age buckets: "
             + ", ".join(missing)
         )
 
-    ordered = {bucket: age_to_life_exp[bucket] for bucket in AGE_BUCKETS}
-    series = pd.Series(ordered, name="life_exp")
-    series.index.name = "age"
+    series = df.set_index("age")["life_exp"]
+    series.name = "life_exp"
     return series
 
 
@@ -152,9 +67,6 @@ def _build_country_clusters(
     n_clusters: int,
 ) -> Tuple[pd.Series, Dict[int, List[str]]]:
     regions = gpd.read_file(regions_path)
-    regions = regions[regions["country"].isin(countries)]
-    if regions.empty:
-        raise ValueError("No regions match configured countries for health clustering")
 
     regions_equal_area = regions.to_crs(6933)
     dissolved = regions_equal_area.dissolve(by="country", as_index=True)
@@ -163,8 +75,8 @@ def _build_country_clusters(
     coords = np.column_stack([centroids.x.values, centroids.y.values])
     k = max(1, min(int(n_clusters), len(coords)))
     if k < int(n_clusters):
-        print(
-            f"[prepare_health_costs] Requested {n_clusters} clusters but only {len(coords)} countries available; using {k}."
+        logger.info(
+            f"Requested {n_clusters} clusters but only {len(coords)} countries available; using {k}."
         )
 
     if len(coords) == 1:
@@ -182,90 +94,123 @@ def _build_country_clusters(
     return cluster_series, cluster_to_countries
 
 
-def _build_rr_lookup(rr_int: pd.DataFrame) -> Dict[Tuple[str, str], pd.Series]:
-    lookup: Dict[Tuple[str, str], pd.Series] = {}
-    for (risk, cause), grp in rr_int.groupby(["risk_factor", "cause"]):
-        grp = grp.sort_values("intake")
-        series = grp.set_index("intake")["rr_mean"].astype(float)
-        full_index = pd.Index(
-            range(int(series.index.min()), int(series.index.max()) + 1)
+class RelativeRiskTable(Dict[Tuple[str, str], Dict[str, np.ndarray]]):
+    """Container mapping (risk, cause) to exposure grids and log RR values."""
+
+
+def _build_rr_tables(
+    rr_df: pd.DataFrame, risk_factors: Iterable[str]
+) -> Tuple[RelativeRiskTable, Dict[str, float]]:
+    """Build lookup tables for relative risk curves by (risk, cause) pairs.
+
+    Returns:
+        table: Dict mapping (risk, cause) to exposure arrays and log(RR) values
+        max_exposure_g_per_day: Dict mapping risk factor to maximum exposure level in data
+    """
+    table: RelativeRiskTable = RelativeRiskTable()
+    max_exposure_g_per_day: Dict[str, float] = {}
+    allowed = set(risk_factors)
+
+    for (risk, cause), grp in rr_df.groupby(["risk_factor", "cause"], sort=True):
+        if risk not in allowed:
+            continue
+
+        grp = grp.sort_values("exposure_g_per_day")
+        exposures = grp["exposure_g_per_day"].astype(float).values
+        if len(exposures) == 0:
+            continue
+        log_rr_mean = np.log(grp["rr_mean"].astype(float).values)
+
+        table[(risk, cause)] = {
+            "exposures": exposures,
+            "log_rr_mean": log_rr_mean,
+        }
+        max_exposure_g_per_day[risk] = max(
+            max_exposure_g_per_day.get(risk, 0.0), float(exposures.max())
         )
-        series = series.reindex(full_index).interpolate(limit_direction="both")
-        lookup[(risk, cause)] = series
-    return lookup
+
+    return table, max_exposure_g_per_day
 
 
 def _evaluate_rr(
-    lookup: Dict[Tuple[str, str], pd.Series], risk: str, cause: str, intake: float
+    table: RelativeRiskTable, risk: str, cause: str, intake: float
 ) -> float:
-    series = lookup[(risk, cause)]
-    level = int(round(float(intake)))
-    level = max(series.index.min(), min(series.index.max(), level))
-    value = float(series.loc[level])
-    return max(value, 1e-9)
+    """Interpolate relative risk for given intake using log-linear interpolation."""
+    data = table[(risk, cause)]
+    exposures: npt.NDArray[np.floating] = data["exposures"]
+    log_rr: npt.NDArray[np.floating] = data["log_rr_mean"]
+
+    if intake <= exposures[0]:
+        return float(math.exp(log_rr[0]))
+    if intake >= exposures[-1]:
+        return float(math.exp(log_rr[-1]))
+
+    log_val = float(np.interp(intake, exposures, log_rr))
+    return float(math.exp(log_val))
 
 
-def main() -> None:
-    snakemake = globals().get("snakemake")  # type: ignore
-    if snakemake is None:
-        raise RuntimeError("This script must run via Snakemake")
-
-    cfg_countries: List[str] = list(snakemake.params["countries"])
-    health_cfg = snakemake.params["health"]
-    risk_factors: List[str] = list(health_cfg["risk_factors"])
-    region_clusters = int(health_cfg["region_clusters"])
-    reference_year = int(health_cfg["reference_year"])
-    intake_step = float(health_cfg["intake_grid_step"])
-    log_rr_points = int(health_cfg.get("log_rr_points", 40))
-    vosl_setting = health_cfg.get("value_of_statistical_life", "regional")
-
-    use_constant_vsl = False
-    constant_vsl_value = None
-    if isinstance(vosl_setting, str):
-        if vosl_setting.lower() != "regional":
-            try:
-                constant_vsl_value = float(vosl_setting)
-            except ValueError as exc:
-                raise ValueError(
-                    "health.value_of_statistical_life must be 'regional' or a number"
-                ) from exc
-            else:
-                use_constant_vsl = True
-    elif vosl_setting is not None:
-        constant_vsl_value = float(vosl_setting)
-        use_constant_vsl = True
-
+def _load_input_data(
+    snakemake,
+    cfg_countries: List[str],
+    reference_year: int,
+    use_constant_vsl: bool,
+) -> tuple:
+    """Load and perform initial processing of all input datasets."""
     cluster_series, cluster_to_countries = _build_country_clusters(
-        snakemake.input["regions"], cfg_countries, region_clusters
+        snakemake.input["regions"],
+        cfg_countries,
+        int(snakemake.params["health"]["region_clusters"]),
     )
 
     cluster_map = cluster_series.rename("health_cluster").reset_index()
     cluster_map.columns = ["country_iso3", "health_cluster"]
     cluster_map = cluster_map.sort_values("country_iso3")
 
-    diet = _load_csv(
-        snakemake.input["diet"],
-        ["scenario", "unit", "item", "country", "year", "value"],
+    diet = pd.read_csv(snakemake.input["diet"])
+    rr_df = pd.read_csv(snakemake.input["relative_risks"])
+    dr = pd.read_csv(
+        snakemake.input["dr"],
+        header=None,
+        names=["age", "cause", "country", "year", "value"],
     )
-    rr_int = _load_csv(
-        snakemake.input["rr_int"],
-        ["risk_factor", "cause", "intake", "stat", "value"],
-    )
-    rr_max = _load_csv(snakemake.input["rr_max"], ["risk_factor", "max_intake"])
-    dr = _load_csv(snakemake.input["dr"], ["age", "cause", "country", "year", "value"])
     pop = pd.read_csv(snakemake.input["population"])
     pop["value"] = pd.to_numeric(pop["value"], errors="coerce") / 1_000.0
-    life_exp = _load_wpp_life_expectancy(snakemake.input["life_table"], reference_year)
-    # Regional value of statistical life CSV was removed; keep optional support in
-    # case future workflows reintroduce a dataset. snakemake.input may omit "vsl".
+    life_exp = _load_life_expectancy(snakemake.input["life_table"])
+
     vsl_input = snakemake.input.get("vsl") if hasattr(snakemake.input, "get") else None
     vsl: pd.DataFrame | None = None
     if not use_constant_vsl and vsl_input:
-        vsl = _load_csv(
+        vsl = pd.read_csv(
             vsl_input,
-            ["income_group", "country", "year", "gdp_scenario", "stat", "value"],
+            header=None,
+            names=["income_group", "country", "year", "gdp_scenario", "stat", "value"],
         )
 
+    return (
+        cluster_series,
+        cluster_to_countries,
+        cluster_map,
+        diet,
+        rr_df,
+        dr,
+        pop,
+        life_exp,
+        vsl,
+    )
+
+
+def _filter_and_prepare_data(
+    diet: pd.DataFrame,
+    dr: pd.DataFrame,
+    pop: pd.DataFrame,
+    rr_df: pd.DataFrame,
+    cfg_countries: List[str],
+    reference_year: int,
+    life_exp: pd.Series,
+    risk_factors: List[str],
+) -> tuple:
+    """Filter datasets to reference year and compute derived quantities."""
+    # Filter dietary intake data
     diet = diet[
         (diet["scenario"] == "BMK")
         & (diet["unit"] == "g/d_w")
@@ -273,13 +218,10 @@ def main() -> None:
         & (diet["country"].isin(cfg_countries))
     ]
 
-    rr_int = rr_int[rr_int["stat"] == "mean"].copy()
-    rr_int["intake"] = rr_int["intake"].astype(int)
-    rr_int["rr_mean"] = rr_int["value"].astype(float)
-    rr_lookup = _build_rr_lookup(rr_int)
+    # Build relative risk lookup tables
+    rr_lookup, max_exposure_g_per_day = _build_rr_tables(rr_df, risk_factors)
 
-    rr_max = rr_max.set_index("risk_factor")["max_intake"].astype(float)
-
+    # Filter mortality and population data
     dr = dr[(dr["year"] == reference_year) & (dr["country"].isin(cfg_countries))].copy()
     pop = pop[
         (pop["year"] == reference_year) & (pop["country"].isin(cfg_countries))
@@ -297,6 +239,7 @@ def main() -> None:
         .reindex(cfg_countries)
     )
 
+    # Determine relevant risk-cause pairs
     relevant_pairs = {
         (risk, cause) for (risk, cause) in rr_lookup.keys() if risk in risk_factors
     }
@@ -310,6 +253,57 @@ def main() -> None:
 
     dr = dr[dr["cause"].isin(relevant_causes)].copy()
 
+    # Map diet items to risk factors
+    item_to_risk = {
+        "whole_grains": "whole_grains",
+        "legumes": "legumes",
+        "soybeans": "legumes",
+        "nuts_seeds": "nuts_seeds",
+        "vegetables": "vegetables",
+        "fruits_trop": "fruits",
+        "fruits_temp": "fruits",
+        "fruits_starch": "fruits",
+        "fruits": "fruits",
+        "beef": "red_meat",
+        "lamb": "red_meat",
+        "pork": "red_meat",
+        "red_meat": "red_meat",
+        "prc_meat": "prc_meat",
+        "shellfish": "fish",
+        "fish_freshw": "fish",
+        "fish_pelag": "fish",
+        "fish_demrs": "fish",
+        "fish": "fish",
+    }
+    diet["risk_factor"] = diet["item"].map(item_to_risk)
+    diet = diet.dropna(subset=["risk_factor"])
+    intake_by_country = (
+        diet.groupby(["country", "risk_factor"])["value"].sum().unstack(fill_value=0.0)
+    )
+
+    return (
+        dr,
+        pop_age,
+        pop_total,
+        rr_lookup,
+        max_exposure_g_per_day,
+        relevant_causes,
+        risk_to_causes,
+        intake_by_country,
+    )
+
+
+def _compute_baseline_health_metrics(
+    dr: pd.DataFrame,
+    pop_age: pd.DataFrame,
+    life_exp: pd.Series,
+    vsl: pd.DataFrame | None,
+    cfg_countries: List[str],
+    reference_year: int,
+    use_constant_vsl: bool,
+    constant_vsl_value: float | None,
+) -> pd.DataFrame:
+    """Compute YLL and value-of-statistical-life statistics by country."""
     pop_age = pop_age.rename(columns={"value": "population"})
     dr = dr.rename(columns={"value": "death_rate"})
     combo = dr.merge(pop_age, on=["age", "country", "year"], how="left").merge(
@@ -346,41 +340,34 @@ def main() -> None:
             vsl_filtered.groupby("country")["value"].mean().reindex(cfg_countries)
         )
 
+    pop_total = combo.groupby("country")["population"].sum()
     index = pd.Index(cfg_countries, name="country")
     vsl_stats = pd.DataFrame(index=index)
     vsl_stats["vsl"] = vsl_per_country
     vsl_stats["avg_yll_per_death"] = avg_yll_per_death.reindex(index)
-    vsl_stats["population_total"] = pop_total
+    vsl_stats["population_total"] = pop_total.reindex(index)
     vsl_stats = vsl_stats.replace({0.0: np.nan})
     vsl_stats["value_per_yll"] = vsl_stats["vsl"] / vsl_stats["avg_yll_per_death"]
 
-    item_to_risk = {
-        "whole_grains": "whole_grains",
-        "legumes": "legumes",
-        "soybeans": "legumes",
-        "nuts_seeds": "nuts_seeds",
-        "vegetables": "vegetables",
-        "fruits_trop": "fruits",
-        "fruits_temp": "fruits",
-        "fruits_starch": "fruits",
-        "beef": "red_meat",
-        "lamb": "red_meat",
-        "pork": "red_meat",
-        "prc_meat": "prc_meat",
-        "shellfish": "fish",
-        "fish_freshw": "fish",
-        "fish_pelag": "fish",
-        "fish_demrs": "fish",
-    }
+    return vsl_stats, combo
 
-    diet["risk_factor"] = diet["item"].map(item_to_risk)
-    diet = diet.dropna(subset=["risk_factor"])
-    intake_by_country = (
-        diet.groupby(["country", "risk_factor"])["value"].sum().unstack(fill_value=0.0)
-    )
 
+def _process_health_clusters(
+    cluster_to_countries: Dict[int, List[str]],
+    pop_total: pd.Series,
+    combo: pd.DataFrame,
+    vsl_stats: pd.DataFrame,
+    risk_factors: List[str],
+    intake_by_country: pd.DataFrame,
+    max_exposure_g_per_day: Dict[str, float],
+    rr_lookup: RelativeRiskTable,
+    risk_to_causes: Dict[str, List[str]],
+    relevant_causes: List[str],
+) -> tuple:
+    """Process each health cluster to compute baseline metrics and intakes."""
     cluster_summary_rows = []
     cluster_cause_rows = []
+    cluster_risk_baseline_rows = []
     baseline_intake_registry: Dict[str, set] = {risk: set() for risk in risk_factors}
 
     for cluster_id, members in cluster_to_countries.items():
@@ -422,13 +409,22 @@ def main() -> None:
             baseline_intake = float(baseline_intake)
             if not math.isfinite(baseline_intake):
                 baseline_intake = 0.0
-            baseline_intake = max(
-                0.0, min(baseline_intake, float(rr_max.get(risk, baseline_intake)))
-            )
+            max_exposure = float(max_exposure_g_per_day.get(risk, baseline_intake))
+            baseline_intake = max(0.0, min(baseline_intake, max_exposure))
             baseline_intake_registry.setdefault(risk, set()).add(baseline_intake)
+
+            cluster_risk_baseline_rows.append(
+                {
+                    "health_cluster": int(cluster_id),
+                    "risk_factor": risk,
+                    "baseline_intake_g_per_day": baseline_intake,
+                }
+            )
 
             causes = risk_to_causes.get(risk, [])
             for cause in causes:
+                if (risk, cause) not in rr_lookup:
+                    continue
                 rr_val = _evaluate_rr(rr_lookup, risk, cause, baseline_intake)
                 log_rr = math.log(rr_val)
                 log_rr_ref_totals[cause] = log_rr_ref_totals.get(cause, 0.0) + log_rr
@@ -451,27 +447,54 @@ def main() -> None:
         cluster_cause_rows,
         columns=["health_cluster", "cause", "log_rr_total_ref", "yll_base"],
     )
+    cluster_risk_baseline = pd.DataFrame(
+        cluster_risk_baseline_rows,
+        columns=["health_cluster", "risk_factor", "baseline_intake_g_per_day"],
+    )
 
+    return (
+        cluster_summary,
+        cluster_cause_baseline,
+        cluster_risk_baseline,
+        baseline_intake_registry,
+    )
+
+
+def _generate_breakpoint_tables(
+    risk_factors: List[str],
+    max_exposure_g_per_day: Dict[str, float],
+    baseline_intake_registry: Dict[str, set],
+    intake_step: float,
+    rr_lookup: RelativeRiskTable,
+    risk_to_causes: Dict[str, List[str]],
+    relevant_causes: List[str],
+    log_rr_points: int,
+) -> tuple:
+    """Generate SOS2 linearization breakpoint tables for risks and causes."""
     risk_breakpoint_rows = []
     cause_log_min: Dict[str, float] = {cause: 0.0 for cause in relevant_causes}
     cause_log_max: Dict[str, float] = {cause: 0.0 for cause in relevant_causes}
-    for cause in relevant_causes:
-        cause_log_min[cause] = 0.0
-        cause_log_max[cause] = 0.0
 
     for risk in risk_factors:
-        max_intake = float(rr_max.get(risk, 0.0))
-        if max_intake <= 0:
+        max_exposure = float(max_exposure_g_per_day.get(risk, 0.0))
+        if max_exposure <= 0:
             continue
-        grid_points = set(np.arange(0.0, max_intake + intake_step, intake_step))
+        grid_points = set(np.arange(0.0, max_exposure + intake_step, intake_step))
+        causes = risk_to_causes.get(risk, [])
+        for cause in causes:
+            exposures = rr_lookup.get((risk, cause), {}).get("exposures")
+            if exposures is not None:
+                grid_points.update(float(x) for x in exposures)
         grid_points.add(0.0)
-        grid_points.add(max_intake)
+        grid_points.add(max_exposure)
         for val in baseline_intake_registry.get(risk, set()):
             grid_points.add(float(val))
         grid = sorted(grid_points)
 
-        causes = risk_to_causes.get(risk, [])
         for cause in causes:
+            key = (risk, cause)
+            if key not in rr_lookup:
+                continue
             log_values: List[float] = []
             for intake in grid:
                 rr_val = _evaluate_rr(rr_lookup, risk, cause, intake)
@@ -518,6 +541,107 @@ def main() -> None:
 
     cause_log_breakpoints = pd.DataFrame(cause_breakpoint_rows)
 
+    return risk_breakpoints, cause_log_breakpoints
+
+
+def main() -> None:
+    """Main entry point for health cost preparation."""
+    cfg_countries: List[str] = list(snakemake.params["countries"])
+    health_cfg = snakemake.params["health"]
+    risk_factors: List[str] = list(health_cfg["risk_factors"])
+    reference_year = int(health_cfg["reference_year"])
+    intake_step = float(health_cfg["intake_grid_step"])
+    log_rr_points = int(health_cfg["log_rr_points"])
+    vosl_setting = health_cfg["value_of_statistical_life"]
+
+    # Parse value-of-statistical-life setting
+    use_constant_vsl = False
+    constant_vsl_value = None
+    if isinstance(vosl_setting, str):
+        if vosl_setting.lower() != "regional":
+            try:
+                constant_vsl_value = float(vosl_setting)
+            except ValueError as exc:
+                raise ValueError(
+                    "health.value_of_statistical_life must be 'regional' or a number"
+                ) from exc
+            else:
+                use_constant_vsl = True
+    elif vosl_setting is not None:
+        constant_vsl_value = float(vosl_setting)
+        use_constant_vsl = True
+
+    # Load input data
+    (
+        cluster_series,
+        cluster_to_countries,
+        cluster_map,
+        diet,
+        rr_df,
+        dr,
+        pop,
+        life_exp,
+        vsl,
+    ) = _load_input_data(snakemake, cfg_countries, reference_year, use_constant_vsl)
+
+    # Filter and prepare datasets
+    (
+        dr,
+        pop_age,
+        pop_total,
+        rr_lookup,
+        max_exposure_g_per_day,
+        relevant_causes,
+        risk_to_causes,
+        intake_by_country,
+    ) = _filter_and_prepare_data(
+        diet, dr, pop, rr_df, cfg_countries, reference_year, life_exp, risk_factors
+    )
+
+    # Compute baseline health metrics
+    vsl_stats, combo = _compute_baseline_health_metrics(
+        dr,
+        pop_age,
+        life_exp,
+        vsl,
+        cfg_countries,
+        reference_year,
+        use_constant_vsl,
+        constant_vsl_value,
+    )
+
+    # Process health clusters
+    (
+        cluster_summary,
+        cluster_cause_baseline,
+        cluster_risk_baseline,
+        baseline_intake_registry,
+    ) = _process_health_clusters(
+        cluster_to_countries,
+        pop_total,
+        combo,
+        vsl_stats,
+        risk_factors,
+        intake_by_country,
+        max_exposure_g_per_day,
+        rr_lookup,
+        risk_to_causes,
+        relevant_causes,
+    )
+
+    # Generate breakpoint tables for SOS2 linearization
+    risk_breakpoints, cause_log_breakpoints = _generate_breakpoint_tables(
+        risk_factors,
+        max_exposure_g_per_day,
+        baseline_intake_registry,
+        intake_step,
+        rr_lookup,
+        risk_to_causes,
+        relevant_causes,
+        log_rr_points,
+    )
+
+    # Write outputs
     output_dir = Path(snakemake.output["risk_breakpoints"]).parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -534,6 +658,9 @@ def main() -> None:
         snakemake.output["cluster_summary"], index=False
     )
     cluster_map.to_csv(snakemake.output["clusters"], index=False)
+    cluster_risk_baseline.sort_values(["health_cluster", "risk_factor"]).to_csv(
+        snakemake.output["cluster_risk_baseline"], index=False
+    )
 
 
 if __name__ == "__main__":
