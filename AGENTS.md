@@ -55,13 +55,13 @@ Recommended commands (use the memory-capped wrapper):
 uv sync
 
 # Run the full workflow (data prep → build → solve)
-tools/smk -j4 all
+tools/smk -j4 --configfile config/<name>.yaml
 
 # Build model only
-tools/smk -j4 results/{config_name}/build/model.nc
+tools/smk -j4 --configfile config/<name>.yaml -- results/{config_name}/build/model.nc
 
 # Solve model only (after build)
-tools/smk -j4 results/{config_name}/solved/model.nc
+tools/smk -j4 --configfile config/<name>.yaml -- results/{config_name}/solved/model.nc
 
 # Test small snippets of code
 uv run python <...>
@@ -69,6 +69,7 @@ uv run python <...>
 
 Notes:
 
+- For now, use the config/toy.yaml configuration file.
 - Snakemake tracks code changes and will rerun affected rules; manual cleanup of `results/` is usually unnecessary.
 - Prefer small, testable edits and validate by running the narrowest target that exercises your change.
 - `tools/smk` runs Snakemake in a systemd cgroup with a hard 10G cap and swap disabled by default; override with `SMK_MEM_MAX=12G tools/smk ...`.
