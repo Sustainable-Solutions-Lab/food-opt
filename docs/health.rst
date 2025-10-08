@@ -38,8 +38,6 @@ Data Inputs
 - **Population and life tables** (``processing/{name}/population_age.csv`` and
   ``processing/{name}/life_table.csv``): age-structured population counts and
   remaining life expectancy schedules.
-- **Value of statistical life (optional)** (``data/health/processed/vsl.csv``):
-  used when ``health.value_of_statistical_life`` is set to ``"regional"``.
 
 Preparation Workflow
 --------------------
@@ -55,9 +53,9 @@ The preprocessing script performs these steps:
    health clusters. The results go into
    ``processing/{name}/health/cluster_cause_baseline.csv`` and
    ``processing/{name}/health/cluster_summary.csv``.
-3. **Value per YLL** – either reads the regional VSL dataset or applies the
-   configured constant, then converts each cluster’s value of a statistical life
-   into a value per YLL using average years lost per death.
+3. **Record cluster totals** – store each cluster’s population for scaling; the
+   solver multiplies baseline YLLs by the configured ``health.value_per_yll``
+   constant (no external valuation dataset required).
 4. **Risk-factor breakpoints** – builds dense grids of intake values (including
    observed exposures and configured ``health.intake_grid_step``) and evaluates
    :math:`\log(RR)` for every (risk, cause) pair. These tables are written to
@@ -152,25 +150,21 @@ from the aggregated log-relative-risk back to the multiplicative relative risk.
 Monetising years of life lost
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For each cluster–cause pair the preprocessing step stores:
-
-- :math:`\mathrm{YLL}^{\mathrm{base}}_{c,g}` – baseline years of life lost, and
-- :math:`V_{c}` – value per YLL derived from the value of a statistical life and
-  the average years lost per death.
-
-The solver also records the reference log-relative-risk
+For each cluster–cause pair the preprocessing step stores
+:math:`\mathrm{YLL}^{\mathrm{base}}_{c,g}` (baseline years of life lost). The
+solver also records the reference log-relative-risk
 :math:`z^{\mathrm{ref}}_{c,g}` (from baseline diets) and its exponential
 :math:`RR^{\mathrm{ref}}_{c,g}`. The contribution to the objective is
 constructed as
 
 .. math::
-   \text{Cost}_{c,g} = V_c\, \mathrm{YLL}^{\mathrm{base}}_{c,g}
+   \text{Cost}_{c,g} = V\, \mathrm{YLL}^{\mathrm{base}}_{c,g}
    \left( \frac{RR_{c,g}}{RR^{\mathrm{ref}}_{c,g}} - 1 \right).
 
 A constant term subtracts
-:math:`V_c\,\mathrm{YLL}^{\mathrm{base}}_{c,g}` so that the baseline diet has
-zero health cost and only improvements or deteriorations relative to the
-reference affect the optimisation.
+:math:`V\,\mathrm{YLL}^{\mathrm{base}}_{c,g}` so that the baseline diet has zero
+health cost and only improvements or deteriorations relative to the reference
+affect the optimisation.
 
 Objective Contribution
 ----------------------
@@ -192,7 +186,7 @@ Configuration Highlights
      reference_year: 2018              # Baseline year for diet and mortality data
      intake_grid_step: 10              # g/day spacing for risk breakpoints
      log_rr_points: 10                 # Points for aggregated log-RR interpolation
-     value_of_statistical_life: 3_500_000  # USD; set "regional" to use VSL dataset
+     value_per_yll: 150000             # USD per year of life lost
      risk_factors:
        - fruits
        - vegetables
@@ -226,8 +220,8 @@ Limitations and Future Work
 - **Linearisation error** – SOS2 approximations introduce bounded error that
   depends on the chosen grids. Monitor solver logs if experimenting with coarser
   settings.
-- **Valuation assumptions** – constant or regional VSL choices can significantly
-  shift policy relevance; document your selections when sharing results.
+- **Valuation assumptions** – a uniform value-per-YLL treats all clusters
+  identically; explore sensitivity if distributional differences matter.
 
 Future extensions may add morbidity effects, age-dependent optimal intakes, or
 multi-period health dynamics that capture delayed impacts of dietary change.

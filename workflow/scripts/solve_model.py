@@ -228,6 +228,7 @@ def add_health_objective(
     population_totals_path: str,
     risk_factors: list[str],
     solver_name: str,
+    value_per_yll: float,
 ) -> None:
     """Add SOS2-based health costs with log-linear aggregation."""
 
@@ -237,6 +238,10 @@ def add_health_objective(
     cluster_cause = pd.read_csv(cluster_cause_path)
     cause_log_breakpoints = pd.read_csv(cause_log_path)
     cluster_summary = pd.read_csv(cluster_summary_path)
+    if "health_cluster" in cluster_summary.columns:
+        cluster_summary["health_cluster"] = cluster_summary["health_cluster"].astype(
+            int
+        )
     cluster_map = pd.read_csv(clusters_path)
     population_totals = pd.read_csv(population_totals_path)
 
@@ -251,9 +256,6 @@ def add_health_objective(
     cluster_lookup = cluster_map.set_index("country_iso3")["health_cluster"].to_dict()
     cluster_population_baseline = cluster_summary.set_index("health_cluster")[
         "population_persons"
-    ].to_dict()
-    cluster_value_per_yll = cluster_summary.set_index("health_cluster")[
-        "value_per_yll_usd_per_yll"
     ].to_dict()
 
     cluster_cause_metadata = cluster_cause.set_index(["health_cluster", "cause"])
@@ -421,9 +423,8 @@ def add_health_objective(
     for (cluster, cause), row in cluster_cause_metadata.iterrows():
         cluster = int(cluster)
         cause = str(cause)
-        value_per_yll = float(cluster_value_per_yll[cluster])
         yll_base = float(row.get("yll_base", 0.0))
-        if value_per_yll == 0 or not math.isfinite(value_per_yll):
+        if not math.isfinite(value_per_yll) or value_per_yll <= 0:
             continue
         if yll_base == 0 or not math.isfinite(yll_base):
             continue
@@ -558,6 +559,7 @@ if __name__ == "__main__":
         snakemake.input.population,
         snakemake.params.health_risk_factors,
         solver_name,
+        float(snakemake.params.health_value_per_yll),
     )
 
     scaling_factor = rescale_objective(n.model)

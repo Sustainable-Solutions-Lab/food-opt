@@ -24,7 +24,7 @@ where :math:`x_i` are decision variables and :math:`c_i` are associated costs in
 * **Production costs**: Crop and livestock production expenses
 * **Trade costs**: Transportation costs based on distance and product type
 * **Environmental costs**: Emissions priced at configured carbon price (USD/tCO₂-eq)
-* **Health costs**: Dietary risk factors valued using disability-adjusted life years (DALYs) and value of statistical life
+* **Health costs**: Dietary risk factors valued using years of life lost (YLL) multiplied by the configured ``health.value_per_yll``
 
 Decision Variables
 ~~~~~~~~~~~~~~~~~~
@@ -223,4 +223,3 @@ Typical model dimensions (for the toy configuration with 400 regions):
 * **Solve time**: Minutes to hours depending on region count and solver
 
 The model scales roughly linearly with the number of regions. Reducing ``aggregation.regions.target_count`` in the configuration will decrease solve time at the cost of spatial resolution.
-

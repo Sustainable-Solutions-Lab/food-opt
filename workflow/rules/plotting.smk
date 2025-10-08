@@ -85,6 +85,7 @@ rule plot_health_impacts:
     params:
         ghg_price=config["emissions"]["ghg_price"],
         health_risk_factors=config["health"]["risk_factors"],
+        health_value_per_yll=config["health"]["value_per_yll"],
     output:
         breakdown_pdf="results/{name}/plots/objective_breakdown.pdf",
         breakdown_csv="results/{name}/plots/objective_breakdown.csv",

@@ -158,7 +158,6 @@ def _load_input_data(
     snakemake,
     cfg_countries: List[str],
     reference_year: int,
-    use_constant_vsl: bool,
 ) -> tuple:
     """Load and perform initial processing of all input datasets."""
     cluster_series, cluster_to_countries = _build_country_clusters(
@@ -182,15 +181,6 @@ def _load_input_data(
     pop["value"] = pd.to_numeric(pop["value"], errors="coerce") / 1_000.0
     life_exp = _load_life_expectancy(snakemake.input["life_table"])
 
-    vsl_input = snakemake.input.get("vsl") if hasattr(snakemake.input, "get") else None
-    vsl: pd.DataFrame | None = None
-    if not use_constant_vsl and vsl_input:
-        vsl = pd.read_csv(
-            vsl_input,
-            header=None,
-            names=["income_group", "country", "year", "gdp_scenario", "stat", "value"],
-        )
-
     return (
         cluster_series,
         cluster_to_countries,
@@ -200,7 +190,6 @@ def _load_input_data(
         dr,
         pop,
         life_exp,
-        vsl,
     )
 
 
@@ -302,13 +291,8 @@ def _compute_baseline_health_metrics(
     dr: pd.DataFrame,
     pop_age: pd.DataFrame,
     life_exp: pd.Series,
-    vsl: pd.DataFrame | None,
-    cfg_countries: List[str],
-    reference_year: int,
-    use_constant_vsl: bool,
-    constant_vsl_value: float | None,
 ) -> pd.DataFrame:
-    """Compute YLL and value-of-statistical-life statistics by country."""
+    """Compute baseline death counts and YLL statistics by country."""
     pop_age = pop_age.rename(columns={"value": "population"})
     dr = dr.rename(columns={"value": "death_rate"})
     combo = dr.merge(pop_age, on=["age", "country", "year"], how="left").merge(
@@ -319,49 +303,13 @@ def _compute_baseline_health_metrics(
     combo["death_count"] = combo["death_rate"] * combo["population"]
     combo["yll"] = combo["death_count"] * combo["life_exp"]
 
-    deaths_by_country = combo.groupby("country")["death_count"].sum()
-    yll_by_country = combo.groupby("country")["yll"].sum()
-    avg_yll_per_death = (
-        yll_by_country / deaths_by_country.replace({0.0: np.nan})
-    ).replace([np.inf, -np.inf], np.nan)
-
-    if not use_constant_vsl and vsl is None:
-        raise ValueError(
-            "Regional VSL dataset is not available; set health.value_of_statistical_life"
-            " to a numeric constant or reintroduce a regional dataset."
-        )
-
-    if use_constant_vsl or vsl is None:
-        vsl_per_country = pd.Series(constant_vsl_value, index=cfg_countries)
-    else:
-        vsl_filtered = vsl[
-            (vsl["year"].astype(int) == reference_year)
-            & (vsl["gdp_scenario"] == "mean")
-            & (vsl["stat"] == "mean")
-            & (vsl["country"].isin(cfg_countries))
-        ].copy()
-        vsl_filtered["value"] = vsl_filtered["value"].astype(float) * 1e6
-        vsl_per_country = (
-            vsl_filtered.groupby("country")["value"].mean().reindex(cfg_countries)
-        )
-
-    pop_total = combo.groupby("country")["population"].sum()
-    index = pd.Index(cfg_countries, name="country")
-    vsl_stats = pd.DataFrame(index=index)
-    vsl_stats["vsl"] = vsl_per_country
-    vsl_stats["avg_yll_per_death"] = avg_yll_per_death.reindex(index)
-    vsl_stats["population_total"] = pop_total.reindex(index)
-    vsl_stats = vsl_stats.replace({0.0: np.nan})
-    vsl_stats["value_per_yll"] = vsl_stats["vsl"] / vsl_stats["avg_yll_per_death"]
-
-    return vsl_stats, combo
+    return combo
 
 
 def _process_health_clusters(
     cluster_to_countries: Dict[int, List[str]],
     pop_total: pd.Series,
     combo: pd.DataFrame,
-    vsl_stats: pd.DataFrame,
     risk_factors: List[str],
     intake_by_country: pd.DataFrame,
     max_exposure_g_per_day: Dict[str, float],
@@ -385,20 +333,10 @@ def _process_health_clusters(
         cluster_combo = combo[combo["country"].isin(members)]
         yll_by_cause_cluster = cluster_combo.groupby("cause")["yll"].sum()
 
-        vsl_subset = vsl_stats.reindex(members)
-        weight_sum = vsl_subset["population_total"].sum()
-        if weight_sum > 0:
-            value_per_yll = (
-                vsl_subset["value_per_yll"] * vsl_subset["population_total"]
-            ).sum() / weight_sum
-        else:
-            value_per_yll = float("nan")
-
         cluster_summary_rows.append(
             {
                 "health_cluster": int(cluster_id),
                 "population_persons": total_population_persons,
-                "value_per_yll_usd_per_yll": value_per_yll,
             }
         )
 
@@ -446,7 +384,7 @@ def _process_health_clusters(
 
     cluster_summary = pd.DataFrame(
         cluster_summary_rows,
-        columns=["health_cluster", "population_persons", "value_per_yll_usd_per_yll"],
+        columns=["health_cluster", "population_persons"],
     )
     cluster_cause_baseline = pd.DataFrame(
         cluster_cause_rows,
@@ -557,24 +495,6 @@ def main() -> None:
     reference_year = int(health_cfg["reference_year"])
     intake_step = float(health_cfg["intake_grid_step"])
     log_rr_points = int(health_cfg["log_rr_points"])
-    vosl_setting = health_cfg["value_of_statistical_life"]
-
-    # Parse value-of-statistical-life setting
-    use_constant_vsl = False
-    constant_vsl_value = None
-    if isinstance(vosl_setting, str):
-        if vosl_setting.lower() != "regional":
-            try:
-                constant_vsl_value = float(vosl_setting)
-            except ValueError as exc:
-                raise ValueError(
-                    "health.value_of_statistical_life must be 'regional' or a number"
-                ) from exc
-            else:
-                use_constant_vsl = True
-    elif vosl_setting is not None:
-        constant_vsl_value = float(vosl_setting)
-        use_constant_vsl = True
 
     # Load input data
     (
@@ -586,8 +506,7 @@ def main() -> None:
         dr,
         pop,
         life_exp,
-        vsl,
-    ) = _load_input_data(snakemake, cfg_countries, reference_year, use_constant_vsl)
+    ) = _load_input_data(snakemake, cfg_countries, reference_year)
 
     # Filter and prepare datasets
     (
@@ -604,15 +523,10 @@ def main() -> None:
     )
 
     # Compute baseline health metrics
-    vsl_stats, combo = _compute_baseline_health_metrics(
+    combo = _compute_baseline_health_metrics(
         dr,
         pop_age,
         life_exp,
-        vsl,
-        cfg_countries,
-        reference_year,
-        use_constant_vsl,
-        constant_vsl_value,
     )
 
     # Process health clusters
@@ -625,7 +539,6 @@ def main() -> None:
         cluster_to_countries,
         pop_total,
         combo,
-        vsl_stats,
         risk_factors,
         intake_by_country,
         max_exposure_g_per_day,

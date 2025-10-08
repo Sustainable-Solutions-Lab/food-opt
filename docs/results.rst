@@ -139,7 +139,7 @@ Production and Resource Use
   * Production costs
   * Trade costs
   * Environmental costs (emissions × carbon price)
-  * Health costs (DALYs × VSLY)
+  * Health costs (YLL × value_per_yll)
 
 Spatial Maps
 ~~~~~~~~~~~~

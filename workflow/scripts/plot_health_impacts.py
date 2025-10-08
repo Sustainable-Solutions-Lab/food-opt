@@ -127,13 +127,14 @@ def _cluster_population(
 def _prepare_health_inputs(
     inputs: HealthInputs,
     risk_factors: list[str],
+    value_per_yll: float,
 ) -> tuple[
     Dict[str, pd.DataFrame],
     Dict[str, pd.DataFrame],
     Dict[str, list[dict[str, float | str]]],
     Dict[str, int],
     Dict[int, float],
-    Dict[int, float],
+    float,
 ]:
     risk_tables = {}
     for risk, group in inputs.risk_breakpoints.groupby("risk_factor"):
@@ -172,11 +173,6 @@ def _prepare_health_inputs(
     cluster_summary = inputs.cluster_summary.assign(
         health_cluster=lambda df: df["health_cluster"].astype(int)
     )
-    value_per_yll = (
-        cluster_summary.set_index("health_cluster")["value_per_yll_usd_per_yll"]
-        .astype(float)
-        .to_dict()
-    )
     cluster_population = _cluster_population(
         cluster_summary,
         clusters,
@@ -188,22 +184,25 @@ def _prepare_health_inputs(
         cause_tables,
         food_lookup,
         cluster_lookup,
-        value_per_yll,
         cluster_population,
+        float(value_per_yll),
     )
 
 
 def compute_health_results(
-    n: pypsa.Network, inputs: HealthInputs, risk_factors: list[str]
+    n: pypsa.Network,
+    inputs: HealthInputs,
+    risk_factors: list[str],
+    value_per_yll: float,
 ) -> HealthResults:
     (
         risk_tables,
         cause_tables,
         food_lookup,
         cluster_lookup,
-        value_per_yll,
         cluster_population,
-    ) = _prepare_health_inputs(inputs, risk_factors)
+        value_per_yll_const,
+    ) = _prepare_health_inputs(inputs, risk_factors, value_per_yll)
 
     cluster_cause = inputs.cluster_cause.assign(
         health_cluster=lambda df: df["health_cluster"].astype(int)
@@ -257,7 +256,7 @@ def compute_health_results(
     ).iterrows():
         cluster = int(cluster)
         cause = str(cause)
-        value = float(value_per_yll.get(cluster, 0.0))
+        value = float(value_per_yll_const)
         yll_base = float(row.get("yll_base", 0.0))
         if value <= 0 or yll_base <= 0:
             continue
@@ -333,7 +332,9 @@ def compute_health_results(
 
 
 def compute_baseline_risk_costs(
-    inputs: HealthInputs, risk_factors: list[str]
+    inputs: HealthInputs,
+    risk_factors: list[str],
+    value_per_yll: float,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Compute baseline health costs by risk factor and by cause.
@@ -348,9 +349,9 @@ def compute_baseline_risk_costs(
         cause_tables,
         _food_lookup,
         _cluster_lookup,
-        value_per_yll,
         _cluster_population,
-    ) = _prepare_health_inputs(inputs, risk_factors)
+        value_per_yll_const,
+    ) = _prepare_health_inputs(inputs, risk_factors, value_per_yll)
 
     baseline = inputs.cluster_risk_baseline.assign(
         health_cluster=lambda df: df["health_cluster"].astype(int),
@@ -377,7 +378,7 @@ def compute_baseline_risk_costs(
         ]
     ).iterrows():
         cluster = int(cluster)
-        value = float(value_per_yll.get(cluster, 0.0))
+        value = float(value_per_yll_const)
         yll_base = float(row.get("yll_base", 0.0))
         if value <= 0 or yll_base <= 0:
             continue
@@ -815,8 +816,13 @@ def main() -> None:
         cluster_risk_baseline=pd.read_csv(snakemake.input.health_cluster_risk_baseline),
     )
 
+    value_per_yll = float(snakemake.params.health_value_per_yll)
+
     health_results = compute_health_results(
-        n, health_inputs, snakemake.params.health_risk_factors
+        n,
+        health_inputs,
+        snakemake.params.health_risk_factors,
+        value_per_yll,
     )
 
     system_costs = compute_system_costs(n)
@@ -900,7 +906,9 @@ def main() -> None:
 
     # Baseline health burden maps
     baseline_risk_costs, baseline_cause_costs = compute_baseline_risk_costs(
-        health_inputs, snakemake.params.health_risk_factors
+        health_inputs,
+        snakemake.params.health_risk_factors,
+        value_per_yll,
     )
     (
         baseline_cost_by_risk,

@@ -173,9 +173,7 @@ health:
   intake_grid_step: 20   # Intake resolution in g/person/day
   log_rr_points: 10
   omega3_per_100g_fish: 1.5
-  # value_of_statistical_life: "regional" to use DIA regional values, or a
-  # numeric constant in USD to override
-  value_of_statistical_life: 3_500_000
+  value_per_yll: 150000  # USD per year of life lost
   # Dietary risk factors to consider (must match GDD data items)
   risk_factors:
   - fruits

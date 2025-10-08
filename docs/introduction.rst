@@ -45,7 +45,7 @@ Health and Nutrition
 * Integration with Global Burden of Disease dietary risk factors
 * Macronutrient and micronutrient constraints
 * Population-level health impact assessment in DALYs (Disability-Adjusted Life Years)
-* Value of statistical life calculations for health cost valuation
+* Health valuation via a configurable value-per-YLL constant
 
 Flexible Spatial Resolution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -172,4 +172,3 @@ Important Notes
 * Several CSV files (``data/foods.csv``, ``data/nutrition.csv``, ``data/feed_conversion.csv``) contain mock placeholder data
 * Always use the ``tools/smk`` wrapper to run Snakemake, as it enforces memory limits to prevent system instability
 * The first run will take significant time to download global datasets (~several GB)
-
