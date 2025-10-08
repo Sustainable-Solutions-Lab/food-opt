@@ -7,9 +7,9 @@
 Process Global Dietary Database (GDD) country-level dietary intake data.
 
 Reads multiple v*_cnty.csv files from GDD, extracts national-level baseline
-intake estimates (aggregated across age/sex/urban/education strata), maps
-GDD food variables to model food groups, and outputs a consolidated
-baseline diet file.
+intake estimates by age group (aggregated across sex/urban/education strata),
+maps GDD food variables to model food groups, and outputs a consolidated
+baseline diet file with age stratification.
 
 Input:
     - GDD directory with Country-level estimates/*.csv files
@@ -17,7 +17,8 @@ Input:
     - Food groups from config
 
 Output:
-    - CSV with columns: scenario,unit,item,country,year,value
+    - CSV with columns: unit,item,country,age,year,value
+    - Age groups: 0-1, 1-2, 2-5, 6-10, 11-74, 75+ years, plus "All ages" aggregate
 """
 
 import sys
@@ -117,65 +118,73 @@ def main():
                     print(f"ERROR: Still no data for {csv_file.name}", file=sys.stderr)
                     continue
 
-            # Aggregate to country level (weighted mean across strata)
+            # Aggregate to country-age level (weighted mean across sex/urban/education strata)
             # GDD stratifies by age, sex, urban, education
-            # We want population-weighted national averages
+            # We want population-weighted national averages by age group
             # The 'median' column is the mean intake (50th percentile of modeled simulations)
 
-            # For national-level estimates, we want rows where strata are "999" (all ages/all)
-            # Check if such aggregated rows exist
-            if "age" in df_year.columns:
-                natl = df_year[df_year["age"] == 999].copy()
-                if natl.empty:
-                    # If no pre-aggregated national data, compute weighted average across strata
-                    # This is complex without population weights, so we'll take simple mean
-                    print(
-                        f"  No pre-aggregated national data (age==999) for {csv_file.name}. "
-                        "Computing unweighted mean across strata.",
-                        file=sys.stderr,
-                    )
-                    natl = (
-                        df_year.groupby("iso3")["median"]
-                        .mean()
-                        .reset_index()
-                        .rename(columns={"median": "value"})
-                    )
+            # Map age midpoints to age buckets compatible with GBD naming
+            # Based on GDD energy adjustment buckets: 0-1, 1-2, 2-5, 6-10, 11-74, 75+
+            def map_age_bucket(age_val):
+                if age_val == 999:
+                    return "All ages"
+                elif age_val <= 1:
+                    return "0-1 years"
+                elif age_val <= 2:
+                    return "1-2 years"
+                elif age_val <= 5:
+                    return "2-5 years"
+                elif age_val <= 10:
+                    return "6-10 years"
+                elif age_val <= 74:
+                    return "11-74 years"
                 else:
-                    # Use pre-aggregated national data
-                    # Some files have multiple national rows (e.g., by sex/urban), so still average
-                    natl = (
-                        natl.groupby("iso3")["median"]
-                        .mean()
-                        .reset_index()
-                        .rename(columns={"median": "value"})
-                    )
+                    return "75+ years"
+
+            if "age" in df_year.columns:
+                # Add age bucket column
+                df_year["age_bucket"] = df_year["age"].apply(map_age_bucket)
+
+                # Aggregate across sex/urban/education but keep age buckets
+                # Take mean across other strata for each country-age bucket combination
+                natl = (
+                    df_year.groupby(["iso3", "age_bucket"])["median"]
+                    .mean()
+                    .reset_index()
+                    .rename(columns={"median": "value"})
+                )
             else:
-                # Simpler structure: already aggregated
+                # Simpler structure: already aggregated, no age info
                 natl = (
                     df_year.groupby("iso3")["median"]
                     .mean()
                     .reset_index()
                     .rename(columns={"median": "value"})
                 )
+                natl["age_bucket"] = "All ages"
 
             natl["varcode"] = varcode
             item_data.append(natl)
 
         # Aggregate multiple GDD variables into the same food group
-        # For example, dairy = cheese + yogurt, fruits = fruits + fruit juices, etc.
+        # For example, fruits = fruits + fruit juices, starchy_vegetable = potatoes + other starchy veg
         if item_data:
             if len(item_data) == 1:
                 # Single variable maps to this food group
                 combined = item_data[0].copy()
                 combined["item"] = model_item
-                combined = combined[["iso3", "value", "item"]]
+                combined = combined[["iso3", "age_bucket", "value", "item"]]
             else:
-                # Multiple variables map to this food group - sum them
+                # Multiple variables map to this food group - sum them by country-age
                 print(
                     f"[prepare_gdd_dietary_intake] Aggregating {len(item_data)} GDD variables for {model_item}"
                 )
                 combined = pd.concat(item_data, ignore_index=True)
-                combined = combined.groupby("iso3")["value"].sum().reset_index()
+                combined = (
+                    combined.groupby(["iso3", "age_bucket"])["value"]
+                    .sum()
+                    .reset_index()
+                )
                 combined["item"] = model_item
 
             combined["year"] = reference_year
@@ -188,24 +197,34 @@ def main():
     # Concatenate all food groups
     result = pd.concat(all_data, ignore_index=True)
 
-    # Add scenario and unit columns
-    result["scenario"] = "BMK"  # Baseline scenario
-    result["unit"] = "g/d_w"  # grams per day per person (weighted)
-    result = result.rename(columns={"iso3": "country"})
+    # Add unit column with item-specific descriptions
+    # GDD reports foods in "as consumed" weights (fresh/cooked, not dry)
+    # See Miller et al. (2017) Global Dietary Database methodology
+    def get_unit(item):
+        if item == "dairy":
+            return (
+                "g/day (milk equiv)"  # Total milk equivalents from all dairy products
+            )
+        else:
+            return "g/day (fresh wt)"  # Fresh/cooked "as consumed" weight
 
-    # Reorder columns to standard format
-    result = result[["scenario", "unit", "item", "country", "year", "value"]]
+    result["unit"] = result["item"].apply(get_unit)
+    result = result.rename(columns={"iso3": "country", "age_bucket": "age"})
 
-    # Sort by country and item for readability
-    result = result.sort_values(["country", "item"]).reset_index(drop=True)
+    # Reorder columns to standard format with age stratification
+    result = result[["unit", "item", "country", "age", "year", "value"]]
+
+    # Sort by country, item, and age for readability
+    result = result.sort_values(["country", "item", "age"]).reset_index(drop=True)
 
     print(
-        f"[prepare_gdd_dietary_intake] Processed {len(result)} country-item pairs "
-        f"for {result['country'].nunique()} countries"
+        f"[prepare_gdd_dietary_intake] Processed {len(result)} country-item-age combinations "
+        f"for {result['country'].nunique()} countries and {result['age'].nunique()} age groups"
     )
     print(
         f"[prepare_gdd_dietary_intake] Food groups: {sorted(result['item'].unique())}"
     )
+    print(f"[prepare_gdd_dietary_intake] Age groups: {sorted(result['age'].unique())}")
 
     # Fill in missing countries using proxy data from similar countries
     # This is for territories/dependencies that don't have separate GDD data
@@ -233,7 +252,7 @@ def main():
             if missing in COUNTRY_PROXIES:
                 proxy = COUNTRY_PROXIES[missing]
                 if proxy in output_countries:
-                    # Duplicate proxy country's data for the missing country
+                    # Duplicate proxy country's data for the missing country (all age groups)
                     proxy_data = result[result["country"] == proxy].copy()
                     proxy_data["country"] = missing
                     result = pd.concat([result, proxy_data], ignore_index=True)

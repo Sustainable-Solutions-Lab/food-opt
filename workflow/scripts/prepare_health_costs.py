@@ -205,9 +205,9 @@ def _filter_and_prepare_data(
 ) -> tuple:
     """Filter datasets to reference year and compute derived quantities."""
     # Filter dietary intake data
+    # Use "All ages" aggregate for now (age-specific matching is future work)
     diet = diet[
-        (diet["scenario"] == "BMK")
-        & (diet["unit"] == "g/d_w")
+        (diet["age"] == "All ages")
         & (diet["year"] == reference_year)
         & (diet["country"].isin(cfg_countries))
     ]
