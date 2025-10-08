@@ -90,30 +90,25 @@ grazing:
 
 food_groups:
   whole_grains:
-    # min_per_person_per_day: 170  # g/person/day (WHO recommendations)
-    min_per_person_per_day: 50
+    min_per_person_per_day: 0
   grain:
-    # min_per_person_per_day: 150  # g/person/day (refined grains)
-    min_per_person_per_day: 50
+    min_per_person_per_day: 0
   fruits:
-    # min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
-    min_per_person_per_day: 50
+    min_per_person_per_day: 0
   vegetables:
-    # min_per_person_per_day: 200  # g/person/day (WHO: 400g fruit+veg, split evenly)
-    min_per_person_per_day: 50
+    min_per_person_per_day: 0
   legumes:
-    min_per_person_per_day: 50   # g/person/day (beans, lentils, peas)
+    min_per_person_per_day: 0
   nuts_seeds:
-    min_per_person_per_day: 20   # g/person/day (nuts and seeds)
+    min_per_person_per_day: 0
   starchy_vegetable:
-    # min_per_person_per_day: 100  # g/person/day (potatoes, etc.)
-    min_per_person_per_day: 50
+    min_per_person_per_day: 0
   oil:
-    min_per_person_per_day: 25   # g/person/day (essential fats)
+    min_per_person_per_day: 0
   red_meat:
-    min_per_person_per_day: 10   # g/person/day (minimize for health)
+    min_per_person_per_day: 0
   dairy:
-    min_per_person_per_day: 30
+    min_per_person_per_day: 0
 
 trade:
   crop_hubs: 20
