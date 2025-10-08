@@ -18,17 +18,12 @@ This distinction captures the fundamental trade-off between extensive (land-inte
 Animal Products
 ---------------
 
-The model includes five major animal product categories configured in ``config/config.yaml``:
+The model includes five major animal product categories configured in ``config/default.yaml``:
 
-.. code-block:: yaml
-
-   animal_products:
-     include:
-       - cattle meat
-       - pig meat
-       - chicken meat
-       - dairy
-       - eggs
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: animal_products ---
+   :end-before: # --- section: food_groups ---
 
 Each product can be produced via either production system, with different feed requirements and efficiencies.
 
@@ -239,24 +234,12 @@ These are incorporated into the production link efficiencies, priced at the conf
 Configuration Parameters
 ------------------------
 
-.. code-block:: yaml
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: animal_products ---
+   :end-before: # --- section: trade ---
 
-   animal_products:
-     include:
-       - cattle meat
-       - pig meat
-       - chicken meat
-       - dairy
-       - eggs
-
-   grazing:
-     enabled: true  # Allow grazing-based production
-
-   food_groups:
-     animal protein:
-       min_per_person_per_day: 30  # g/person/day
-
-Disabling grazing (``enabled: false``) forces all animal products to come from feed-based systems or imports, useful for exploring intensification scenarios.
+Disabling grazing (``enabled: false``) forces all animal products to come from feed-based systems or imports, useful for exploring intensification scenarios. All food group minima are zero by default; raise ``food_groups.animal_protein.min_per_person_per_day`` (e.g., to 30 g) to enforce minimum consumption of animal-source foods.
 
 Workflow Rules
 --------------
@@ -295,4 +278,3 @@ Potential enhancements to the livestock module:
 * **Monogastric vs. ruminant**: More detailed emission factor differentiation
 * **Dairy vs. beef cattle**: Currently combined; could separate for more realistic herd dynamics
 * **Regional suitability**: Some regions better suited for grazing (e.g., arid rangelands) vs. feedlots
-

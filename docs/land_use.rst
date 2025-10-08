@@ -176,26 +176,17 @@ These are areas for future refinement. See :doc:`environment` for how LUC emissi
 Configuration Parameters
 ------------------------
 
-Key configuration parameters for land use aggregation (in ``config/config.yaml``):
+Key configuration parameters for land use aggregation (in ``config/default.yaml``):
 
-.. code-block:: yaml
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: aggregation ---
+   :end-before: # --- section: countries ---
 
-   aggregation:
-     regions:
-       target_count: 400          # Number of optimization regions
-       allow_cross_border: false  # Whether regions can span countries
-       method: "kmeans"           # Clustering algorithm
-     simplify_tolerance_km: 5     # Geometry simplification tolerance
-     simplify_min_area_km: 25     # Remove enclaves smaller than this
-     resource_class_quantiles:    # Quantile breakpoints for classes
-       - 0.25
-       - 0.5
-       - 0.75
-     land_limit_dataset: "suitability"  # or "irrigated"
-
-   primary:
-     land:
-       regional_limit: 0.7        # Fraction of potential cropland made available
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: primary ---
+   :end-before: # --- section: emissions ---
 
 The ``regional_limit`` parameter applies a global constraint on how much of each region's suitable land can be used (0.7 = 70%). This represents institutional, ecological, or social constraints on agricultural expansion.
 
@@ -240,4 +231,3 @@ Resource class distribution can be visualized using::
     tools/smk results/{name}/plots/resource_classes_map.pdf
 
 These maps show the spatial distribution of optimization regions and the quality stratification of land within each region.
-

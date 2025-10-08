@@ -43,10 +43,10 @@ Carbon Pricing
 
 Emissions are priced at a configurable rate:
 
-.. code-block:: yaml
-
-   emissions:
-     ghg_price: 200  # USD/tCO₂-eq
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: emissions ---
+   :end-before: # --- section: crops ---
 
 This creates an economic incentive to reduce emissions, making the model prefer:
 
@@ -107,11 +107,10 @@ Land Constraints
 
 To limit unsustainable expansion:
 
-.. code-block:: yaml
-
-   primary:
-     land:
-       regional_limit: 0.7  # Max 70% of potential cropland available
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: downloads ---
+   :end-before: # --- section: primary ---
 
 This prevents unrealistic conversion of all suitable land.
 
@@ -167,11 +166,10 @@ Global Fertilizer Limit
 
 To prevent excessive pollution:
 
-.. code-block:: yaml
-
-   primary:
-     fertilizer:
-       limit: 2e11  # kg NPK (200 Mt)
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: primary ---
+   :end-before: # --- section: emissions ---
 
 This caps total nitrogen-phosphorus-potassium application globally, forcing efficient use.
 
@@ -261,4 +259,3 @@ Plots water use, fertilizer use, land use by region.
     tools/smk results/{name}/plots/water_value_map.pdf
 
 Shows economic value of water in each region (where water constraints bind).
-

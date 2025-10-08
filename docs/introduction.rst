@@ -85,11 +85,20 @@ Quick Start
 Running Your First Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The easiest way to get started is to run the included toy configuration::
+The quickest path to a runnable scenario is:
 
-    tools/smk -j4 all
+1. Copy the defaults::
 
-This command will:
+       cp config/default.yaml config/my_scenario.yaml
+
+2. Edit ``config/my_scenario.yaml`` and add a ``name`` field near the top (for
+   example ``name: "my_scenario"``).
+
+3. Run the workflow with your scenario file::
+
+       tools/smk -j4 --configfile config/my_scenario.yaml all
+
+This sequence will:
 
 1. Download required global datasets (GAEZ, GADM, UN population, etc.)
 2. Process and harmonize spatial data for the configured countries
@@ -97,7 +106,7 @@ This command will:
 4. Solve the optimization problem
 5. Generate summary statistics and visualizations
 
-Results will be saved under ``results/toy/``.
+Results will be saved under ``results/my_scenario/``.
 
 Understanding the Workflow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -111,18 +120,18 @@ The Snakemake workflow is organized into stages:
 
 You can target individual stages by specifying the output file. For example, to only build the model without solving::
 
-    tools/smk -j4 results/toy/build/model.nc
+    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/build/model.nc
 
 Or to just prepare regional aggregation::
 
-    tools/smk -j4 processing/toy/regions.geojson
+    tools/smk -j4 --configfile config/my_scenario.yaml processing/my_scenario/regions.geojson
 
 See :doc:`workflow` for detailed information on the workflow stages.
 
 Configuring Your First Scenario
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The toy configuration (``config/config.yaml``) provides a starting point. Key parameters to adjust:
+The baseline configuration (``config/default.yaml``) provides a starting point. Key parameters to adjust:
 
 * ``countries``: List of ISO 3166-1 alpha-3 country codes to include
 * ``aggregation.regions.target_count``: Number of optimization regions (trade-off between detail and solve time)
@@ -132,7 +141,7 @@ The toy configuration (``config/config.yaml``) provides a starting point. Key pa
 
 After editing the configuration, create a new named scenario by changing the ``name`` field at the top of the file, then run::
 
-    tools/smk -j4 all
+    tools/smk -j4 --configfile config/<your-name>.yaml all
 
 Results will be saved under ``results/<your-name>/``.
 

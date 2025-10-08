@@ -12,6 +12,15 @@ import pandas as pd
 import pypsa
 import xarray as xr
 
+try:  # Used for type annotations / documentation; fallback when unavailable
+    import linopy  # type: ignore
+except Exception:  # pragma: no cover - documentation build without linopy
+
+    class linopy:  # type: ignore
+        class Model:  # Minimal stub to satisfy type checkers and autodoc
+            pass
+
+
 from pypsa._options import options
 from pypsa.optimization.optimize import _optimize_guard
 

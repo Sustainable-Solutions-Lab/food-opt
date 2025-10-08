@@ -197,23 +197,17 @@ The model supports multiple LP solvers:
 * **HiGHS** (default, open-source): Fast interior-point method, suitable for large problems
 * **Gurobi** (commercial): Often faster for very large problems, supports advanced solver options
 
-Solver selection and options are configured in ``config/config.yaml``:
+Solver selection and options are configured in ``config/default.yaml``:
 
-.. code-block:: yaml
-
-   solving:
-     solver: highs  # or "gurobi"
-     options_highs:
-       solver: "ipm"
-       mip_rel_gap: 0.001
-     options_gurobi:
-       Method: 2  # barrier method
-       MIPGap: 0.001
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: solving ---
+   :end-before: # --- section: plotting ---
 
 Model Scale
 -----------
 
-Typical model dimensions (for the toy configuration with 400 regions):
+Typical model dimensions (for the default configuration with 400 regions):
 
 * **Regions**: 400 sub-national optimization regions
 * **Crops**: ~70 crop types

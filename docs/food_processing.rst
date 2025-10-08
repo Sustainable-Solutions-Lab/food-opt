@@ -90,39 +90,10 @@ This reduces links from O(n²) to O(n × h + h²), where n = regions and h = hub
 Configuration
 ~~~~~~~~~~~~~
 
-.. code-block:: yaml
-
-   trade:
-     crop_hubs: 20                          # Number of crop trade hubs
-     crop_default_trade_cost_per_km: 1e-2   # Default transport cost (USD/t/km)
-
-     crop_trade_cost_categories:
-       bulk_dry_goods:
-         cost_per_km: 6e-3                  # Cheaper for bulk (wheat, maize)
-         crops:
-           - wheat
-           - maize
-           - soybean
-       perishable_high_value:
-         cost_per_km: 2.2e-2                # Expensive for fresh produce
-         crops:
-           - tomato
-           - banana
-
-     non_tradable_crops:                    # Local-only commodities
-       - alfalfa                            # Fodder crops
-       - biomass-sorghum
-
-     animal_product_hubs: 20
-     animal_product_default_trade_cost_per_km: 2.1e-2
-     animal_product_trade_cost_categories:
-       chilled_meat:
-         cost_per_km: 2.8e-2
-         products:
-           - cattle meat
-           - pig meat
-
-     non_tradable_animal_products: []
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: trade ---
+   :end-before: # --- section: health ---
 
 Trade Cost Categories
 ~~~~~~~~~~~~~~~~~~~~~
@@ -255,4 +226,3 @@ Trade flow results can be visualized (future enhancement):
 * **Flow maps**: Arrows showing commodity flows between regions
 * **Net trade balances**: Choropleth maps of exports (green) vs. imports (red)
 * **Hub networks**: Graph visualization of hub connectivity
-

@@ -151,12 +151,13 @@ Adding a New Crop
 
 2. **Add to config**:
 
-   .. code-block:: yaml
+   .. literalinclude:: ../config/default.yaml
+      :language: yaml
+      :start-after: # --- section: crops ---
+      :end-before: # --- section: macronutrients ---
+      :dedent: 0
 
-      crops:
-        - wheat
-        - maize
-        - my_new_crop  # Add here
+   Append your new crop to this list (e.g., ``- my_new_crop``).
 
 3. **Add GAEZ mapping** (if needed):
 
@@ -169,7 +170,7 @@ Adding a New Crop
 
 4. **Run workflow**::
 
-       tools/smk -j4 results/toy/solved/model.nc
+       tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model.nc
 
    Snakemake will automatically download new GAEZ files and incorporate the crop.
 
@@ -204,12 +205,11 @@ Adding a New Constraint
               constant=min_legume_t,  # From config
           )
 
-3. **Add config parameter**:
+3. **Add config parameter**: In your scenario override (e.g., ``config/my_scenario.yaml``), append a new section such as ``constraints`` after the defaults. Use ``config/default.yaml`` as a baseline—for reference, it currently ends with the plotting palette definition shown below:
 
-   .. code-block:: yaml
-
-      constraints:
-        min_legume_production: 1e6  # tonnes globally
+   .. literalinclude:: ../config/default.yaml
+      :language: yaml
+      :start-after: # --- section: plotting ---
 
 4. **Test**: Run with new constraint, verify feasibility
 
@@ -259,19 +259,19 @@ Adding a New Visualization
 
 4. **Run**::
 
-       tools/smk results/toy/plots/my_metric.pdf
+       tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/my_metric.pdf
 
 Testing
 -------
 
-Validation with Toy Config
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Quickstart Validation
+~~~~~~~~~~~~~~~~~~~~~
 
-The ``toy`` configuration (400 regions, relaxed constraints) serves as an integration test.
+A lightly customized scenario (e.g., 400 regions with relaxed dietary bounds) serves as an integration test before heavier runs.
 
 **Run full workflow**::
 
-    tools/smk -j4 all
+    tools/smk -j4 --configfile config/my_scenario.yaml all
 
 **Expected outcome**: Completes without errors, produces all plots
 
@@ -294,13 +294,13 @@ Workflow Testing
 Test individual stages::
 
     # Test region building
-    tools/smk processing/toy/regions.geojson
+    tools/smk --configfile config/my_scenario.yaml processing/my_scenario/regions.geojson
 
     # Test yield processing for one crop
-    tools/smk processing/toy/crop_yields/wheat_r.csv
+    tools/smk --configfile config/my_scenario.yaml processing/my_scenario/crop_yields/wheat_r.csv
 
     # Test model building (no solving)
-    tools/smk results/toy/build/model.nc
+    tools/smk --configfile config/my_scenario.yaml results/my_scenario/build/model.nc
 
 This allows catching errors early without waiting for full workflow.
 
@@ -333,7 +333,7 @@ Follow conventional commit style:
 * ``fix: Correct water requirement unit conversion``
 * ``docs: Update health module documentation``
 * ``refactor: Simplify resource class computation``
-* ``test: Add validation for toy config``
+* ``test: Add validation for quickstart config``
 
 What to Commit
 ~~~~~~~~~~~~~~
@@ -451,7 +451,7 @@ Before Submitting a Pull Request
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 1. **Run linter**: ``uv run ruff check . && uv run ruff format .``
-2. **Test workflow**: Verify toy config runs successfully
+2. **Test workflow**: Verify your quickstart scenario runs successfully
 3. **Update documentation**: If changing user-facing behavior
 4. **Add SPDX headers**: To any new files
 5. **Write commit messages**: Descriptive and following conventions
@@ -474,4 +474,3 @@ Community Guidelines
 * **Ask questions**: If unsure about approach, open an issue for discussion
 * **Document changes**: Help others understand your contributions
 * **Iterate**: Expect revisions, embrace code review
-

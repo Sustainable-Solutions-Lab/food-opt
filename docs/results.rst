@@ -42,7 +42,7 @@ Accessing in Python
 
    import pypsa
 
-   n = pypsa.Network("results/toy/solved/model.nc")
+   n = pypsa.Network("results/my_scenario/solved/model.nc")
 
    # Access component data
    links_df = n.links  # All links (production, processing, trade)

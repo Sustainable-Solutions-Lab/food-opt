@@ -13,7 +13,7 @@ The crop production module translates GAEZ yield potentials and land availabilit
 Crop Coverage
 -------------
 
-The toy configuration includes approximately 70 crops spanning major food categories:
+The default configuration includes approximately 70 crops spanning major food categories:
 
 **Cereals**
   * Wheat, dryland rice, wetland rice, maize
@@ -43,7 +43,7 @@ The toy configuration includes approximately 70 crops spanning major food catego
 **Fodder Crops**
   * Alfalfa, biomass sorghum
 
-The complete crop list is configured in ``config/config.yaml`` under the ``crops`` key.
+The complete crop list is configured in ``config/default.yaml`` under the ``crops`` key.
 
 GAEZ Yield Data
 ---------------
@@ -53,19 +53,12 @@ Yield potentials come from the FAO/IIASA Global Agro-Ecological Zones (GAEZ) v5 
 GAEZ Configuration
 ~~~~~~~~~~~~~~~~~~
 
-Key GAEZ parameters in ``config/config.yaml``:
+Key GAEZ parameters in ``config/default.yaml``:
 
-.. code-block:: yaml
-
-   data:
-     gaez:
-       climate_model: "GFDL-ESM4"       # GCM or "ENSEMBLE"
-       period: "FP2140"                 # Time period (2021-2040)
-       scenario: "SSP126"               # Emissions scenario
-       input_level: "H"                 # "H" (high) or "L" (low inputs)
-       yield_var: "RES05-YCX"          # Attainable yield variable
-       suitability_var: "RES05-SX1"    # Suitability fraction
-       water_requirement_var: "RES05-WDC"  # Irrigation water deficit
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: data ---
+   :end-before: # --- section: irrigation ---
 
 **Climate Models**: Individual GCMs (GFDL-ESM4, IPSL-CM6A-LR, MPI-ESM1-2-HR, MRI-ESM2-0, UKESM1-0-LL) or multi-model ENSEMBLE
 
@@ -219,10 +212,10 @@ Irrigation Configuration
 
 The ``irrigation.irrigated_crops`` parameter controls which crops can use irrigation:
 
-.. code-block:: yaml
-
-   irrigation:
-     irrigated_crops: "all"  # or list of specific crops
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: irrigation ---
+   :end-before: # --- section: solving ---
 
 Setting this to a subset of crops (e.g., only high-value crops like rice, wheat, vegetables) can explore scenarios where irrigation infrastructure is limited.
 
@@ -305,4 +298,3 @@ Crop production results can be visualized with several plotting rules:
 **Crop utilization** (food vs. feed vs. waste)::
 
     tools/smk results/{name}/plots/crop_use_breakdown.pdf
-

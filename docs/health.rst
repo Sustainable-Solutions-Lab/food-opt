@@ -179,23 +179,10 @@ help interpret objective values ex post.
 Configuration Highlights
 ------------------------
 
-.. code-block:: yaml
-
-   health:
-     region_clusters: 30               # Number of geographic health clusters
-     reference_year: 2018              # Baseline year for diet and mortality data
-     intake_grid_step: 10              # g/day spacing for risk breakpoints
-     log_rr_points: 10                 # Points for aggregated log-RR interpolation
-     value_per_yll: 150000             # USD per year of life lost
-     risk_factors:
-       - fruits
-       - vegetables
-       - nuts_seeds
-       - legumes
-       - fish
-       - red_meat
-       - prc_meat
-       - whole_grains
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: health ---
+   :end-before: # --- section: aggregation ---
 
 Lowering ``region_clusters`` or ``log_rr_points`` eases the optimisation at the
 cost of coarser health resolution. ``health.intake_grid_step`` controls the

@@ -151,19 +151,19 @@ Running Specific Stages
 
 **Build model only** (no solving)::
 
-    tools/smk -j4 results/toy/build/model.nc
+    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/build/model.nc
 
 **Solve existing built model**::
 
-    tools/smk -j4 results/toy/solved/model.nc
+    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model.nc
 
 **Regenerate specific plot** (assuming model solved)::
 
-    tools/smk results/toy/plots/crop_production.pdf
+    tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/crop_production.pdf
 
 **Prepare data without building model**::
 
-    tools/smk -j4 processing/toy/regions.geojson processing/toy/resource_classes.nc
+    tools/smk -j4 --configfile config/my_scenario.yaml processing/my_scenario/regions.geojson processing/my_scenario/resource_classes.nc
 
 Checking Workflow Status
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -217,10 +217,10 @@ Snakemake parallelizes independent tasks:
 **Example** — 8-core machine::
 
     # Data prep with parallelism
-    tools/smk -j8 processing/toy/resource_classes.nc
+    tools/smk -j8 --configfile config/my_scenario.yaml processing/my_scenario/resource_classes.nc
 
     # Solving (solver will use multiple cores)
-    tools/smk -j1 results/toy/solved/model.nc
+    tools/smk -j1 --configfile config/my_scenario.yaml results/my_scenario/solved/model.nc
 
 Snakemake automatically detects dependencies and runs tasks in correct order.
 
@@ -261,7 +261,7 @@ Incremental Development
 
 **Rerun specific rule**::
 
-    tools/smk -j4 results/toy/solved/model.nc --forcerun solve_model
+    tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model.nc --forcerun solve_model
 
 Network Access for Downloads
 -----------------------------
@@ -293,7 +293,7 @@ Workflow Customization
 1. Create script in ``workflow/scripts/plot_*.py``
 2. Add rule in ``workflow/rules/plotting.smk``
 3. Add output to ``all`` rule dependencies
-4. Run: ``tools/smk results/toy/plots/my_new_plot.pdf``
+4. Run: ``tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/my_new_plot.pdf``
 
 **Changing spatial resolution**:
 
@@ -308,4 +308,3 @@ Workflow Best Practices
 * **Incremental testing**: Test with small region counts (50-100) before full-scale runs
 * **Monitor memory**: Watch system resources during first run to gauge memory needs
 * **Checkpoint frequently**: For long-running workflows, confirm intermediate outputs (``build/model.nc``) succeed before solving
-

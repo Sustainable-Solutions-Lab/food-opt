@@ -8,7 +8,7 @@ Current Diets
 Overview
 --------
 
-The model uses empirical dietary intake data from the Global Dietary Database (GDD) to represent current consumption patterns. This baseline data serves multiple purposes:
+The model uses empirical dietary intake data from the Global Dietary Database (GDD) [Miller2017]_ [Miller2022]_ [GDD2024]_ to represent current consumption patterns. This baseline data serves multiple purposes:
 
 * **Health impact assessment**: Calculating disease burden attributable to current dietary patterns
 * **Baseline reference**: Comparing optimized diets against current consumption
@@ -22,9 +22,21 @@ Data Source
   * **Coverage**: 185 countries, individual-level dietary surveys (1990-2018)
   * **Variables**: 54 dietary factors including foods, beverages, and nutrients
   * **Download**: Requires free registration at https://globaldietarydatabase.org/data-download
-  * **Citation**: Global Dietary Database. Dietary intake data by country, 2018. https://www.globaldietarydatabase.org/
+  * **Citation**: [GDD2024]_
 
 The GDD compiles and harmonizes national dietary surveys from around the world using standardized protocols. Data are stratified by age, sex, urban/rural residence, and education level, then aggregated to national-level estimates using population weights.
+
+Weight Conventions
+~~~~~~~~~~~~~~~~~~
+
+GDD reports all dietary intake values in **grams per day using "as consumed" weights** (Miller et al., 2017). This means:
+
+* **Fresh vegetables and fruits**: Reported in fresh weight (e.g., a raw apple, fresh tomato)
+* **Grains**: Reported in cooked weight (e.g., cooked rice, prepared bread)
+* **Dairy**: Reported as **total milk equivalents**, which includes milk, yogurt, cheese and other dairy products converted to their milk equivalent weight
+* **Meats**: Reported in cooked/prepared weight
+
+The model preserves these conventions in the processed output files. Units in the output CSV distinguish between general fresh weight (``g/day (fresh wt)``) and dairy milk equivalents (``g/day (milk equiv)``).
 
 GDD to Food Group Mapping
 --------------------------
@@ -104,34 +116,50 @@ The GDD data processing pipeline (``workflow/scripts/prepare_gdd_dietary_intake.
 
 1. **Load GDD files**: Read country-level CSV files (``v*_cnty.csv``) for each dietary variable
 2. **Filter to reference year**: Extract data for ``config.health.reference_year`` (default: 2018)
-3. **Aggregate strata**: Compute national averages across age/sex/education/urban-rural groups
-4. **Map to food groups**: Apply the GDD-to-food-group mapping defined in the script
-5. **Aggregate variables**: Sum multiple GDD variables that map to the same food group
-6. **Handle missing countries**: Apply proxies for territories without separate GDD data
-7. **Validate completeness**: Ensure all required countries and food groups are present
-8. **Output**: Write ``processing/{name}/gdd_dietary_intake.csv``
+3. **Map age groups**: Convert GDD age midpoints to GBD-compatible age buckets (0-1, 1-2, 2-5, 6-10, 11-74, 75+ years)
+4. **Aggregate strata**: Compute national averages by age group across sex/education/urban-rural strata
+5. **Map to food groups**: Apply the GDD-to-food-group mapping defined in the script
+6. **Aggregate variables**: Sum multiple GDD variables that map to the same food group (preserving age stratification)
+7. **Handle missing countries**: Apply proxies for territories without separate GDD data
+8. **Validate completeness**: Ensure all required countries and food groups are present
+9. **Output**: Write ``processing/{name}/gdd_dietary_intake.csv`` with age-stratified data
 
 Output Format
 ~~~~~~~~~~~~~
 
 The processed dietary intake file has the following structure:
 
-.. code-block:: csv
+.. code-block:: none
 
-   scenario,unit,item,country,year,value
-   BMK,g/d_w,dairy,USA,2018,187.1
-   BMK,g/d_w,fruits,USA,2018,145.2
-   BMK,g/d_w,vegetables,USA,2018,185.3
+   unit,item,country,age,year,value
+   g/day (milk equiv),dairy,USA,0-1 years,2018,252.3
+   g/day (milk equiv),dairy,USA,1-2 years,2018,258.3
+   g/day (milk equiv),dairy,USA,11-74 years,2018,174.6
+   g/day (milk equiv),dairy,USA,All ages,2018,187.1
+   g/day (fresh wt),fruits,USA,11-74 years,2018,145.2
    ...
 
 Where:
 
-* ``scenario``: "BMK" (baseline)
-* ``unit``: "g/d_w" (grams per day, population-weighted)
+* ``unit``: Weight convention specific to the food group
+
+  * ``g/day (fresh wt)``: Fresh/cooked "as consumed" weight for most foods
+  * ``g/day (milk equiv)``: Total milk equivalents for dairy
+
 * ``item``: Food group name
 * ``country``: ISO 3166-1 alpha-3 country code
+* ``age``: Age group using GBD-compatible naming
+
+  * ``0-1 years``: Infants under 1 year
+  * ``1-2 years``: Toddlers 1-2 years
+  * ``2-5 years``: Early childhood 2-5 years
+  * ``6-10 years``: Middle childhood 6-10 years
+  * ``11-74 years``: Adults 11-74 years
+  * ``75+ years``: Elderly 75+ years
+  * ``All ages``: Population-weighted average across all age groups
+
 * ``year``: Reference year
-* ``value``: Mean daily intake in grams per person
+* ``value``: Mean daily intake in grams per person for the specified age group
 
 Country Coverage
 ----------------
@@ -145,6 +173,25 @@ The GDD dataset covers 185 countries. For a small number of territories without 
 
 These proxies are defined in the ``COUNTRY_PROXIES`` dictionary in ``prepare_gdd_dietary_intake.py``.
 
+Age Stratification
+------------------
+
+The processed data preserves age stratification from the GDD source, providing dietary intake estimates for seven age groups. This stratification serves multiple purposes:
+
+**Variation across life stages**
+  Dietary patterns differ substantially across age groups. For example, dairy consumption is typically highest in early childhood (250-265 g/day for ages 0-10) and lower in adulthood (175 g/day for ages 11-74), reflecting both nutritional needs and cultural feeding practices.
+
+**Energy adjustment**
+  The GDD applies age-specific energy adjustment to normalize intakes (700 kcal/day for infants to 2000 kcal/day for adults). This ensures that reported intake values reflect dietary patterns after accounting for differences in total energy consumption across ages.
+
+**Health burden calculation**
+  Age-stratified data enables more accurate baseline health burden estimates, as disease risks and mortality rates vary substantially by age. The health module can weight dietary risks appropriately across the age distribution.
+
+**Future extensions**
+  Age-stratified baseline data supports planned model features such as age-specific dietary constraints, life-course health dynamics, and demographic transition scenarios.
+
+The ``All ages`` rows provide population-weighted averages useful for simple comparisons and validation against aggregate statistics.
+
 Integration with Health Module
 -------------------------------
 
@@ -157,15 +204,27 @@ Current dietary intake data is essential for calculating baseline health burden:
 
 See :doc:`health` for details on how dietary intake translates to health outcomes.
 
+**Current implementation note**: The health module currently uses the ``All ages`` population-weighted aggregate from the GDD data. Full age-specific matching of dietary intake with age-stratified mortality and morbidity data is planned for future development. The age-stratified dietary data is preserved in the processed output to support this enhancement.
+
 Example: Dairy Consumption
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The GDD "Total Milk" variable (v57) represents total dairy consumption in milk equivalents:
+The GDD "Total Milk" variable (v57) represents total dairy consumption in milk equivalents. Age-stratified data shows substantial variation across life stages:
 
-* **USA**: 187.1 g/day per capita
-* **France**: 327.8 g/day per capita (high cheese/yogurt consumption)
-* **India**: 82.3 g/day per capita
-* **China**: 271.7 g/day per capita
+**USA (2018)**
+  * 0-10 years: 250-265 g/day (high consumption in childhood)
+  * 11-74 years: 175 g/day (adult average)
+  * 75+ years: 206 g/day (moderate elderly consumption)
+  * All ages: 187 g/day (population average)
+
+**France (2018)**
+  * All ages: 328 g/day (high cheese/yogurt consumption culture)
+
+**India (2018)**
+  * All ages: 82 g/day (lower but culturally significant)
+
+**China (2018)**
+  * All ages: 272 g/day (increasing with economic development)
 
 This "Total Milk" metric includes liquid milk, cheese, yogurt, and other dairy products converted to milk equivalents, providing a comprehensive measure of dairy consumption that aligns with the GBD dairy risk factor.
 
@@ -209,6 +268,12 @@ Future Extensions
 
 Planned enhancements for current diet integration:
 
+**Age-specific health modeling**
+  * Match age-stratified dietary intake with age-specific mortality and morbidity rates
+  * Compute age-weighted health burdens rather than using population aggregates
+  * Enable life-course health impact analysis and age-targeted interventions
+  * Currently: health module uses ``All ages`` aggregate; age-stratified data available for future use
+
 **Dietary transition constraints**
   * Limit how far optimized diets can deviate from current patterns
   * Model feasibility of large-scale dietary shifts
@@ -231,6 +296,8 @@ Planned enhancements for current diet integration:
 
 References
 ----------
+
+.. [Miller2017] Miller V, Yusuf S, Chow CK, et al. Availability, affordability, and consumption of fruits and vegetables in 18 countries across income levels: findings from the Prospective Urban Rural Epidemiology (PURE) study. *Lancet Global Health*, 2016;4(10):e695-e703. doi:10.1016/S2214-109X(16)30186-3
 
 .. [Miller2022] Miller V, Reedy J, Cudhea F, et al. Global, regional, and national consumption of animal-source foods between 1990 and 2018: findings from the Global Dietary Database. *The Lancet Planetary Health*, 2022;6(3):e243-e256. doi:10.1016/S2542-5196(21)00352-1
 

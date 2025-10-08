@@ -132,7 +132,7 @@ Visualization Errors
 * Inspect model to see if expected links/buses exist::
 
       import pypsa
-      n = pypsa.Network("results/toy/solved/model.nc")
+      n = pypsa.Network("results/my_scenario/solved/model.nc")
       print(n.links.index)  # List all links
 
 **Solution**: Fix model building script or update plotting script to handle missing components
@@ -319,13 +319,13 @@ A: Regions with data::
     import geopandas as gpd
     import pypsa
 
-    n = pypsa.Network("results/toy/solved/model.nc")
-    regions = gpd.read_file("processing/toy/regions.geojson")
+    n = pypsa.Network("results/my_scenario/solved/model.nc")
+    regions = gpd.read_file("processing/my_scenario/regions.geojson")
 
     # Add production/emission columns to regions GeoDataFrame
     # regions["production"] = extract_regional_production(n)
 
-    regions.to_file("results/toy/exports/regions_with_data.geojson")
+    regions.to_file("results/my_scenario/exports/regions_with_data.geojson")
 
 Then import GeoJSON into QGIS, ArcGIS, etc.
 
@@ -344,4 +344,3 @@ Getting Help
 * System info (OS, Python version, RAM)
 
 **Discussion**: GitHub Discussions for questions, feature requests, or general Q&A
-

@@ -27,7 +27,13 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = [
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    ".uv-cache",
+    "*/.uv-cache/*",
+]
 
 # HTML output options
 html_theme = "furo"
@@ -63,3 +69,9 @@ intersphinx_mapping = {
 typehints_fully_qualified = False
 always_document_param_types = True
 typehints_document_rtype = True
+# Autodoc tweaks
+autodoc_typehints = "none"
+autodoc_mock_imports = [
+    "linopy",
+    "pypsa",
+]

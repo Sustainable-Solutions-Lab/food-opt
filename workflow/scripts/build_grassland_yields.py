@@ -14,7 +14,10 @@ from affine import Affine
 from exactextract import exact_extract
 from exactextract.raster import NumPyRasterSource
 
-from raster_utils import calculate_all_cell_areas, raster_bounds
+try:
+    from workflow.scripts.raster_utils import calculate_all_cell_areas, raster_bounds
+except ImportError:  # Snakemake script execution fallback
+    from raster_utils import calculate_all_cell_areas, raster_bounds  # type: ignore
 
 
 def _build_dummy_raster(transform: Affine, width: int, height: int):

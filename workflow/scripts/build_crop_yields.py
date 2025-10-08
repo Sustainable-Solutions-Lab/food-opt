@@ -12,7 +12,10 @@ from exactextract import exact_extract
 from exactextract.raster import NumPyRasterSource
 import xarray as xr
 
-from raster_utils import calculate_all_cell_areas, scale_fraction
+try:
+    from workflow.scripts.raster_utils import calculate_all_cell_areas, scale_fraction
+except ImportError:  # Snakemake script execution fallback
+    from raster_utils import calculate_all_cell_areas, scale_fraction  # type: ignore
 import pandas as pd
 
 

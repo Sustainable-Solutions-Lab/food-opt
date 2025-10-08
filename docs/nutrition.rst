@@ -22,19 +22,12 @@ Macronutrients
 Configuration
 ~~~~~~~~~~~~~
 
-Macronutrient constraints are specified in ``config/config.yaml``:
+Macronutrient constraints are specified in ``config/default.yaml``:
 
-.. code-block:: yaml
-
-   macronutrients:
-     carb:
-       min: 250        # g/person/day
-     protein:
-       min: 50         # g/person/day
-     fat:
-       min: 50         # g/person/day
-     kcal:
-       equal: 2400     # kcal/person/day
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: macronutrients ---
+   :end-before: # --- section: animal_products ---
 
 **Constraint types**:
 
@@ -77,25 +70,12 @@ Beyond macronutrients, the model constrains consumption of food groups to promot
 Configuration
 ~~~~~~~~~~~~~
 
-.. code-block:: yaml
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: food_groups ---
+   :end-before: # --- section: trade ---
 
-   food_groups:
-     whole grain:
-       min_per_person_per_day: 50    # g/person/day
-     grain:
-       min_per_person_per_day: 50
-     fruit:
-       min_per_person_per_day: 50
-     vegetable:
-       min_per_person_per_day: 50
-     starchy vegetable:
-       min_per_person_per_day: 50
-     oil:
-       min_per_person_per_day: 25
-     animal protein:
-       min_per_person_per_day: 30
-
-**Rationale**: WHO recommends ≥400 g/day fruit+vegetables, ≥150 g/day whole grains. The toy config uses relaxed constraints (50 g/day) for faster solving.
+**Defaults**: All minima are zero in the base config, leaving food group constraints inactive. Raise these values (e.g., 50 g/day for ``whole_grains``) to enforce dietary diversity targets aligned with WHO guidance (≥400 g/day fruit+vegetables, ≥150 g/day whole grains).
 
 Food Group Mapping
 ~~~~~~~~~~~~~~~~~~
@@ -256,4 +236,3 @@ Nutritional constraints are incorporated in the ``build_model`` rule:
 5. **Add global constraints**: Population × requirement bounds
 
 No separate rule needed—nutrition is integrated into the model structure.
-
