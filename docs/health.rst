@@ -8,230 +8,192 @@ Health Impacts
 Overview
 --------
 
-The health module translates dietary choices into population health outcomes measured in DALYs (Disability-Adjusted Life Years). This captures the disease burden associated with suboptimal diet composition, based on epidemiological dose-response relationships from the Global Burden of Disease (GBD) study.
+The health module converts dietary choices in the optimisation into monetised
+health impacts. It combines epidemiological evidence on diet–disease links with
+country-level baseline mortality and demographic data, and then represents that
+relationship inside the linear programme through carefully constructed
+piecewise-linear (SOS2) approximations. The objective therefore weighs
+production, environmental and health costs in a consistent monetary unit.
 
-Health impacts are incorporated into the objective function, allowing the model to trade off environmental costs against health costs.
+Key ideas:
 
-Dietary Risk Factors
+- Dietary risk factors from the Global Burden of Disease (GBD) study underpin
+  the exposure–response curves.
+- Countries are grouped into health clusters to keep the optimisation tractable
+  while preserving heterogeneity in baseline burden and valuation.
+- Relative risks multiply across risk factors, so we work in log space to turn
+  the problem into additions that can be linearised.
+
+Data Inputs
+-----------
+
+``workflow/scripts/prepare_health_costs.py`` assembles the following datasets:
+
+- **Baseline diet** (``data/health/processed/diet_intake.csv``): average daily
+  intake by country and food item.
+- **Relative risks** (``data/health/processed/relative_risks.csv``): dose–response
+  pairs for each (risk factor, disease cause) combination.
+- **Mortality rates** (``data/health/processed/mortality.csv``): cause-specific
+  death rates by age, country and year.
+- **Population and life tables** (``processing/{name}/population_age.csv`` and
+  ``processing/{name}/life_table.csv``): age-structured population counts and
+  remaining life expectancy schedules.
+- **Value of statistical life (optional)** (``data/health/processed/vsl.csv``):
+  used when ``health.value_of_statistical_life`` is set to ``"regional"``.
+
+Preparation Workflow
 --------------------
 
-The model tracks eight major dietary risk factors linked to chronic disease:
+The preprocessing script performs these steps:
 
-Configuration
-~~~~~~~~~~~~~
+1. **Health clustering** – dissolves country geometries, computes equal-area
+   centroids and runs K-means to assign each country to one of
+   ``health.region_clusters`` clusters. The cluster map is saved as
+   ``processing/{name}/health/country_clusters.csv``.
+2. **Baseline burden** – combines mortality, population and life expectancy to
+   compute years of life lost (YLL) per country and aggregates them to the
+   health clusters. The results go into
+   ``processing/{name}/health/cluster_cause_baseline.csv`` and
+   ``processing/{name}/health/cluster_summary.csv``.
+3. **Value per YLL** – either reads the regional VSL dataset or applies the
+   configured constant, then converts each cluster’s value of a statistical life
+   into a value per YLL using average years lost per death.
+4. **Risk-factor breakpoints** – builds dense grids of intake values (including
+   observed exposures and configured ``health.intake_grid_step``) and evaluates
+   :math:`\log(RR)` for every (risk, cause) pair. These tables are written to
+   ``processing/{name}/health/risk_breakpoints.csv``.
+5. **Cause-level breakpoints** – as the optimisation needs to recover
+   :math:`RR = \exp(\sum_r \log RR_{r})`, the script also constructs breakpoints
+   for the aggregated log-relative-risk and its exponential. Stored as
+   ``processing/{name}/health/cause_log_breakpoints.csv``.
 
-.. code-block:: yaml
+The generated tables drive the linearisation in
+``workflow/scripts/solve_model.py``.
 
-   health:
-     risk_factors:
-       - fruits              # Low fruit intake
-       - vegetables          # Low vegetable intake
-       - nuts_seeds          # Low nuts/seeds intake
-       - legumes             # Low legume intake
-       - fish                # Low seafood omega-3 intake
-       - red_meat            # High red meat intake
-       - prc_meat            # High processed meat intake
-       - whole_grains        # Low whole grain intake
-
-Each risk factor has:
-
-* **Optimal intake**: Level associated with minimum disease risk
-* **Dose-response curve**: How mortality/morbidity changes with intake
-* **Attributable diseases**: Which conditions are affected (IHD, stroke, diabetes, colorectal cancer, etc.)
-
-Data Sources
-~~~~~~~~~~~~
-
-The health module combines data from multiple sources:
-
-**Mortality rates**: `IHME Global Burden of Disease Study 2021 <https://vizhub.healthdata.org/gbd-results/>`_
-  * Cause-specific death rates by country and age
-  * Processed via ``workflow/scripts/prepare_gbd_mortality.py``
-  * See ``data/DATASETS.md`` for download instructions
-
-**Baseline dietary intake**: `Global Dietary Database <https://www.globaldietarydatabase.org/>`_ (Tufts University)
-  * Country-level mean daily intake for major food groups and dietary risk factors
-  * Based on systematic review and meta-analysis of national dietary surveys
-  * Processed via ``workflow/scripts/prepare_gdd_dietary_intake.py``
-  * See ``data/DATASETS.md`` and ``data/manually_downloaded/README.md`` for download instructions
-
-**Risk factor relationships**: `IHME Global Burden of Disease Study 2019 <https://vizhub.healthdata.org/gbd-results/>`_
-  * Appendix Table 7a (relative risks by diet risk, outcome, and exposure)
-  * Parsed via ``workflow/scripts/prepare_relative_risks.py`` into ``data/health/processed/relative_risks.csv``
-  * Manual download required (see ``data/DATASETS.md``)
-
-Food-to-Risk Mapping
----------------------
-
-Foods map one-to-one to dietary risk factors via the static dictionary in
-``workflow/scripts/health_food_mapping.py`` (all shares are currently 1.0). Example:
-
-* ``apple`` → ``fruits``
-* ``beef`` → ``red_meat``
-* ``sausage`` → ``prc_meat``
-* ``whole_wheat_bread`` → ``whole_grains``
-
-Dose-Response Relationships
-----------------------------
-
-The epidemiological model relates intake to relative risk (RR):
-
-.. math::
-
-   RR(\text{intake}) = \exp(\beta \times (\text{intake} - \text{optimal}))
-
-Where:
-
-* :math:`\beta`: Slope parameter from meta-analyses
-* **optimal**: Intake level minimizing risk (e.g., 300 g/day fruits)
-* **RR**: Relative risk of mortality/disease compared to optimal intake
-
-Piecewise-Linear Approximation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-To keep the optimization linear, the model approximates log(RR) curves with piecewise-linear segments:
-
-1. **Breakpoints**: Divide intake range into bins (configured by ``health.intake_grid_step``)
-2. **Linear interpolation**: Between breakpoints, use linear approximation of log(RR)
-3. **Binary variables**: Not used—instead, the model uses SOS2 (Special Ordered Set of type 2) constraints or convex combination tricks to maintain linearity
-
-This allows capturing diminishing returns (e.g., going from 0→100 g/day fruits has bigger health benefit than 200→300 g/day) without nonlinear optimization.
-
-Regional Clustering
--------------------
-
-To reduce computational burden, countries with similar health profiles are clustered into health regions.
-
-Configuration
-~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   health:
-     region_clusters: 30         # Number of health clusters
-     reference_year: 2018        # Baseline year for health data
-     intake_grid_step: 10        # g/day granularity for dose-response
-     log_rr_points: 10           # Points for log(RR) linearization
-     omega3_per_100g_fish: 1.5   # g EPA+DHA per 100 g edible fish
-
-Clustering Process
-~~~~~~~~~~~~~~~~~~
-
-The ``prepare_health_costs`` rule (``workflow/scripts/prepare_health_costs.py``):
-
-1. **Load baseline data**: Country-level dietary intake, mortality, demographics
-2. **Cluster**: Group countries by similar baseline health burdens (k-means on baseline DALYs)
-3. **Compute dose-response**: For each cluster, calculate risk breakpoints and slopes
-4. **Valuation**: Apply the configured value of a statistical life (currently a global constant; the code retains optional hooks for future regional datasets).
-5. **Output**:
-
-   * ``processing/{name}/health/risk_breakpoints.csv``: Intake thresholds
-   * ``processing/{name}/health/cluster_cause_baseline.csv``: Baseline disease burden
-   * ``processing/{name}/health/cause_log_breakpoints.csv``: Linearized log(RR) segments
-   * ``processing/{name}/health/country_clusters.csv``: Country → cluster mapping
-
-This creates a representative health profile for each cluster, reducing the problem size from ~150 countries to ~30 clusters.
-
-DALY Calculation
-----------------
-
-DALYs combine mortality and morbidity:
-
-.. math::
-
-   \text{DALYs} = \text{YLL} + \text{YLD}
-
-* **YLL** (Years of Life Lost): Premature deaths × years lost per death
-* **YLD** (Years Lived with Disability): Non-fatal disease burden × disability weights
-
-The model focuses on mortality (YLL) for computational simplicity, as dietary risk factors primarily affect mortality risk.
-
-Calculation Steps
-~~~~~~~~~~~~~~~~~
-
-1. **Baseline mortality**: Country-specific death rates by cause (IHD, stroke, diabetes, CRC)
-2. **Population Attributable Fraction (PAF)**: % of deaths attributable to suboptimal diet
-
-   .. math::
-
-      PAF = \frac{RR - 1}{RR}
-
-3. **Attributable deaths**: Baseline deaths × PAF
-4. **Years of life lost**: Deaths × age-specific life expectancy
-5. **Total DALYs**: Σ(attributable deaths × YLL)
-
-Value of Statistical Life
+From Diet to Risk Exposure
 --------------------------
 
-DALYs are monetized using the Value of Statistical Life Year (VSLY) to make health costs commensurable with economic and environmental costs.
+Per-capita intake
+~~~~~~~~~~~~~~~~~
 
-Configuration
-~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   health:
-    value_of_statistical_life: 3_500_000  # USD per life (global constant)
-
-Options:
-
-* **Constant**: Single global VSLY (e.g., 3.5M USD, roughly US EPA value)
-* **"regional"**: Use region-specific VSL from DIA dataset (higher in high-income countries)
-
-The choice affects optimization priorities:
-
-* **High VSLY**: Model heavily weights health outcomes, may accept higher environmental costs for healthier diets
-* **Low VSLY**: Environmental costs dominate, nutrition meets minimums but health optimization is secondary
-
-Health Cost in Objective
--------------------------
-
-Health costs enter the objective function as:
+During optimisation, consumption flows are tracked on links named
+``consume_<food>_<ISO3>``. For each health cluster :math:`c` and risk factor
+:math:`r`, the solver forms a per-capita intake by combining these flows with
+shares from ``workflow/scripts/health_food_mapping.py``:
 
 .. math::
 
-   \text{Health cost} = \sum_{\text{clusters}} \text{DALYs}_{\text{cluster}} \times \text{VSLY}
+   I_{c,r} = \frac{10^{6}}{365\,P_c} \sum_{f \in \mathcal{F}_r} \alpha_{f,r} \; q_{c,f}
 
-This competes with:
+where
 
-* Production costs
-* Trade costs
-* Environmental costs (emissions × carbon price)
+- :math:`q_{c,f}` is the aggregated flow in million tonnes per year for food
+  :math:`f` consumed by cluster :math:`c`;
+- :math:`\alpha_{f,r}` is the share of food :math:`f` attributed to risk factor
+  :math:`r` (currently 1.0 or 0.0);
+- :math:`P_c` is the population represented by the cluster (baseline or updated
+  planning population);
+- the constant rescales from Mt/year to g/day.
 
-The optimal solution balances these trade-offs.
+Linearised relative risk curves
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Model Integration
------------------
+Each risk factor :math:`r` affects a subset of causes :math:`g`. The data from
+``risk_breakpoints.csv`` provides intake breakpoints
+:math:`x_0, \ldots, x_K` and the corresponding
+:math:`\log RR_{r,g}(x_k)` values. For every (cluster, risk) pair we introduce
+SOS2 “lambda” variables :math:`\lambda_k` that satisfy
 
-Health constraints are added during solving (``workflow/scripts/solve_model.py``), not model building, because they require:
+.. math::
+   \sum_k \lambda_k = 1,\qquad I_{c,r} = \sum_k x_k\,\lambda_k,
 
-1. **Baseline burden**: Loading pre-computed health cluster data
-2. **Food consumption variables**: Must be defined first in the model
-3. **Risk factor aggregation**: Summing food consumption → risk factor intake
-4. **Piecewise-linear constraints**: Linking intake to log(RR) to DALYs
+and approximate the log-relative-risk as
 
-Process:
+.. math::
+   \log RR_{c,r,g} = \sum_k \lambda_k\, \log RR_{r,g}(x_k).
 
-1. **Load model**: Read built PyPSA network
-2. **Load health data**: Risk breakpoints, dose-response, baseline burden
-3. **Create risk intake variables**: Σ(food consumption × food-to-risk weights)
-4. **Create DALY variables**: Link intake → RR → attributable deaths → YLL
-5. **Add to objective**: DALYs × VSLY
-6. **Solve**: Optimize with health costs included
+SOS2 constraints keep only two adjacent :math:`\lambda_k` active, yielding a
+piecewise-linear interpolation without binary decision variables when the
+solver supports SOS2. When HiGHS is used, the implementation falls back to a
+compact binary formulation.
 
-Configuration Parameters
+Aggregating across risk factors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Epidemiological evidence models the combined effect of multiple risk factors on
+one cause as multiplicative:
+
+.. math::
+   RR_{c,g} = \prod_{r \in \mathcal{R}_g} RR_{c,r,g}.
+
+Taking logarithms converts this to a sum that remains compatible with linear
+programming:
+
+.. math::
+   \log RR_{c,g} = \sum_{r \in \mathcal{R}_g} \log RR_{c,r,g}.
+
+The solver accumulates the contributions from each risk factor into
+``log_rr_totals`` for every cluster–cause pair.
+
+Recovering total relative risk
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The optimisation needs :math:`RR_{c,g}` again to price health damages. The
+preprocessed ``cause_log_breakpoints.csv`` supplies points
+:math:`(z_m, \exp(z_m))` that cover the feasible range of
+:math:`z = \log RR_{c,g}`. A second SOS2 interpolation enforces
+
+.. math::
+   z = \sum_m z_m \theta_m,\qquad RR_{c,g} = \sum_m e^{z_m} \theta_m,
+
+with :math:`\sum_m \theta_m = 1`. This gives a consistent linearised mapping
+from the aggregated log-relative-risk back to the multiplicative relative risk.
+
+Monetising years of life lost
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For each cluster–cause pair the preprocessing step stores:
+
+- :math:`\mathrm{YLL}^{\mathrm{base}}_{c,g}` – baseline years of life lost, and
+- :math:`V_{c}` – value per YLL derived from the value of a statistical life and
+  the average years lost per death.
+
+The solver also records the reference log-relative-risk
+:math:`z^{\mathrm{ref}}_{c,g}` (from baseline diets) and its exponential
+:math:`RR^{\mathrm{ref}}_{c,g}`. The contribution to the objective is
+constructed as
+
+.. math::
+   \text{Cost}_{c,g} = V_c\, \mathrm{YLL}^{\mathrm{base}}_{c,g}
+   \left( \frac{RR_{c,g}}{RR^{\mathrm{ref}}_{c,g}} - 1 \right).
+
+A constant term subtracts
+:math:`V_c\,\mathrm{YLL}^{\mathrm{base}}_{c,g}` so that the baseline diet has
+zero health cost and only improvements or deteriorations relative to the
+reference affect the optimisation.
+
+Objective Contribution
+----------------------
+
+``workflow/scripts/solve_model.py`` adds the summed cost over all clusters and
+causes to the PyPSA objective. If the solver exposes SOS2 constraints, the
+implementation keeps the formulation linear without integer variables; for
+HiGHS a tight binary fallback is activated. The script also records the constant
+baseline adjustment in ``network.meta["objective_constant_terms"]["health"]`` to
+help interpret objective values ex post.
+
+Configuration Highlights
 ------------------------
 
 .. code-block:: yaml
 
    health:
-     region_clusters: 30               # Number of health clusters
-     reference_year: 2018              # Baseline year for mortality data
-     intake_grid_step: 10              # g/day resolution for breakpoints
-     log_rr_points: 10                 # Linearization points for log(RR)
-    value_of_statistical_life: 3_500_000  # USD (set "regional" only if dataset provided)
-    omega3_per_100g_fish: 1.5            # g EPA+DHA per 100 g edible fish
-     risk_factors:                     # Which risk factors to include
+     region_clusters: 30               # Number of geographic health clusters
+     reference_year: 2018              # Baseline year for diet and mortality data
+     intake_grid_step: 10              # g/day spacing for risk breakpoints
+     log_rr_points: 10                 # Points for aggregated log-RR interpolation
+     value_of_statistical_life: 3_500_000  # USD; set "regional" to use VSL dataset
+     risk_factors:
        - fruits
        - vegetables
        - nuts_seeds
@@ -241,71 +203,31 @@ Configuration Parameters
        - prc_meat
        - whole_grains
 
-Reducing ``region_clusters`` or ``log_rr_points`` speeds up solving at the cost of health resolution.
+Lowering ``region_clusters`` or ``log_rr_points`` eases the optimisation at the
+cost of coarser health resolution. ``health.intake_grid_step`` controls the
+density of the first-stage interpolation grid; smaller values give smoother
+curves but produce larger tables.
 
-Visualization
--------------
+Outputs
+-------
 
-Health impact results can be visualized:
-
-**Health risk map**::
-
-    tools/smk results/{name}/plots/health_risk_map.pdf
-
-Shows spatial distribution of dietary risk-attributable DALYs.
-
-**Health baseline map**::
-
-    tools/smk results/{name}/plots/health_baseline_map.pdf
-
-Shows baseline (pre-optimization) health burden for comparison.
-
-**Regional health breakdown**::
-
-    tools/smk results/{name}/plots/health_risk_by_region.csv
-    tools/smk results/{name}/plots/health_baseline_by_region.csv
-
-CSV exports for detailed analysis.
-
-**Objective breakdown**::
-
-    tools/smk results/{name}/plots/objective_breakdown.pdf
-
-Shows contribution of health costs to total objective value.
-
-Scenario Exploration
---------------------
-
-Health module enables exploring:
-
-**Diet Quality vs. Environmental Impact**
-
-* High VSLY → healthier diets (more fruits/vegetables, less red meat) even if higher environmental costs
-* Low VSLY → environmentally optimal but potentially lower diet quality
-
-**Trade-offs Between Risk Factors**
-
-* Reducing red meat → lower IHD/CRC risk but may require other protein sources
-* Increasing nuts/legumes → health benefits but land use implications
-
-**Effectiveness of Dietary Guidelines**
-
-* Compare optimized diet to EAT-Lancet or national dietary guidelines
-* Assess if guidelines balance health, environment, and production constraints
+The preprocessing rule saves all intermediate products under
+``processing/{name}/health/``. Downstream plotting rules also create quick-look
+maps (``results/{name}/plots/health_*.pdf``) and CSV summaries to compare
+baseline versus optimised health outcomes.
 
 Limitations and Future Work
-----------------------------
+---------------------------
 
-Current limitations:
+- **Mortality focus** – only years of life lost are modelled; years lived with
+  disability are currently excluded.
+- **Static risk mapping** – all foods mapped to a risk factor contribute in
+  fixed proportions; nutrient interactions are not captured.
+- **Linearisation error** – SOS2 approximations introduce bounded error that
+  depends on the chosen grids. Monitor solver logs if experimenting with coarser
+  settings.
+- **Valuation assumptions** – constant or regional VSL choices can significantly
+  shift policy relevance; document your selections when sharing results.
 
-* **Mortality focus**: Doesn't capture morbidity (YLD), underestimates full burden
-* **Linear approximation**: Piecewise-linear may miss fine-grained nonlinear effects
-* **Aggregate risk factors**: Doesn't distinguish subtypes (e.g., processed vs. unprocessed red meat)
-* **No nutrient interactions**: Risk factors treated independently
-
-Future enhancements:
-
-* **Morbidity**: Add YLD for diabetes, obesity-related conditions
-* **Micronutrient deficiencies**: Iron, vitamin A, zinc deficiency burdens
-* **Age-structured**: Different optimal intakes for children vs. adults
-* **Dynamic health**: Multi-period model with health transitions
+Future extensions may add morbidity effects, age-dependent optimal intakes, or
+multi-period health dynamics that capture delayed impacts of dietary change.

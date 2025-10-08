@@ -4,12 +4,14 @@
 
 """Pre-compute health data for SOS2 linearisation in the solver."""
 
+import logging
 import math
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
 import geopandas as gpd
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from sklearn.cluster import KMeans
 
@@ -36,6 +38,9 @@ AGE_BUCKETS = [
     "90-94",
     "95+",
 ]
+
+
+logger = logging.getLogger(__name__)
 
 
 def _load_life_expectancy(path: str) -> pd.Series:
