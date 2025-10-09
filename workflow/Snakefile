@@ -52,6 +52,7 @@ def get_gaez_code(crop_name: str, module: str) -> str:
 include: "rules/retrieve.smk"
 include: "rules/plotting.smk"
 include: "rules/yield_gaps.smk"
+include: "rules/documentation.smk"
 
 
 wildcard_constraints:
@@ -89,6 +90,8 @@ rule all:
         f"results/{name}/plots/crop_use_breakdown.csv",
         f"results/{name}/plots/water_value_map.pdf",
         f"results/{name}/plots/food_consumption.pdf",
+        f"results/{name}/plots/food_consumption_map.pdf",
+        f"results/{name}/plots/food_consumption_map.csv",
 
 
 rule prepare_population:

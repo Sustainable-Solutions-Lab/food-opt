@@ -131,6 +131,19 @@ rule plot_food_consumption:
         "../scripts/plot_food_consumption.py"
 
 
+rule plot_food_consumption_map:
+    input:
+        network=f"results/{name}/solved/model.nc",
+        population=f"processing/{name}/population.csv",
+        clusters=f"processing/{name}/health/country_clusters.csv",
+        regions=f"processing/{name}/regions.geojson",
+    output:
+        pdf=f"results/{name}/plots/food_consumption_map.pdf",
+        csv=f"results/{name}/plots/food_consumption_map.csv",
+    script:
+        "../scripts/plot_food_consumption_map.py"
+
+
 def yield_map_inputs(wildcards):
     if wildcards.item == "pasture":
         return {"raster": "data/downloads/grassland_yield_historical.nc4"}
