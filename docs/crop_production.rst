@@ -8,12 +8,12 @@ Crop Production
 Overview
 --------
 
-The crop production module translates GAEZ yield potentials and land availability into production constraints for the optimization model. Each crop can be grown in multiple regions, on different resource classes, with either rainfed or irrigated water supply.
+The crop production module translates GAEZ yield potentials and land availability into production constraints for the optimization model. Each crop can be grown in multiple regions, on different resource classes, and potentially with either rainfed or irrigated water supply.
 
 Crop Coverage
 -------------
 
-The default configuration includes approximately 70 crops spanning major food categories:
+The default configuration includes over 60 crops spanning major food categories:
 
 **Cereals**
   * Wheat, dryland rice, wetland rice, maize
@@ -45,6 +45,8 @@ The default configuration includes approximately 70 crops spanning major food ca
 
 The complete crop list is configured in ``config/default.yaml`` under the ``crops`` key.
 
+.. Note:: Managed grassland is also modelled, but yields derived from the LPJmL mode; see :ref:`grassland-yields`
+
 GAEZ Yield Data
 ---------------
 
@@ -60,7 +62,7 @@ Key GAEZ parameters in ``config/default.yaml``:
    :start-after: # --- section: data ---
    :end-before: # --- section: irrigation ---
 
-**Climate Models**: Individual GCMs (GFDL-ESM4, IPSL-CM6A-LR, MPI-ESM1-2-HR, MRI-ESM2-0, UKESM1-0-LL) or multi-model ENSEMBLE
+**Climate Models**: Individual global circulation models (GCMs): GFDL-ESM4, IPSL-CM6A-LR, MPI-ESM1-2-HR, MRI-ESM2-0, UKESM1-0-LL; or multi-model ENSEMBLE
 
 **Periods**:
   * Historical: HP8100 (1981-2000), HP0120 (2001-2020)
@@ -83,12 +85,32 @@ The model uses several GAEZ raster products for each crop:
 * **Growing season start** (RES02): Julian day when growing season begins
 * **Growing season length** (RES02): Number of days in growing cycle
 
-Note: RES05 (yields/suitability) supports ENSEMBLE, but RES02 (growing season) only has individual GCM outputs.
+.. Note:: RES05 (yields/suitability) supports ENSEMBLE, but RES02 (growing season) only has individual GCM outputs.
+
+The following figures show yield potential maps for three major crops, illustrating the spatial variation in productivity that drives the optimization:
+
+.. figure:: _static/figures/crop_yield_wheat.svg
+   :width: 100%
+   :alt: Wheat yield potential map
+
+   Wheat rainfed yield potential (tonnes/hectare) from GAEZ v5. Higher yields are shown in darker green. Black lines indicate region boundaries. Wheat performs best in temperate zones with adequate rainfall.
+
+.. figure:: _static/figures/crop_yield_wetland-rice.svg
+   :width: 100%
+   :alt: Rice yield potential map
+
+   Wetland rice rainfed yield potential (tonnes/hectare) from GAEZ v5. Rice shows high productivity in tropical and subtropical regions with suitable water availability, particularly in Asia.
+
+.. figure:: _static/figures/crop_yield_maize.svg
+   :width: 100%
+   :alt: Maize yield potential map
+
+   Maize rainfed yield potential (tonnes/hectare) from GAEZ v5. Maize is adaptable across diverse climates, with strong yields in the Americas, parts of Africa, and temperate zones.
 
 Yield Aggregation
 -----------------
 
-Yields are aggregated from 0.05° gridcells to (region, resource_class, water_supply) combinations by ``workflow/scripts/build_crop_yields.py``.
+Yields are aggregated from the input resolution gridcells to (region, resource_class, water_supply) combinations by ``workflow/scripts/build_crop_yields.py``.
 
 Aggregation Process
 ~~~~~~~~~~~~~~~~~~~
@@ -165,17 +187,19 @@ The model constrains:
 Water Constraints
 -----------------
 
-For irrigated crops, water availability is a key constraint. The model tracks blue water (surface and groundwater) availability by basin and growing season.
+For irrigated crops, water availability is a key constraint. The model tracks blue water availability by basin and growing season.
 
 Basin-Level Availability
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-The model uses the Water Footprint Network's monthly blue water availability dataset for 405 GRDC river basins (Hoekstra & Mekonnen 2011).
+The model uses the Water Footprint Network's monthly blue water availability dataset for 405 GRDC river basins [hoekstra2011]_.
+
+.. [hoekstra2011] Hoekstra, A.Y. and Mekonnen, M.M. (2011) *Global water scarcity: monthly blue water footprint compared to blue water availability for the world's major river basins*, Value of Water Research Report Series No. 53, UNESCO-IHE, Delft, the Netherlands. http://www.waterfootprint.org/Reports/Report53-GlobalBlueWaterScarcity.pdf
 
 Processing steps (``workflow/scripts/process_blue_water_availability.py``):
 
 1. **Load basin shapefile** with monthly availability (Mm³/month)
-2. **Aggregate by basin and month** to get seasonal water budgets
+2. **Aggregate by basin and month** to get monthly water budgets
 
 Regional Water Assignment
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -188,6 +212,7 @@ Blue water availability is allocated to optimization regions based on spatial ov
 
    * Uses growing season start/length from GAEZ
    * Sums monthly availability over the growing period
+   * For now, this is done on average over all crops that can grow in the region
 
 4. **Output**: CSV files:
 
@@ -230,6 +255,8 @@ Crop production requires nitrogen (N), phosphorus (P), and potassium (K) fertili
 
 The fertilizer constraint is typically set at a realistic global scale (e.g., 200 Mt NPK/year) to prevent unrealistic intensification.
 
+For now, N, P & K are not differentiated, and their GHG emissions are not tracked appropriately; this is work in development.
+
 Growing Seasons
 ---------------
 
@@ -243,24 +270,27 @@ Currently, the model uses annual time resolution, so it implicitly assumes:
 * Each land parcel produces one crop per year
 * Water constraints apply to the full growing season
 
-Future extensions could add seasonal resolution to capture double-cropping opportunities.
+Allowing for growing multiple crops a year is work in development.
 
 Crop-Specific Data Files
 -------------------------
 
 **data/crops.csv**
-  Crop parameters including names, categories, fertilizer requirements, and emissions factors. Columns:
+  Long-form crop parameter table (mock starter data). Each row represents a ``(crop, param)`` pair:
 
-  * ``crop``: Crop code (matches config crop list)
-  * ``category``: Classification (cereal, legume, root, etc.)
-  * ``n_kg_per_t``, ``p_kg_per_t``, ``k_kg_per_t``: Fertilizer requirements
-  * ``co2_kg_per_t``, ``ch4_kg_per_t``, ``n2o_kg_per_t``: Production emissions
+  * ``crop``: Crop identifier matching entries used in configs and raster filenames
+  * ``param``: Parameter key (currently ``fertilizer``, ``co2``, or ``ch4``)
+  * ``unit``: Unit string for ``value`` (e.g., ``kg/t``)
+  * ``value``: Numeric parameter value interpreted according to ``param``
+  * ``description``: Free-text explanation of the assumption
+
+  Add new parameters by appending rows; comment lines starting with ``#`` are ignored by loaders.
 
 **data/gaez_crop_code_mapping.csv**
-  Mapping between food-opt crop names and GAEZ resource codes (RES02, RES05, RES06).
+  Lookup table aligning food-opt crop identifiers with GAEZ resource codes. Columns: ``crop_name``, ``description``, and the RES02/RES05/RES06 codes used to locate raster layers.
 
 **data/yield_unit_conversions.csv**
-  Conversion factors for crops with non-standard GAEZ units (e.g., sugarcane in GE/ha instead of kg/ha).
+  Optional per-crop overrides for converting raw GAEZ yields to tonnes per hectare. Columns: ``code`` (GAEZ crop code used in filenames), ``factor_to_t_per_ha`` (multiplier applied to raster values), and ``note`` for context. Unlisted crops fall back to the default ``0.001`` factor.
 
 Workflow Rules
 --------------

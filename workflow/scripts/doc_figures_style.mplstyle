@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Matplotlib style sheet for documentation figures
+# Ensures consistent appearance across all doc figures
+
+# Font settings (match Furo theme)
+font.family: sans-serif
+font.sans-serif: Source Sans Pro, Arial, Helvetica, sans-serif
+font.size: 10
+axes.titlesize: 12
+axes.labelsize: 10
+legend.fontsize: 9
+xtick.labelsize: 9
+ytick.labelsize: 9
+
+# Figure settings
+figure.figsize: 8, 6
+figure.dpi: 100
+savefig.dpi: 100
+savefig.bbox: tight
+savefig.pad_inches: 0.1
+savefig.format: svg
+
+# Colors (match Furo theme from docs/conf.py)
+# Primary brand colors: #3b745f (dark green), #5fa285 (light green)
+axes.prop_cycle: cycler('color', ['3b745f', '5fa285', 'e07a5f', 'f2cc8f', '81b29a', 'f4a261', '2a9d8f', 'e76f51'])
+axes.facecolor: white
+figure.facecolor: white
+axes.edgecolor: 333333
+text.color: 333333
+
+# Grid and spines
+axes.grid: True
+axes.grid.axis: y
+axes.axisbelow: True
+grid.alpha: 0.3
+grid.linewidth: 0.5
+grid.color: cccccc
+axes.spines.top: False
+axes.spines.right: False
+axes.spines.left: True
+axes.spines.bottom: True
+axes.linewidth: 0.8
+
+# Line and marker defaults
+lines.linewidth: 2
+lines.markersize: 6
+patch.linewidth: 0.5
+patch.facecolor: 3b745f
+patch.edgecolor: white
+
+# Legend
+legend.frameon: False
+legend.loc: best
+
+# Ticks
+xtick.direction: out
+ytick.direction: out
+xtick.major.size: 4
+ytick.major.size: 4
+xtick.minor.size: 2
+ytick.minor.size: 2
+
+# Error bars
+errorbar.capsize: 3

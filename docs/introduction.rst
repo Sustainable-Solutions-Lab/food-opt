@@ -54,6 +54,12 @@ Global Extent & Flexible Spatial Resolution
 * Optimization at configurable sub-national regional scale
 * Global coverage with detailed country and regional analysis
 
+.. figure:: _static/figures/intro_global_coverage.svg
+   :width: 100%
+   :alt: Global model coverage map
+
+   Global model coverage showing optimization regions. The model divides the world into sub-national regions (here 250 regions) that balance spatial detail with computational tractability. Each colored polygon represents an optimization region created by clustering administrative units.
+
 Getting Started
 ---------------
 

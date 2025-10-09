@@ -8,9 +8,9 @@ Development & Contributing
 Overview
 --------
 
-This page provides guidance for developers contributing to the food-opt project, including code conventions, testing procedures, and best practices.
+This page provides guidance for developers contributing to the food-opt project, including code conventions and best practices.
 
-For AI coding agents, see ``CLAUDE.md`` in the repository root for specific instructions.
+For AI coding agents, see ``AGENTS.md`` in the repository root for specific instructions.
 
 Development Setup
 -----------------
@@ -21,7 +21,6 @@ Prerequisites
 * Python >= 3.12
 * Git
 * uv (dependency manager)
-* pre-commit (for code quality hooks)
 
 Installation
 ~~~~~~~~~~~~
@@ -71,38 +70,9 @@ The project uses **ruff** for linting and formatting, enforcing:
 Specific Conventions
 ~~~~~~~~~~~~~~~~~~~~
 
-* **No unused imports**: Ruff removes them automatically
-* **No ``from __future__ import annotations``**: Unnecessary with modern Python
 * **Fail early**: Validate external inputs; trust internal invariants
 * **Concise logic**: Prefer simple control flow; avoid over-engineering
-* **Docstrings**: Use NumPy/Google style for functions with non-obvious behavior
-
-Example:
-
-.. code-block:: python
-
-   def aggregate_yields(
-       yields: np.ndarray,
-       classes: np.ndarray,
-       regions: gpd.GeoDataFrame,
-   ) -> pd.DataFrame:
-       """Aggregate gridded yields to (region, class) combinations.
-
-       Parameters
-       ----------
-       yields : np.ndarray
-           Yield raster (t/ha)
-       classes : np.ndarray
-           Resource class assignment raster
-       regions : gpd.GeoDataFrame
-           Region polygons
-
-       Returns
-       -------
-       pd.DataFrame
-           Columns: region, class, mean_yield
-       """
-       # Implementation...
+* **Docstrings**: Use NumPy style for functions with non-obvious behavior
 
 Licensing
 ~~~~~~~~~
@@ -139,79 +109,10 @@ Repository Structure
     ├── .gitignore
     ├── pyproject.toml       # Dependencies and tool config
     ├── README.md
-    └── CLAUDE.md            # AI agent guidance
+    └── AGENTS.md            # AI agent guidance
 
 Adding New Features
 -------------------
-
-Adding a New Crop
-~~~~~~~~~~~~~~~~~
-
-1. **Check GAEZ availability**: Ensure crop is in GAEZ v5 (see ``data/gaez_crop_code_mapping.csv``)
-
-2. **Add to config**:
-
-   .. literalinclude:: ../config/default.yaml
-      :language: yaml
-      :start-after: # --- section: crops ---
-      :end-before: # --- section: macronutrients ---
-      :dedent: 0
-
-   Append your new crop to this list (e.g., ``- my_new_crop``).
-
-3. **Add GAEZ mapping** (if needed):
-
-   Edit ``data/gaez_crop_code_mapping.csv``:
-
-   .. code-block:: text
-
-      crop_name,res02_code,res05_code,res06_code
-      my_new_crop,CROP_ID,CROP_ID,CROP_ID
-
-4. **Run workflow**::
-
-       tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model.nc
-
-   Snakemake will automatically download new GAEZ files and incorporate the crop.
-
-5. **Add metadata**: Update ``data/crops.csv`` with fertilizer requirements, emission factors, etc.
-
-Adding a New Constraint
-~~~~~~~~~~~~~~~~~~~~~~~
-
-1. **Identify constraint type**:
-
-   * Production limit (land, water, fertilizer)
-   * Nutritional requirement (macronutrient, food group)
-   * Environmental cap (emissions, nitrogen)
-   * Policy constraint (minimum animal product, organic share)
-
-2. **Implement in** ``workflow/scripts/build_model.py`` or ``solve_model.py``:
-
-   .. code-block:: python
-
-      # Example: Add minimum legume production constraint
-      legume_crops = ["soybean", "chickpea", "lentil"]
-      for country in countries:
-          legume_production = sum(
-              n.links[f"production_crop_{crop}_{country}"]["p0"]
-              for crop in legume_crops
-          )
-          n.add(
-              "GlobalConstraint",
-              f"min_legume_{country}",
-              type=">=",
-              carrier_attribute="legume_production",
-              constant=min_legume_t,  # From config
-          )
-
-3. **Add config parameter**: In your scenario override (e.g., ``config/my_scenario.yaml``), append a new section such as ``constraints`` after the defaults. Use ``config/default.yaml`` as a baseline—for reference, it currently ends with the plotting palette definition shown below:
-
-   .. literalinclude:: ../config/default.yaml
-      :language: yaml
-      :start-after: # --- section: plotting ---
-
-4. **Test**: Run with new constraint, verify feasibility
 
 Adding a New Visualization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -260,49 +161,6 @@ Adding a New Visualization
 4. **Run**::
 
        tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/my_metric.pdf
-
-Testing
--------
-
-Quickstart Validation
-~~~~~~~~~~~~~~~~~~~~~
-
-A lightly customized scenario (e.g., 400 regions with relaxed dietary bounds) serves as an integration test before heavier runs.
-
-**Run full workflow**::
-
-    tools/smk -j4 --configfile config/my_scenario.yaml all
-
-**Expected outcome**: Completes without errors, produces all plots
-
-**Typical runtime**: 30-90 minutes (depending on hardware, whether data is cached)
-
-Unit Testing (Future Work)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Currently, the project lacks formal unit tests. Future additions should cover:
-
-* **Utility functions**: raster processing, unit conversions
-* **Aggregation logic**: Resource class computation, yield averaging
-* **Constraint construction**: PyPSA component creation
-
-Use ``pytest`` for unit tests (add to ``pyproject.toml`` dev dependencies).
-
-Workflow Testing
-~~~~~~~~~~~~~~~~
-
-Test individual stages::
-
-    # Test region building
-    tools/smk --configfile config/my_scenario.yaml processing/my_scenario/regions.geojson
-
-    # Test yield processing for one crop
-    tools/smk --configfile config/my_scenario.yaml processing/my_scenario/crop_yields/wheat_r.csv
-
-    # Test model building (no solving)
-    tools/smk --configfile config/my_scenario.yaml results/my_scenario/build/model.nc
-
-This allows catching errors early without waiting for full workflow.
 
 Version Control
 ---------------
@@ -362,14 +220,9 @@ Building Documentation Locally
 
 ::
 
-    cd docs
-    uv run sphinx-build -b html . _build/html
+    tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs
     # Open _build/html/index.html in browser
 
-Or use the Makefile (if created)::
-
-    cd docs
-    make html
 
 Updating Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -377,7 +230,7 @@ Updating Documentation
 1. **Edit** ``.rst`` files in ``docs/``
 2. **Rebuild**::
 
-       cd docs && uv run sphinx-build -b html . _build/html
+       tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs
 
 3. **Check** for warnings/errors
 4. **Commit** documentation changes
@@ -416,45 +269,16 @@ Use NumPy-style docstrings:
        Additional implementation notes, references, etc.
        """
 
-Performance Optimization
-------------------------
-
-Profile Before Optimizing
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Use ``cProfile`` or ``line_profiler`` to identify bottlenecks:
-
-.. code-block:: python
-
-   import cProfile
-   cProfile.run("my_function()")
-
-Memory Profiling
-~~~~~~~~~~~~~~~~
-
-For memory-intensive operations::
-
-    uv run python -m memory_profiler workflow/scripts/my_script.py
-
-Optimization Tips
-~~~~~~~~~~~~~~~~~
-
-* **Vectorize with NumPy**: Avoid Python loops over large arrays
-* **Use exactextract for raster aggregation**: Much faster than naive pixel iteration
-* **Lazy loading**: Use ``xarray.open_dataset()`` with ``chunks`` for large files
-* **Parallelize Snakemake rules**: Independent rules run concurrently with ``-j``
-
 Contributing Guidelines
 -----------------------
 
 Before Submitting a Pull Request
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. **Run linter**: ``uv run ruff check . && uv run ruff format .``
-2. **Test workflow**: Verify your quickstart scenario runs successfully
+1. **Run linter**: ``uv run ruff check . && uv run ruff format .`` (this is taken care of automatically if you set up ``pre-commit``)
+2. **Test workflow**: Verify that the default configuration runs successfully
 3. **Update documentation**: If changing user-facing behavior
-4. **Add SPDX headers**: To any new files
-5. **Write commit messages**: Descriptive and following conventions
+4. **Write commit messages**: Descriptive and following conventions
 
 Pull Request Process
 ~~~~~~~~~~~~~~~~~~~~~
@@ -466,11 +290,3 @@ Pull Request Process
 5. Open pull request with description of changes
 6. Address review feedback
 7. Merge once approved
-
-Community Guidelines
---------------------
-
-* **Be respectful**: Constructive feedback, no harassment
-* **Ask questions**: If unsure about approach, open an issue for discussion
-* **Document changes**: Help others understand your contributions
-* **Iterate**: Expect revisions, embrace code review

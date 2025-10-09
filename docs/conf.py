@@ -59,8 +59,7 @@ autodoc_default_options = {
     "exclude-members": "__weakref__",
 }
 
-# Napoleon settings for Google/NumPy docstrings
-napoleon_google_docstring = True
+# Napoleon settings for NumPy docstrings
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = True
 

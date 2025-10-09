@@ -63,6 +63,9 @@ tools/smk -j4 --configfile config/<name>.yaml -- results/{config_name}/build/mod
 # Solve model only (after build)
 tools/smk -j4 --configfile config/<name>.yaml -- results/{config_name}/solved/model.nc
 
+# Build the docs, including figures
+tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs
+
 # Test small snippets of code
 uv run python <...>
 ```
@@ -70,10 +73,11 @@ uv run python <...>
 Notes:
 
 - For now, use the config/toy.yaml configuration file.
-- Snakemake tracks code changes and will rerun affected rules; manual cleanup of `results/` is usually unnecessary.
+- Snakemake tracks code changes and will rerun affected rules; manual cleanup of workflow artefacts is unnecessary. You almost never have to use the `--forcerun` argument.
 - Prefer small, testable edits and validate by running the narrowest target that exercises your change.
 - `tools/smk` runs Snakemake in a systemd cgroup with a hard 10G cap and swap disabled by default; override with `SMK_MEM_MAX=12G tools/smk ...`.
 - Retrieval / downloading rules and scripts make network calls; when running such rules you will need to ask for permission to run outside the sandbox in order to get network access.
+- Never rerun retrieval rules without explicitly being instructed to do so. This includes implicit calls like an indiscriminate use of the `--forceall` Snakemake argument.
 
 ## Repository Conventions
 

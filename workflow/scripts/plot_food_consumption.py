@@ -6,8 +6,10 @@
 
 import logging
 from pathlib import Path
+from typing import Dict
 
 import matplotlib
+import numpy as np
 import pandas as pd
 import pypsa
 
@@ -37,27 +39,67 @@ def _group_from_bus(bus: str) -> str:
     return remainder
 
 
+def _bus_column_to_leg(column: str) -> int | None:
+    if not column.startswith("bus"):
+        return None
+    suffix = column[len("bus") :]
+    if not suffix:
+        return 0
+    if suffix.isdigit():
+        return int(suffix)
+    return None
+
+
+def _link_dispatch_at_snapshot(
+    network: pypsa.Network, snapshot
+) -> dict[int, pd.Series]:
+    dispatch: dict[int, pd.Series] = {}
+    for attr in dir(network.links_t):
+        if not attr.startswith("p"):
+            continue
+        suffix = attr[1:]
+        if not suffix.isdigit():
+            continue
+        series = getattr(network.links_t, attr)
+        if snapshot not in series.index:
+            continue
+        dispatch[int(suffix)] = series.loc[snapshot]
+    return dispatch
+
+
 def _aggregate_group_mass(network: pypsa.Network, snapshot) -> pd.Series:
-    loads = network.loads
-    if loads.empty or not hasattr(network.loads_t, "p"):
+    links = network.links
+    if links.empty:
         return pd.Series(dtype=float)
 
-    load_dispatch = network.loads_t.p
-    if snapshot not in load_dispatch.index:
-        raise ValueError(f"Snapshot '{snapshot}' not present in loads time series")
+    consume_links = links[links.index.str.startswith("consume_")]
+    if consume_links.empty:
+        return pd.Series(dtype=float)
 
-    snapshot_values = load_dispatch.loc[snapshot]
-    totals: dict[str, float] = {}
+    bus_columns = [col for col in consume_links.columns if col.startswith("bus")]
+    if not bus_columns:
+        return pd.Series(dtype=float)
 
-    for load_name in loads.index:
-        bus = str(loads.at[load_name, "bus"])
-        if not bus.startswith("group_"):
-            continue
-        value = abs(float(snapshot_values.get(load_name, 0.0)))
-        if value <= 0.0:
-            continue
-        group = _group_from_bus(bus)
-        totals[group] = totals.get(group, 0.0) + value
+    dispatch_lookup = _link_dispatch_at_snapshot(network, snapshot)
+    if not dispatch_lookup:
+        return pd.Series(dtype=float)
+
+    totals: Dict[str, float] = {}
+    for link_name, row in consume_links[bus_columns].iterrows():
+        for column, bus_value in row.items():
+            if not isinstance(bus_value, str) or not bus_value.startswith("group_"):
+                continue
+            leg = _bus_column_to_leg(column)
+            if leg is None:
+                continue
+            dispatch = dispatch_lookup.get(leg)
+            if dispatch is None:
+                continue
+            value = float(dispatch.get(link_name, 0.0))
+            if value == 0.0 or not np.isfinite(value):
+                continue
+            group = _group_from_bus(bus_value)
+            totals[group] = totals.get(group, 0.0) + abs(value)
 
     return pd.Series(totals, dtype=float)
 

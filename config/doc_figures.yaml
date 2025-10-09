@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Configuration for generating documentation figures
+# This inherits from default.yaml but uses coarser resolution for faster execution
+# and to showcase global coverage without excessive computational cost
+
+name: "doc_figures"
+
+# Use coarser spatial aggregation for faster processing
+aggregation:
+  regions:
+    target_count: 250  # Reduced from 400 for faster processing
+  resource_class_quantiles: [0.33, 0.67]  # Just 3 classes instead of 4
+  land_limit_dataset: "irrigated"
+
+# Fewer trade hubs for simpler network visualization
+trade:
+  crop_hubs: 10  # Reduced from 20
+
+# Fewer health clusters
+health:
+  region_clusters: 15  # Reduced from 30
+  intake_grid_step: 20
+  log_rr_points: 10
+  risk_factors:
+  - fruits
+  - vegetables
+  - nuts_seeds
+  - legumes
+  - fish
+  - red_meat
+  - prc_meat
+  - whole_grains
+  causes:
+  - CHD
+  - Stroke
+  - T2D
+  - CKD
+
+# Select representative crops for visualization (subset of full list)
+# These will be used to generate crop-specific figures
+doc_figure_crops:
+  - wheat          # Major cereal
+  - wetland-rice   # Major cereal (Asia)
+  - maize          # Major cereal (Americas/Africa)
+  - soybean        # Major legume/oil crop
+  - white-potato   # Major tuber
+  - cassava        # Major tropical staple
+  - tomato         # Vegetable
+  - banana         # Fruit

@@ -76,6 +76,9 @@ Feed-Based Production
   * Competes with human food for crops
   * Depends on crop production infrastructure
 
+
+.. _grassland-yields:
+
 Grassland Yields
 ----------------
 

@@ -38,6 +38,12 @@ The model operates at sub-national regional resolution, defined by clustering ad
 
 The result is a set of contiguous optimization regions that respect national boundaries (unless cross-border clustering is enabled) and balance spatial detail with computational tractability.
 
+.. figure:: _static/figures/intro_global_coverage.svg
+   :width: 100%
+   :alt: Global model coverage map
+
+   Global model coverage showing optimization regions created by clustering administrative units.
+
 Resource Classes
 ----------------
 
@@ -84,10 +90,21 @@ Resource classes are computed by ``workflow/scripts/compute_resource_classes.py`
    * ``max_yield``: Maximum yield potential across all crops
    * Coordinate reference system and geotransform for spatial reference
 
-Example
-~~~~~~~
+Visual Example
+~~~~~~~~~~~~~~
 
-For a region with yield distribution [0.1, 0.5, 1.2, 2.0, 3.5, 5.0, 8.0] t/ha with quantiles [0.33, 0.67]:
+The figure below shows resource class stratification for a region in the western United States. Each colored pixel represents agricultural land classified by its yield potential, with darker blue indicating higher productivity (class 2) and lighter green-blue indicating lower productivity (class 0). The red boundary delineates the optimization region.
+
+.. figure:: _static/figures/land_resource_classes.svg
+   :width: 50%
+   :alt: Resource class distribution map showing yield potential categories
+
+   Resource class stratification within an example region. The spatial pattern reveals how land quality varies across the landscape, allowing the optimization model to preferentially allocate high-value crops to the most productive land while still utilizing lower-quality land for appropriate crops.
+
+Numerical Example
+~~~~~~~~~~~~~~~~~
+
+For a region with yield distribution [0.1, 0.5, 1.2, 2.0, 3.5, 5.0, 8.0] t/ha stratified using quantiles [0.33, 0.67]:
 
 * Class 0: [0.1, 0.5, 1.2] t/ha (bottom third)
 * Class 1: [2.0, 3.5] t/ha (middle third)
