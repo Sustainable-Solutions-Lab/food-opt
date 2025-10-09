@@ -7,6 +7,7 @@ gaez = config["data"]["gaez"]
 plotting_cfg = config.get("plotting", {})
 crop_color_overrides = plotting_cfg.get("colors", {}).get("crops", {})
 crop_fallback_cmap = plotting_cfg.get("fallback_cmaps", {}).get("crops", "Set3")
+food_group_colors = plotting_cfg.get("colors", {}).get("food_groups", {})
 
 
 def _gaez_actual_yield_raster_path(crop_name: str, water_supply: str) -> str:
@@ -127,6 +128,8 @@ rule plot_food_consumption:
         population=f"processing/{name}/population.csv",
     output:
         pdf=f"results/{name}/plots/food_consumption.pdf",
+    params:
+        group_colors=food_group_colors,
     script:
         "../scripts/plot_food_consumption.py"
 
@@ -140,8 +143,29 @@ rule plot_food_consumption_map:
     output:
         pdf=f"results/{name}/plots/food_consumption_map.pdf",
         csv=f"results/{name}/plots/food_consumption_map.csv",
+    params:
+        group_colors=food_group_colors,
     script:
         "../scripts/plot_food_consumption_map.py"
+
+
+rule plot_food_consumption_baseline_map:
+    input:
+        diet=f"processing/{name}/gdd_dietary_intake.csv",
+        population=f"processing/{name}/population.csv",
+        clusters=f"processing/{name}/health/country_clusters.csv",
+        regions=f"processing/{name}/regions.geojson",
+    output:
+        pdf=f"results/{name}/plots/food_consumption_baseline_map.pdf",
+        csv=f"results/{name}/plots/food_consumption_baseline_map.csv",
+    params:
+        age=config.get("diet", {}).get("baseline_age", "All ages"),
+        reference_year=config.get("diet", {}).get(
+            "baseline_reference_year", config["health"]["reference_year"]
+        ),
+        group_colors=food_group_colors,
+    script:
+        "../scripts/plot_baseline_food_consumption_map.py"
 
 
 def yield_map_inputs(wildcards):

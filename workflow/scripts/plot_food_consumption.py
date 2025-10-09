@@ -16,6 +16,11 @@ import pypsa
 matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 
+try:  # Prefer package import when available (e.g., during documentation builds)
+    from workflow.scripts.color_utils import categorical_colors
+except ImportError:  # Fallback to Snakemake's script-directory loader
+    from color_utils import categorical_colors  # type: ignore
+
 
 logger = logging.getLogger(__name__)
 
@@ -179,9 +184,10 @@ def _aggregate_group_calories(network: pypsa.Network, snapshot) -> pd.Series:
     return pd.Series(totals, dtype=float)
 
 
-def _assign_colors(groups: list[str]) -> dict[str, tuple[float, float, float, float]]:
-    cmap = plt.get_cmap("tab20")
-    return {group: cmap(i % cmap.N) for i, group in enumerate(groups)}
+def _assign_colors(
+    groups: list[str], overrides: Dict[str, str] | None = None
+) -> dict[str, str]:
+    return categorical_colors(groups, overrides)
 
 
 def _plot(
@@ -215,7 +221,8 @@ def _plot(
         plt.close(fig)
         return
 
-    colors = _assign_colors(ordered_groups)
+    group_colors = getattr(snakemake.params, "group_colors", {}) or {}
+    colors = _assign_colors(ordered_groups, group_colors)
 
     # Mass subplot
     ax_mass = axes[0]

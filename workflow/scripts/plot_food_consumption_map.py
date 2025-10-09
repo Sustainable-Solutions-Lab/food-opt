@@ -15,13 +15,14 @@ import geopandas as gpd
 import matplotlib
 
 matplotlib.use("pdf")
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import pypsa
+
+from color_utils import categorical_colors
 
 
 logger = logging.getLogger(__name__)
@@ -189,12 +190,10 @@ def _cluster_population(
     return result
 
 
-def _colors_for_groups(groups: Sequence[str]) -> Dict[str, str]:
-    cmap = plt.get_cmap("tab20")
-    colors: Dict[str, str] = {}
-    for idx, group in enumerate(groups):
-        colors[group] = mcolors.to_hex(cmap(idx % cmap.N))
-    return colors
+def _colors_for_groups(
+    groups: Sequence[str], overrides: Mapping[str, str] | None = None
+) -> Dict[str, str]:
+    return categorical_colors(groups, overrides)
 
 
 def _prepare_cluster_geodata(
@@ -512,7 +511,8 @@ def main() -> None:
         logger.warning("No positive consumption found after conversion")
 
     groups = consumption.sum(axis=0).sort_values(ascending=False).index.tolist()
-    colors = _colors_for_groups(groups)
+    group_colors = getattr(snakemake.params, "group_colors", {}) or {}
+    colors = _colors_for_groups(groups, group_colors)
 
     cluster_gdf, cluster_gdf_eq = _prepare_cluster_geodata(regions_path, iso_to_cluster)
     _plot_cluster_pies(consumption, cluster_gdf, cluster_gdf_eq, colors, output_pdf)

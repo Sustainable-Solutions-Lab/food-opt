@@ -543,5 +543,19 @@ plotting:
       alfalfa: "#1ABC9C"
       'biomass-sorghum': "#16A085"
       grassland: "#7FB77E"
+    food_groups:
+      whole_grains: "#8C564B"
+      grain: "#C49C94"
+      fruits: "#E15759"
+      vegetables: "#59A14F"
+      legumes: "#B07AA1"
+      nuts_seeds: "#AA7C51"
+      starchy_vegetable: "#F28E2C"
+      oil: "#FFBE7D"
+      red_meat: "#D62728"
+      poultry: "#FF9896"
+      dairy: "#9EDAE5"
+      eggs: "#FFE377"
+
   fallback_cmaps:
     crops: "Set3"

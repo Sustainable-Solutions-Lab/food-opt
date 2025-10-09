@@ -91,7 +91,7 @@ rule all:
         f"results/{name}/plots/water_value_map.pdf",
         f"results/{name}/plots/food_consumption.pdf",
         f"results/{name}/plots/food_consumption_map.pdf",
-        f"results/{name}/plots/food_consumption_map.csv",
+        f"results/{name}/plots/food_consumption_baseline_map.pdf",
 
 
 rule prepare_population:
