@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Global Dietary Database
+#
+# SPDX-License-Identifier: PDDL-1.0
+
 Global Dietary Database Terms of Use
 
 Source: https://globaldietarydatabase.org/terms-and-conditions-use

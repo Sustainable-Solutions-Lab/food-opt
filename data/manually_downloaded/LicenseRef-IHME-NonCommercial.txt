@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Institute for Health Metrics and Evaluation
+#
+# SPDX-License-Identifier: PDDL-1.0
+
 Free-of-Charge Non-commercial User Agreement
 
 ​This Free-of-Charge Non-Commercial User Agreement (the "Agreement") is entered into between the Board of Regents of the University of Washington, an institution of higher education and an agency of the State of Washington with its principal campus located in Seattle, Washington ("UW"), on behalf of the UW's School of Medicine ("SoM") and the Institute for Health Metrics and Evaluation ("IHME"), and you ("User"), as of the date on which User confirmed acceptance of the Agreement by checking the field on IHME's website marked "I have read and agree to the terms of the Free-of-Charge Non-Commercial User Agreement".
