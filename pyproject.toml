@@ -13,8 +13,8 @@ license = "GPL-3.0-or-later"
 requires-python = ">=3.12"
 dependencies = [
     "snakemake>=9.0",
-    "linopy",
-    "pypsa",
+    "linopy@git+https://github.com/coroa/linopy.git@feat/add-sos-constraints",
+    "pypsa@git+https://github.com/koen-vg/PyPSA.git@food-opt",
     "seaborn",
     "numpy",
     "pandas>=2.1",
@@ -84,12 +84,12 @@ indent-style = "space"
 [tool.uv]
 cache-dir = "./.uv-cache"
 
-[tool.uv.workspace]
-members = [
-    "vendor/PyPSA",
-    "vendor/linopy",
-]
+# [tool.uv.workspace]
+# members = [
+#     "vendor/PyPSA",
+#     "vendor/linopy",
+# ]
 
-[tool.uv.sources]
-pypsa = { workspace = true }
-linopy = { workspace = true }
+# [tool.uv.sources]
+# pypsa = { workspace = true }
+# linopy = { workspace = true }
