@@ -246,6 +246,13 @@ Workflow Integration
 
 **Script**: ``workflow/scripts/prepare_gdd_dietary_intake.py``
 
+Baseline diet enforcement in the optimization can be toggled via
+``config.diet.enforce_gdd_baseline``. When enabled, the builder reads
+``processing/{name}/gdd_dietary_intake.csv`` (``All ages`` by default) and adds
+per-country equality loads for matching food groups, forcing the solution to
+replicate observed intake. ``baseline_age`` and ``baseline_reference_year``
+override which cohort/year slice the model locks to.
+
 To regenerate dietary intake data:
 
 .. code-block:: bash

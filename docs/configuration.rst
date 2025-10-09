@@ -152,7 +152,10 @@ Food Groups
    :start-after: # --- section: food_groups ---
    :end-before: # --- section: trade ---
 
-The defaults leave these minima at zero so food group constraints are inactive; increase them to promote healthier diets, or keep them low for faster solving.
+Each food group may specify ``min_per_person_per_day``, ``max_per_person_per_day``,
+and ``equal_per_person_per_day``. The defaults leave minima at zero so food group
+constraints stay inactive; tighten minima or maxima to guide intakes, or use the
+``equal`` field for equality targets.
 
 Animal Products
 ---------------
@@ -194,9 +197,21 @@ Health Configuration
 .. literalinclude:: ../config/default.yaml
    :language: yaml
    :start-after: # --- section: health ---
-   :end-before: # --- section: aggregation ---
+   :end-before: # --- section: diet ---
 
 Reduce ``region_clusters`` or ``log_rr_points`` to speed up solving.
+
+Diet Controls
+-------------
+
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: diet ---
+   :end-before: # --- section: aggregation ---
+
+Enable ``enforce_gdd_baseline`` to force the optimization to match baseline
+consumption from the processed GDD file. Override ``baseline_age`` or
+``baseline_reference_year`` if you pre-process alternative cohorts or years.
 
 Solver Configuration
 --------------------
@@ -217,7 +232,9 @@ Plotting Configuration
    :language: yaml
    :start-after: # --- section: plotting ---
 
-Customize visualization colors for publication-quality plots.
+Customize visualization colors for publication-quality plots. The
+``colors.food_groups`` palette is applied consistently across all food-group
+charts and maps; extend it if you add new groups to ``data/food_groups.csv``.
 
 Configuration Workflow
 ----------------------

@@ -22,6 +22,11 @@ DOC_FIGURES = [
     "crop_yield_wheat",
     "crop_yield_wetland-rice",
     "crop_yield_maize",
+    "crop_yield_resource_class_wheat",
+    # Water availability figures
+    "water_basin_availability",
+    "water_region_availability",
+    "irrigated_land_fraction",
 ]
 
 
@@ -56,6 +61,53 @@ rule doc_fig_crop_yield:
         svg="docs/_static/figures/crop_yield_{crop}.svg",
     script:
         "../scripts/doc_figures/crop_yield_map.py"
+
+
+rule doc_fig_crop_yield_resource_class:
+    """Generate resource class yield comparison maps."""
+    input:
+        crop_yields=f"processing/{DOC_FIG_NAME}/crop_yields/{{crop}}_r.csv",
+        regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
+    output:
+        svg="docs/_static/figures/crop_yield_resource_class_{crop}.svg",
+    params:
+        resource_class_1=1,
+        resource_class_2=2,
+    script:
+        "../scripts/doc_figures/crop_yield_resource_class.py"
+
+
+rule doc_fig_water_basin_availability:
+    """Generate basin water availability map."""
+    input:
+        basin_shapefile="data/downloads/Report53_Appendix/Report53-BlueWaterScarcity-ArcGIS-ShapeFile/Monthly_WS_GRDC_405_basins.shp",
+        water_data=f"processing/{DOC_FIG_NAME}/water/blue_water_availability.csv",
+    output:
+        svg="docs/_static/figures/water_basin_availability.svg",
+    script:
+        "../scripts/doc_figures/water_basin_availability.py"
+
+
+rule doc_fig_water_region_availability:
+    """Generate regional water availability map."""
+    input:
+        regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
+        water_data=f"processing/{DOC_FIG_NAME}/water/region_growing_season_water.csv",
+    output:
+        svg="docs/_static/figures/water_region_availability.svg",
+    script:
+        "../scripts/doc_figures/water_region_availability.py"
+
+
+rule doc_fig_irrigated_land_fraction:
+    """Generate irrigated land fraction map."""
+    input:
+        irrigated_fraction="data/downloads/gaez_land_equipped_for_irrigation_share.tif",
+        regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
+    output:
+        svg="docs/_static/figures/irrigated_land_fraction.svg",
+    script:
+        "../scripts/doc_figures/irrigated_land_fraction.py"
 
 
 rule generate_all_doc_figures:

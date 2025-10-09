@@ -149,7 +149,7 @@ Aggregation Process
 Resource Class Yields
 ~~~~~~~~~~~~~~~~~~~~~
 
-Because resource classes are defined by yield quantiles (see :doc:`land_use`), yields generally increase with class number. For example, in a region with quantiles [0.25, 0.5, 0.75]:
+Because resource classes are defined by yield quantiles (see :doc:`land_use`), yields generally increase with class number. For example, in a particular region with quantiles [0.25, 0.5, 0.75], we might see the following average yields by resource class:
 
 * Class 0: 1.5 t/ha (bottom quartile land)
 * Class 1: 2.8 t/ha (second quartile)
@@ -157,6 +157,16 @@ Because resource classes are defined by yield quantiles (see :doc:`land_use`), y
 * Class 3: 6.5 t/ha (top quartile)
 
 This allows the optimizer to preferentially allocate crops to high-quality land or expand onto marginal land as needed.
+
+The following figure illustrates this variation, comparing rainfed wheat yields between resource classes 1 and 2 across all regions:
+
+.. figure:: _static/figures/crop_yield_resource_class_wheat.svg
+   :width: 100%
+   :alt: Wheat yields by resource class
+
+   Comparison of wheat rainfed yields (tonnes/hectare) between resource class 1 (left) and resource class 2 (right). Resource class 2 represents higher-quality land and generally shows higher yields across most regions, demonstrating how the resource class stratification captures land quality variation.
+
+.. Note:: Yields for individual crops need not always be better in a high resource class. This is because resource classes are determined "globally" for all crops at once, so that each grid cell is assigned a resource class independent of any crop. So while resource class 2 has better *average* yields than resource class 1 in every region, that might not be true for some individual crops (e.g. rainfed wheat in the Western USA region in the above example.)
 
 Production Constraints
 ----------------------
@@ -194,12 +204,16 @@ Basin-Level Availability
 
 The model uses the Water Footprint Network's monthly blue water availability dataset for 405 GRDC river basins [hoekstra2011]_.
 
-.. [hoekstra2011] Hoekstra, A.Y. and Mekonnen, M.M. (2011) *Global water scarcity: monthly blue water footprint compared to blue water availability for the world's major river basins*, Value of Water Research Report Series No. 53, UNESCO-IHE, Delft, the Netherlands. http://www.waterfootprint.org/Reports/Report53-GlobalBlueWaterScarcity.pdf
-
 Processing steps (``workflow/scripts/process_blue_water_availability.py``):
 
 1. **Load basin shapefile** with monthly availability (Mm³/month)
 2. **Aggregate by basin and month** to get monthly water budgets
+
+.. figure:: _static/figures/water_basin_availability.svg
+   :width: 100%
+   :alt: Basin water availability map
+
+   Annual blue water availability by GRDC river basin (mm/year). The map shows area-normalized yearly water availability across 405 major river basins globally. Higher availability is shown in darker blue, allowing direct comparison between basins of different sizes. While we normalize by area for better visualisation here, food-opt tracks total water amount availability internally.
 
 Regional Water Assignment
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -218,6 +232,12 @@ Blue water availability is allocated to optimization regions based on spatial ov
 
    * ``processing/{name}/water/monthly_region_water.csv``: Monthly water by region
    * ``processing/{name}/water/region_growing_season_water.csv``: Growing season totals
+
+.. figure:: _static/figures/water_region_availability.svg
+   :width: 100%
+   :alt: Regional water availability map
+
+   Growing season water availability by optimization region (mm). The map shows area-normalized water available during the average growing season for each region, computed by summing monthly basin availability over the typical crop growing period. This represents the blue water constraint for irrigated crop production in the optimization model.
 
 Model Constraints
 ~~~~~~~~~~~~~~~~~
@@ -243,6 +263,41 @@ The ``irrigation.irrigated_crops`` parameter controls which crops can use irriga
    :end-before: # --- section: solving ---
 
 Setting this to a subset of crops (e.g., only high-value crops like rice, wheat, vegetables) can explore scenarios where irrigation infrastructure is limited.
+
+Irrigated Land Availability
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Only a fraction of agricultural land is equipped with irrigation infrastructure. The model uses GAEZ v5's "land equipped for irrigation" dataset (LR-IRR) to determine which land can support irrigated crops.
+
+**Key features:**
+
+* **Spatial variation**: Irrigated land fraction varies by location based on infrastructure, water access, and historical development
+* **Land competition**: Rainfed and irrigated production compete for the same physical land
+* **Water coupling**: Irrigated land must have both irrigation infrastructure *and* sufficient blue water availability
+
+The following figure shows the global distribution of land equipped for irrigation:
+
+.. figure:: _static/figures/irrigated_land_fraction.svg
+   :width: 100%
+   :alt: Irrigated land fraction map
+
+   Fraction of land equipped for irrigation from GAEZ v5. Higher values (darker colors) indicate areas with more extensive irrigation infrastructure. Many agricultural regions show low irrigation fractions, limiting irrigated crop production even when water is available.
+
+**Interaction with rainfed cropland:**
+
+Within each optimization region and resource class, the model maintains separate variables for rainfed and irrigated land use. However, these share the same physical land base:
+
+* **Rainfed land limit**: Total suitable cropland minus irrigated share
+* **Irrigated land limit**: Total suitable cropland times irrigated share
+* **Constraint**: Rainfed area + irrigated area ≤ total suitable cropland
+
+This means that in regions with limited irrigation infrastructure, the model may:
+
+* Prioritize irrigated production on the best land (higher resource classes) when water is available
+* Fall back to rainfed production when irrigation infrastructure or water is limiting
+* Trade off between high-yield irrigated crops (requiring both infrastructure and water) and lower-yield rainfed crops (requiring neither)
+
+The irrigation infrastructure constraint is particularly important in regions where water is abundant but irrigation systems are not widely deployed, preventing the model from unrealistically converting all suitable land to high-yield irrigated production.
 
 Fertilizer
 ----------
@@ -328,3 +383,9 @@ Crop production results can be visualized with several plotting rules:
 **Crop utilization** (food vs. feed vs. waste)::
 
     tools/smk results/{name}/plots/crop_use_breakdown.pdf
+
+
+References
+-----------
+
+.. [hoekstra2011] Hoekstra, A.Y. and Mekonnen, M.M. (2011) *Global water scarcity: monthly blue water footprint compared to blue water availability for the world's major river basins*, Value of Water Research Report Series No. 53, UNESCO-IHE, Delft, the Netherlands. http://www.waterfootprint.org/Reports/Report53-GlobalBlueWaterScarcity.pdf

@@ -171,6 +171,10 @@ Dietary and Health Outcomes
 **food_consumption.pdf**
   Per-capita consumption (g/person/day) by food group, compared to requirements.
 
+**food_consumption_baseline_map.pdf**
+  Baseline (GDD) per-capita intake by health cluster with matching CSV export
+  (``food_consumption_baseline_map.csv``).
+
 **health_risk_map.pdf**
   Map of dietary risk-attributable DALYs per capita by region.
 

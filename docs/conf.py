@@ -38,6 +38,7 @@ exclude_patterns = [
 # HTML output options
 html_theme = "furo"
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
 html_theme_options = {
     "navigation_with_keys": True,
     "light_css_variables": {
