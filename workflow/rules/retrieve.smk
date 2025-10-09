@@ -19,7 +19,7 @@ rule extract_adm1:
     input:
         zip="data/downloads/gadm_410-levels.zip",
     output:
-        "data/downloads/gadm.gpkg",
+        protected("data/downloads/gadm.gpkg"),
     shell:
         r"""
         mkdir -p "$(dirname {output})"
@@ -29,7 +29,7 @@ rule extract_adm1:
 
 rule download_cropgrids_nc_maps:
     output:
-        "data/downloads/cropgrids_v1_08_nc_maps.zip",
+        protected("data/downloads/cropgrids_v1_08_nc_maps.zip"),
     params:
         article_id=22491997,
         file_name="CROPGRIDSv1.08_NC_maps.zip",
