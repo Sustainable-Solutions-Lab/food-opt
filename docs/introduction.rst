@@ -8,7 +8,7 @@ Introduction
 Overview
 --------
 
-**food-opt** is a global food systems optimization model that addresses the challenge of feeding a growing global population while minimizing environmental impacts and maximizing nutritional outcomes. The model uses a resource flow-based structure implemented with PyPSA/linopy to jointly optimize food production, processing, and consumption patterns.
+**food-opt** is a global food systems optimization model that is designed to study the trade-offs between optimizing for both positive health outcomes as well as desirable environmental outcomes. The model uses a resource flow-based structure implemented with PyPSA/linopy to jointly optimize food production, processing, trade and consumption patterns.
 
 Key Objectives
 ~~~~~~~~~~~~~~
@@ -16,20 +16,20 @@ Key Objectives
 The model balances multiple objectives:
 
 * **Environmental sustainability**: Minimize greenhouse gas emissions (CO₂, CH₄, N₂O), land use change, nitrogen pollution, and water use
-* **Nutritional adequacy**: Meet population dietary requirements for macronutrients and micronutrients
 * **Health outcomes**: Minimize disease burden from dietary risk factors
-* **Production constraints**: Respect biophysical limits on crop yields, land availability, and irrigation capacity
+
+These objectives are co-optimized for while operating within biophysical limits on crop yields, land availability, and irrigation capacity as well as satisfying constraints on nutritional adequacy in terms of macronutrients.
 
 Key Features
 ------------
 
-Comprehensive Food System Coverage
+Food System Coverage
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* **Crop production**: ~70 different crops with spatially-explicit yield potentials
+* **Crop production**: more than 60 different crops with spatially-explicit yield potentials
 * **Livestock systems**: Multiple production systems (grazing vs. feed-based) for meat and dairy
-* **Food processing**: Conversion of raw agricultural products to final food products
-* **Nutritional assessment**: Mapping to dietary risk factors and health outcomes
+* **Food processing and trade**: Accounting for waste losses, trading frictions and more
+* **Nutritional assessment**: Mapping to food group-based dietary risk factors and health outcomes
 
 Environmental Impact Assessment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -42,15 +42,15 @@ Environmental Impact Assessment
 Health and Nutrition
 ~~~~~~~~~~~~~~~~~~~~~
 
+* Macronutrient constraints to ensure basic nutritional adequacy
 * Integration with Global Burden of Disease dietary risk factors
-* Macronutrient and micronutrient constraints
-* Population-level health impact assessment in DALYs (Disability-Adjusted Life Years)
+* Population-level health impact assessment in terms of years of life lost
 * Health valuation via a configurable value-per-YLL constant
 
-Flexible Spatial Resolution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Global Extent & Flexible Spatial Resolution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* Input data at high-resolution gridcell level (0.05° × 0.05°)
+* Geophysical input data at high-resolution gridcell level (0.05° × 0.05°)
 * Optimization at configurable sub-national regional scale
 * Global coverage with detailed country and regional analysis
 
@@ -63,7 +63,7 @@ Prerequisites
 * Python >= 3.12
 * `uv <https://docs.astral.sh/uv/>`_ for dependency management
 * `Snakemake <https://snakemake.readthedocs.io/>`_ workflow management system
-* Linear programming solver (HiGHS included, Gurobi optional)
+* Linear programming solver (open source HiGHS solver included, proprietary Gurobi optional)
 
 Installation
 ~~~~~~~~~~~~
@@ -77,7 +77,9 @@ Installation
 
     uv sync
 
-3. The workflow will automatically download required datasets when first run.
+3. Retrieve Global Dietary Database and Global Burden of Disease datasets manually (see ``data/manually_downloaded/README.md`` and the :ref:`manual-download-checklist`)
+
+4. The workflow will automatically download required datasets when first run.
 
 Quick Start
 -----------

@@ -12,6 +12,18 @@ The model integrates multiple global datasets covering agricultural production, 
 
 For comprehensive documentation of all datasets, see ``data/DATASETS.md`` in the repository.
 
+.. _manual-download-checklist:
+
+Manual Download Checklist
+-------------------------
+
+Several licensed datasets cannot be fetched automatically. Keep the contents of ``data/manually_downloaded`` in sync with the guidance below and the README in that directory.
+
+1. Create an account (free) with IHME and download ``IHME-GBD_2021-dealth-rates.csv`` as described in :ref:`ihme-gbd-mortality`.
+2. Download the IHME 2019 relative risk workbook ``IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX`` (:ref:`ihme-relative-risks`).
+3. Register at the Global Dietary Database portal and download the dataset, placed locally as the directory ``GDD-dietary-intake`` (:ref:`gdd-dietary-intake`).
+
+
 Agricultural Production Data
 ----------------------------
 
@@ -22,19 +34,11 @@ GAEZ (Global Agro-Ecological Zones) v5
 
 **Description**: Global crop suitability and attainable yield estimates under various climate and management scenarios.
 
-**Resolution**: 0.083° × 0.083° (~9 km) for most variables
-
-**Variables used**:
-  * RES05-YCX: Attainable yield on current cropland
-  * RES05-SX1: Suitability index (fraction suitable)
-  * RES05-WDC: Net irrigation water requirement
-  * RES02: Growing season start and length
-
-**Access**: https://gaez.fao.org/
+**Access**: https://data.apps.fao.org/gaez/; bulk downloads through a Google Cloud Storage interface.
 
 **License**: Creative Commons Attribution 4.0 International (CC BY 4.0) + FAO database terms
 
-**Citation**: FAO/IIASA (2023). Global Agro-Ecological Zones v5 (GAEZ v5). Rome: FAO.
+**Citation**: FAO/IIASA (2025). Global Agro-Ecological Zones v5 (GAEZ v5).
 
 **Workflow retrieval**: Automatic via Snakemake rules in ``workflow/rules/retrieve.smk``
 
@@ -79,7 +83,7 @@ Grassland Yield Data
 
 **Resolution**: 0.5° × 0.5°
 
-**Access**: ISIMIP data portal (requires registration)
+**Access**: ISIMIP data portal
 
 **Usage**: Grazing-based livestock production potential
 
@@ -131,16 +135,14 @@ UN World Population Prospects (WPP) 2024
 Health and Epidemiology Data
 -----------------------------
 
+.. _ihme-gbd-mortality:
+
 IHME GBD 2021 — Mortality Rates
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Provider**: Institute for Health Metrics and Evaluation (IHME)
 
 **Description**: Cause-specific mortality rates by country, age, and sex from the Global Burden of Disease Study 2021. Used to calculate baseline disease burden attributable to dietary risk factors.
-
-**Access**: https://vizhub.healthdata.org/gbd-results/
-
-**Version**: GBD 2021
 
 **Query parameters**:
   * Measure: Deaths (Rate per 100,000 population)
@@ -155,6 +157,35 @@ IHME GBD 2021 — Mortality Rates
 
 **Workflow integration**: Automatically processed via ``workflow/scripts/prepare_gbd_mortality.py``
 
+**Manual download steps**:
+
+1. Visit https://vizhub.healthdata.org/gbd-results/ and sign in with your IHME account.
+2. Reproduce the query parameters above by following this permanent link: https://vizhub.healthdata.org/gbd-results?params=gbd-api-2021-permalink/90f3c59133738e4b70b91072b6fd0db4
+3. Export the results as CSV (allow some time for the IHME to process the query) and save to ``data/manually_downloaded``. Rename the file to ``IHME-GBD_2021-dealth-rates.csv`` to match the name expected by the Snakemake workflow.
+
+.. _ihme-relative-risks:
+
+IHME GBD 2019 — Relative Risk Curves
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: Institute for Health Metrics and Evaluation (IHME)
+
+**Description**: Appendix Table 7a from the Global Burden of Disease Study 2019, listing relative risks by dietary risk factor, outcome, age, and exposure level.
+
+**License**: Free for non-commercial use with attribution (IHME Free-of-Charge Non-commercial User Agreement)
+
+**Citation**: Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2019 (GBD 2019) Results. Seattle, United States of America: Institute for Health Metrics and Evaluation (IHME), 2020.
+
+**Workflow integration**: Automatically processed via ``workflow/scripts/prepare_relative_risks.py``
+
+**Manual download steps**:
+
+1. Navigate to https://ghdx.healthdata.org/record/ihme-data/gbd-2019-relative-risks.
+2. Under the Files tab, locate and download the "Relative risks: all risk factors except for ambient air pollution, alcohol, smoking, and temperature [XLSX]" file; it will be named ``IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX``. Log in to your IHME account when requested.
+3. Place the downloaded file under ``data/manually_downloaded``; no need to rename.
+
+.. _gdd-dietary-intake:
+
 Global Dietary Database (GDD)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -162,36 +193,18 @@ Global Dietary Database (GDD)
 
 **Description**: Country-level estimates of dietary intake for major food groups and dietary risk factors based on systematic review and meta-analysis of national dietary surveys.
 
-**Website**: https://www.globaldietarydatabase.org/
-
-**Coverage**: 185+ countries with data circa 2015-2020
-
-**Content**: Mean daily intake (g/day per capita) for vegetables, fruits, whole grains, legumes, nuts & seeds, red meat, processed meat, seafood, and other food groups with uncertainty estimates.
-
 **License**: Free for non-commercial research, teaching, and private study with attribution. Data may not be redistributed or used commercially without Tufts permission.
-
-**Download**: Requires free registration at https://globaldietarydatabase.org/data-download
 
 **Citation**: Global Dietary Database. Dietary intake data by country. https://www.globaldietarydatabase.org/ [Accessed YYYY-MM-DD].
 
 **Workflow integration**: Automatically processed via ``workflow/scripts/prepare_gdd_dietary_intake.py``
 
-IHME GBD — Relative Risk Curves
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Manual download steps**:
 
-**Provider**: Institute for Health Metrics and Evaluation (IHME)
-
-**Description**: Appendix Table 7a from the Global Burden of Disease Study 2019, listing relative risks by dietary risk factor, outcome, age, and exposure level.
-
-**Access**: Manual download from https://vizhub.healthdata.org/gbd-results/ (requires free account)
-
-**License/terms**: IHME free-of-charge, non-commercial user agreement. Redistribution is not permitted.
-
-**Files used**:
-  * ``data/manually_downloaded/IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX`` (raw manual download)
-  * ``data/health/processed/relative_risks.csv`` (processed output via ``workflow/scripts/prepare_relative_risks.py``)
-
-**Citation**: Global Burden of Disease Collaborative Network. Global Burden of Disease Study 2019 (GBD 2019) Results. Seattle, United States of America: Institute for Health Metrics and Evaluation (IHME), 2020.
+1. Create or sign in to a Global Dietary Database account at https://globaldietarydatabase.org/data-download.
+2. When you are signed in, navigate back to the download page, accept the terms and proceed to download the GDD dataset, which will be ~1.6GB zip file.
+3. Extract the zip file; you will get a directory named ``GDD_FinalEstimates_01102022``
+4. Move this directory to ``data/manually_downloaded`` and rename the directory to ``GDD-dietary-intake``.
 
 Water Resources Data
 --------------------
@@ -245,8 +258,6 @@ data/nutrition.csv
 
 **Needs**: USDA FoodData Central, FAO INFOODS, or national food composition tables
 
-**Recommended source**: USDA FoodData Central (https://fdc.nal.usda.gov/) — comprehensive, regularly updated, public domain
-
 data/feed_conversion.csv
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -265,75 +276,11 @@ data/feed_to_animal_products.csv
 
 **Needs**: FAO livestock production data, academic livestock science literature
 
-Data Retrieval Workflow
-------------------------
-
-Most datasets are downloaded automatically by Snakemake rules in ``workflow/rules/retrieve.smk``:
-
-**GADM**::
-
-    rule retrieve_gadm:
-        output: "data/downloads/gadm.gpkg"
-        # Downloads via HTTP
-
-**GAEZ**::
-
-    rule retrieve_gaez_yield:
-        output: "data/downloads/gaez_yield_{params}.tif"
-        # Constructs URLs based on config, downloads via HTTP storage plugin
-
-**UN WPP**::
-
-    rule retrieve_un_population:
-        output: "data/downloads/WPP_population.csv.gz"
-        # Downloads from UN population portal
-
-**FAOSTAT**::
-
-    rule retrieve_faostat_prices:
-        output: "processing/{name}/faostat_prices.csv"
-        # Uses faostat Python API
-
-**Manual downloads** (not automated):
-
-* **DIA health data**: Copy files from WHO-DIA repository to ``data/health/raw/``
-* **Water Footprint Network**: Download and extract ``Report53_Appendix.zip`` to ``data/downloads/``
-* **Grassland yields**: Register with ISIMIP, download LPJmL historical run
-
-Data Storage and Caching
--------------------------
-
-**data/downloads/**
-  Raw downloaded datasets (excluded from Git via ``.gitignore``)
-
-**processing/{name}/**
-  Processed intermediate files (scenario-specific)
-
-**results/{name}/**
-  Model outputs and visualizations
-
-**Caching**: Snakemake tracks file timestamps and checksums, avoiding redundant downloads.
-
 Data License Summary
 --------------------
 
-When publishing results, ensure compliance with data licenses:
+Most datasets used in this project require attribution. Some disallow redistribution, meaning that food-opt cannot be distributed together with these datasets. Some furthermore prohibit commercial use without prior agreement or a paid-for license.
 
 * **CC BY 4.0** (GAEZ, CROPGRIDS, FAOSTAT): Requires attribution
 * **CC BY 3.0 IGO** (UN WPP): Requires attribution to UN
-* **GPL-3.0** (DIA health data): Derivative works must be GPL-licensed
-* **Academic use only** (GADM): Commercial use requires permission
-* **Citation requested** (Water Footprint Network): No explicit license but citation expected
-
-Always check the original data provider websites for the most current terms.
-
-Future Data Enhancements
-------------------------
-
-Planned dataset additions:
-
-* **Soil carbon maps**: For more accurate land-use change emissions
-* **Livestock feed requirement data**: Replace mock conversion ratios
-* **Food processing loss factors**: Industry-specific mass balance data
-* **Micronutrient databases**: Iron, zinc, vitamin A content
-* **Trade flow data**: Historical bilateral trade for calibration
+* **Academic use only** (GADM, GBD, GDD): Commercial use requires permission or paid licensed.

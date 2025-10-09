@@ -8,7 +8,7 @@ Model Framework
 Mathematical Structure
 ----------------------
 
-The food-opt model is formulated as a linear programming (LP) problem that minimizes total system costs subject to constraints on production capacity, nutritional requirements, and environmental limits.
+The food-opt model is formulated as a mixed integer linear programming (MILP) problem that minimizes total system costs subject to constraints on production capacity, nutritional requirements, and environmental limits. Here, we give a high-level overview over the model structure; a complete listing of equations is outstanding.
 
 Objective Function
 ~~~~~~~~~~~~~~~~~~
@@ -33,11 +33,10 @@ The model optimizes the following classes of decision variables:
 
 * **Crop production** (:math:`P_{c,r,w,k}`): Production of crop :math:`c` in region :math:`r` with water supply :math:`w` (irrigated/rainfed) and resource class :math:`k`
 * **Livestock production** (:math:`L_{a,r,s}`): Production of animal product :math:`a` in region :math:`r` using production system :math:`s` (grazing/feed-based)
-* **Food processing** (:math:`F_{f,r}`): Processing activities converting crops to food products :math:`f` in region :math:`r`
-* **Land allocation** (:math:`A_{c,r,w,k}`): Land area allocated to crop :math:`c` in region :math:`r`, water supply :math:`w`, resource class :math:`k`
-* **Trade flows** (:math:`T_{c,i,j}`): Trade of commodity :math:`c` from region :math:`i` to region :math:`j`
-* **Fertilizer application** (:math:`N_r`): Nitrogen, phosphorus, and potassium applied in region :math:`r`
-* **Dietary intake** (:math:`D_{f,r}`): Per-capita consumption of food :math:`f` in region :math:`r`
+* **Food processing** (:math:`F_{c,f,r}`): Processing activities converting crop :math:`c` to food product :math:`f` in region :math:`r`
+* **Land allocation** (:math:`A_{r,w,k}`): Cropland area allocated in region :math:`r`, water supply :math:`w`, resource class :math:`k`
+* **Trade flows** (:math:`T_{c,r,h}`, :math:`T_{c,h,h'}`): Trade of commodity :math:`c` between region :math:`r` and hub :math:`h`, as well as between hubs :math:`h` and :math:`h'`.
+* **Food consumption** (:math:`D_{f,r}`): Per-capita consumption of food :math:`f` in region :math:`r`
 
 Constraints
 ~~~~~~~~~~~
@@ -46,7 +45,7 @@ The model is subject to multiple constraint categories:
 
 **Production Constraints**
 
-* Crop yield relationships linking land area, resource quality, and production
+* Crop yields limiting crop production based on region and resource class
 * Livestock feed requirements and conversion efficiencies
 * Land availability limits by region and resource class
 * Water availability constraints by basin and growing season
@@ -57,13 +56,9 @@ The model is subject to multiple constraint categories:
 * Minimum food group consumption (whole grains, fruits, vegetables, etc.)
 * Per-capita dietary balance across the population
 
-**Processing Constraints**
+**Processing and Trade Constraints**
 
-* Mass balance in food processing chains
 * Crop-to-food conversion efficiencies
-
-**Trade Constraints**
-
 * Hub-based trade network topology
 * Transport costs differentiated by commodity category
 * Non-tradable commodities (e.g., fodder crops)
@@ -76,19 +71,19 @@ The model is subject to multiple constraint categories:
 PyPSA Implementation
 --------------------
 
-The model is implemented using PyPSA (Python for Power System Analysis), which provides a flexible framework for optimizing flow networks with linear constraints. While PyPSA was originally designed for energy systems, its component-based structure maps naturally to food system flows.
+The model is implemented using `PyPSA <https://pypsa.org>`_ (Python for Power System Analysis), which provides a flexible framework for optimizing flow networks with linear constraints. While PyPSA was originally designed for energy systems, its component-based structure maps naturally to food system flows.
 
 Network Components
 ~~~~~~~~~~~~~~~~~~
 
 **Carriers**
-  Define the commodity types flowing through the network (e.g., ``crop_wheat``, ``food_bread``, ``nutrient_protein``). Each carrier has an associated unit (tonnes, megacalories, etc.).
+  Define the commodity types flowing through the network (e.g., ``crop_wheat``, ``food_bread``, ``nutrient_protein``). Each carrier has an associated unit (tonnes, megacalories, etc.). See the `PyPSA carriers documentation <https://pypsa.readthedocs.io/en/latest/user-guide/components.html#carrier>`_ for more details.
 
 **Buses**
-  Represent locations where commodities accumulate or are exchanged. Buses are typically defined per-country or per-region (e.g., ``crop_wheat_USA``, ``land_class0_region42``).
+  Represent locations where commodities accumulate or are exchanged. Buses are typically defined per-country or per-region (e.g., ``crop_wheat_USA``, ``land_class0_region42``). See the `PyPSA buses documentation <https://pypsa.readthedocs.io/en/latest/user-guide/components.html#bus>`_ for more details.
 
 **Links**
-  Represent transformations or transport of commodities. Links have:
+  Represent transformations or transport of commodities. See the `PyPSA links documentation <https://pypsa.readthedocs.io/en/latest/user-guide/components.html#link>`_ for more details. Links have:
 
   * ``bus0``: Primary input bus
   * ``bus1``: Primary output bus
@@ -103,14 +98,14 @@ Network Components
   * Trade link: input = crop in region A; output = crop in region B (with transport cost)
 
 **Stores**
-  Represent resource availability or capacity limits. Key uses:
+  Represent resource availability or capacity limits. See the `PyPSA stores documentation <https://pypsa.readthedocs.io/en/latest/user-guide/components.html#store>`_ for more details. Key uses:
 
   * Land area available in each region/resource class
   * Water availability in each basin
   * Global fertilizer supply limits
 
 **Global Constraints**
-  Enforce system-wide limits such as:
+  Enforce system-wide limits. See the `PyPSA global constraints documentation <https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraints>`_ for more details. Examples include:
 
   * Total fertilizer consumption
   * Total greenhouse gas emissions

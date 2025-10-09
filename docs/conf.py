@@ -40,6 +40,14 @@ html_theme = "furo"
 html_static_path = ["_static"]
 html_theme_options = {
     "navigation_with_keys": True,
+    "light_css_variables": {
+        "color-brand-primary": "#3b745f",
+        "color-brand-content": "#2f5e49",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#5fa285",
+        "color-brand-content": "#7db79e",
+    },
 }
 
 # Autodoc options
