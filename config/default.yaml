@@ -98,25 +98,31 @@ grazing:
 # --- section: food_groups ---
 food_groups:
   whole_grains:
-    min_per_person_per_day: 0
+    min: 0
   grain:
-    min_per_person_per_day: 0
+    min: 0
   fruits:
-    min_per_person_per_day: 0
+    min: 0
   vegetables:
-    min_per_person_per_day: 0
+    min: 0
   legumes:
-    min_per_person_per_day: 0
+    min: 0
   nuts_seeds:
-    min_per_person_per_day: 0
+    min: 0
   starchy_vegetable:
-    min_per_person_per_day: 0
+    min: 0
   oil:
-    min_per_person_per_day: 0
+    min: 0
   red_meat:
-    min_per_person_per_day: 0
+    min: 0
   dairy:
-    min_per_person_per_day: 0
+    min: 0
+
+# --- section: diet ---
+diet:
+  enforce_gdd_baseline: false
+  baseline_age: "All ages"
+  baseline_reference_year: null  # falls back to health.reference_year when null
 
 # --- section: trade ---
 trade:

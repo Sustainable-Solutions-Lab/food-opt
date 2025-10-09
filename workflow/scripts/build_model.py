@@ -3,12 +3,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import functools
-import pandas as pd
+import logging
+from typing import Iterable
+
 import geopandas as gpd
 import numpy as np
-from sklearn.cluster import KMeans
+import pandas as pd
 import pypsa
-import logging
+from sklearn.cluster import KMeans
 
 KM3_PER_M3 = 1e-9  # convert cubic metres to cubic kilometres
 TONNE_TO_MEGATONNE = 1e-6  # convert tonnes to megatonnes
@@ -51,6 +53,14 @@ def _per_capita_to_bus_units(
     if kind == "energy":
         return value_per_person_per_day * population * DAYS_PER_YEAR * KCAL_TO_MCAL
     raise ValueError(f"Unsupported nutrient kind '{kind}' for unit '{unit}'")
+
+
+def _per_capita_food_group_to_mt(
+    value_per_person_per_day: float, population: float
+) -> float:
+    """Convert g/person/day to Mt/year for food group buses."""
+
+    return value_per_person_per_day * population * DAYS_PER_YEAR * 1e-12
 
 
 def _carrier_unit_for_nutrient(unit: str) -> str:
@@ -629,36 +639,150 @@ def add_food_group_buses_and_loads(
     food_groups_config: dict,
     countries: list,
     population: pd.Series,
+    *,
+    per_country_equal: dict[str, dict[str, float]] | None = None,
 ) -> None:
-    """Add carriers, buses, and loads for food groups defined in the CSV."""
+    """Add carriers, buses, and loads for food groups defined in the CSV.
+
+    Supports min/max/equal per-person-per-day targets per food group. Country-level
+    equality overrides can be supplied via ``per_country_equal``.
+    """
+
     if not food_groups_config:
         return
 
+    per_country_equal = per_country_equal or {}
+
     logger.info("Adding food group loads based on nutrition requirements...")
     for group in food_group_list:
-        group_config = food_groups_config.get(group)
-        if not group_config or "min_per_person_per_day" not in group_config:
-            continue
+        group_config = food_groups_config.get(group, {}) or {}
+        min_value = group_config.get("min")
+        max_value = group_config.get("max")
+        equal_value = group_config.get("equal")
+        equal_overrides = per_country_equal.get(group, {})
 
-        min_per_person_per_day = float(group_config["min_per_person_per_day"])
         names = [f"{group}_{c}" for c in countries]
         buses = [f"group_{group}_{c}" for c in countries]
         carriers = [f"group_{group}"] * len(countries)
-        # g/person/day → Mt/year
-        p_set = [
-            min_per_person_per_day * float(population[c]) * DAYS_PER_YEAR * 1e-12
-            for c in countries
-        ]
-        n.add("Load", names, bus=buses, carrier=carriers, p_set=p_set)
+
+        def _value_list(
+            base_value: float | None,
+            overrides: dict[str, float] | None,
+        ) -> list[float | None]:
+            override_map = overrides or {}
+            values: list[float | None] = []
+            for country in countries:
+                if country in override_map:
+                    values.append(float(override_map[country]))
+                elif base_value is not None:
+                    values.append(float(base_value))
+                else:
+                    values.append(None)
+            return values
+
+        equal_values = _value_list(equal_value, equal_overrides)
+        if all(v is not None for v in equal_values):
+            equal_totals = [
+                _per_capita_food_group_to_mt(value, float(population[country]))
+                for value, country in zip(equal_values, countries)
+            ]
+            n.add("Load", names, bus=buses, carrier=carriers, p_set=equal_totals)
+            # Equality constraint fixes consumption; no additional stores required
+            continue
+
+        min_values = _value_list(min_value, None)
+        max_values = _value_list(max_value, None)
+
+        min_totals: list[float] | None = None
+        if any(v is not None and v > 0.0 for v in min_values):
+            min_totals = [
+                _per_capita_food_group_to_mt(v or 0.0, float(population[country]))
+                for v, country in zip(min_values, countries)
+            ]
+            n.add("Load", names, bus=buses, carrier=carriers, p_set=min_totals)
+
+        max_totals: list[float] | None = None
+        if any(v is not None for v in max_values):
+            max_totals = [
+                _per_capita_food_group_to_mt(v or 0.0, float(population[country]))
+                for v, country in zip(max_values, countries)
+            ]
 
         store_names = [f"store_{group}_{c}" for c in countries]
+        store_kwargs: dict[str, Iterable[float]] = {}
+        if max_totals is not None:
+            if min_totals is not None:
+                e_nom_max = [
+                    max(max_total - min_total, 0.0)
+                    for max_total, min_total in zip(max_totals, min_totals)
+                ]
+            else:
+                e_nom_max = max_totals
+            store_kwargs["e_nom_max"] = e_nom_max
+
         n.add(
             "Store",
             store_names,
             bus=buses,
             carrier=carriers,
             e_nom_extendable=True,
+            **store_kwargs,
         )
+
+
+def _build_food_group_equals_from_baseline(
+    diet_df: pd.DataFrame,
+    countries: Iterable[str],
+    groups: Iterable[str],
+    *,
+    baseline_age: str,
+    reference_year: int | None,
+) -> dict[str, dict[str, float]]:
+    """Map baseline diet table to per-country equality targets for food groups."""
+
+    df = diet_df.copy()
+    df["country"] = df["country"].str.upper()
+    if baseline_age:
+        df = df[df["age"] == baseline_age]
+    if reference_year is not None and "year" in df.columns:
+        sel = df[df["year"] == reference_year]
+        if sel.empty:
+            raise ValueError(
+                f"No baseline diet records for year {reference_year} and age '{baseline_age}'"
+            )
+        df = sel
+
+    filtered = df[df["country"].isin(countries) & df["item"].isin(groups)]
+    if filtered.empty:
+        raise ValueError(
+            "Baseline diet table is empty after filtering by countries/groups"
+        )
+
+    pivot = (
+        filtered.groupby(["country", "item"])["value"].mean().unstack(fill_value=np.nan)
+    )
+
+    result: dict[str, dict[str, float]] = {}
+    missing_entries: list[str] = []
+    for group in groups:
+        values = {}
+        for country in countries:
+            value = pivot.get(group, pd.Series(dtype=float)).get(country)
+            if pd.isna(value):
+                missing_entries.append(f"{country}:{group}")
+                continue
+            values[country] = float(value)
+        if values:
+            result[str(group)] = values
+
+    if missing_entries:
+        logger.warning(
+            "Missing baseline diet values for %d country/group pairs (examples: %s)",
+            len(missing_entries),
+            ", ".join(sorted(missing_entries)[:5]),
+        )
+
+    return result
 
 
 def add_macronutrient_loads(
@@ -1137,6 +1261,34 @@ if __name__ == "__main__":
     # population series indexed by country code (ISO3)
     population = pop_map.astype(float)
 
+    diet_cfg = snakemake.params.get("diet", {})
+    health_reference_year = int(snakemake.params.health_reference_year)
+    enforce_baseline = bool(diet_cfg.get("enforce_gdd_baseline", False))
+    baseline_equals: dict[str, dict[str, float]] = {}
+    if enforce_baseline:
+        baseline_age = str(diet_cfg.get("baseline_age", "All ages"))
+        baseline_year = diet_cfg.get("baseline_reference_year", health_reference_year)
+        if baseline_year is not None:
+            baseline_year = int(baseline_year)
+        diet_table_path = snakemake.input.get("baseline_diet")
+        if diet_table_path is None:
+            raise ValueError(
+                "Baseline diet enforcement requested but no GDD intake table provided"
+            )
+        diet_table = read_csv(diet_table_path)
+        baseline_equals = _build_food_group_equals_from_baseline(
+            diet_table,
+            cfg_countries,
+            food_groups["group"].unique(),
+            baseline_age=baseline_age,
+            reference_year=baseline_year,
+        )
+        logger.info(
+            "Enforcing baseline diet using GDD data (age=%s, year=%s)",
+            baseline_age,
+            baseline_year,
+        )
+
     region_to_country = regions_df.set_index("region")["country"]
     # Warn if any configured countries are missing from regions
     present_countries = set(region_to_country.unique())
@@ -1204,6 +1356,19 @@ if __name__ == "__main__":
         food_groups["food"].isin(food_list), "group"
     ].unique()
 
+    if enforce_baseline:
+        missing_pairs = [
+            f"{country}:{group}"
+            for group in food_group_list
+            for country in cfg_countries
+            if baseline_equals.get(str(group), {}).get(country) is None
+        ]
+        if missing_pairs:
+            raise ValueError(
+                "Baseline diet enforcement missing values for: "
+                + ", ".join(sorted(missing_pairs)[:10])
+            )
+
     macronutrient_cfg = snakemake.params.macronutrients
     nutrient_units = (
         nutrition.reset_index()
@@ -1269,6 +1434,7 @@ if __name__ == "__main__":
         snakemake.params.food_groups,
         cfg_countries,
         population,
+        per_country_equal=baseline_equals,
     )
     add_macronutrient_loads(
         n,
