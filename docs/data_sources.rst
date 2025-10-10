@@ -15,11 +15,11 @@ For comprehensive documentation of all datasets, see ``data/DATASETS.md`` in the
 .. _manual-download-checklist:
 
 Manual Download Checklist
--------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Several licensed datasets cannot be fetched automatically. Keep the contents of ``data/manually_downloaded`` in sync with the guidance below and the README in that directory.
+Several licensed datasets cannot be fetched automatically. While their use is free for non-commercial research purposes, these have to be downloaded manually.
 
-1. Create an account (free) with IHME and download ``IHME-GBD_2021-dealth-rates.csv`` as described in :ref:`ihme-gbd-mortality`.
+1. Create an account with IHME and download ``IHME-GBD_2021-dealth-rates.csv`` as described in :ref:`ihme-gbd-mortality`.
 2. Download the IHME 2019 relative risk workbook ``IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX`` (:ref:`ihme-relative-risks`).
 3. Register at the Global Dietary Database portal and download the dataset, placed locally as the directory ``GDD-dietary-intake`` (:ref:`gdd-dietary-intake`).
 
@@ -238,16 +238,12 @@ data/foods.csv
 
 **Description**: Food product definitions and processing relationships
 
-**Needs**: Sourced from food composition databases (e.g., USDA FoodData Central)
-
 data/food_groups.csv
 ~~~~~~~~~~~~~~~~~~~~
 
 **Status**: Mock data
 
 **Description**: Mapping of foods to dietary food groups
-
-**Needs**: Consistent classification scheme (e.g., USDA food groups, WHO recommendations)
 
 data/nutrition.csv
 ~~~~~~~~~~~~~~~~~~
@@ -256,8 +252,6 @@ data/nutrition.csv
 
 **Description**: Nutritional composition of foods (macronutrients, micronutrients)
 
-**Needs**: USDA FoodData Central, FAO INFOODS, or national food composition tables
-
 data/feed_conversion.csv
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -265,16 +259,12 @@ data/feed_conversion.csv
 
 **Description**: Crop nutrient content for animal feed
 
-**Needs**: Feedipedia (https://www.feedipedia.org/) — comprehensive livestock feed database
-
 data/feed_to_animal_products.csv
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Status**: Mock data
 
 **Description**: Feed-to-product conversion ratios for livestock
-
-**Needs**: FAO livestock production data, academic livestock science literature
 
 Data License Summary
 --------------------

@@ -110,9 +110,9 @@ Notes:
   - Model framework, components, and mathematical formulation
   - Data sources, workflow execution, and configuration
   - All model aspects: land use, crops, livestock, nutrition, health, environment
-  - Contributing guidelines, troubleshooting, and API reference
+  - Contributing guidelines, API reference
 - When adding features or changing behavior, update relevant documentation sections in `docs/*.rst`.
-- Build docs locally: `cd docs && make html` (requires `uv sync --dev`).
+- Build docs locally: `cd docs && make html` (requires `uv sync --extra dev`).
 - Documentation is version-controlled and builds automatically on ReadTheDocs.
 
 ## Validation Checklist

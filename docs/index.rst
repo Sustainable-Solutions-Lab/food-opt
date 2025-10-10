@@ -27,7 +27,6 @@ A global food systems optimization model that explores trade-offs between enviro
    results
    api/index
    development
-   troubleshooting
 
 Indices and tables
 ==================

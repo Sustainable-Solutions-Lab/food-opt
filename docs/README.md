@@ -16,8 +16,15 @@ Ensure documentation dependencies are installed:
 
 ```bash
 cd ..  # Return to project root
-uv sync --dev
+uv sync --extra dev
 ```
+
+Additionally, building workflow diagrams requires [Graphviz](https://graphviz.org/) to be installed on your system:
+
+- **Debian/Ubuntu**: `sudo apt install graphviz`
+- **macOS**: `brew install graphviz`
+- **Fedora**: `sudo dnf install graphviz`
+- **Windows**: Download from [graphviz.org](https://graphviz.org/download/)
 
 ### Build HTML Documentation
 
@@ -58,7 +65,6 @@ The HTML documentation will be in `_build/html/`. Open `_build/html/index.html` 
 - `workflow.rst` - Snakemake workflow execution
 - `results.rst` - Analyzing and visualizing outputs
 - `development.rst` - Contributing guidelines
-- `troubleshooting.rst` - Common issues and FAQ
 - `api/index.rst` - Auto-generated API reference
 
 ## Editing Documentation

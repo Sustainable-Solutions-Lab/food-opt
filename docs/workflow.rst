@@ -8,33 +8,24 @@ Workflow & Execution
 Overview
 --------
 
-The food-opt model uses Snakemake for workflow orchestration, automating:
+The food-opt model uses `Snakemake <https://snakemake.readthedocs.io/>`__ for workflow orchestration. If you have never used Snakemake before, consider having a look at the official `tutotial <https://snakemake.readthedocs.io/en/stable/tutorial/tutorial.html>`__ to get familiar with the basic concepts. The workflow follows these main stages:
 
-1. Data retrieval and preprocessing
-2. Model building (PyPSA network construction)
-3. Solving (linear program optimization)
-4. Postprocessing and visualization
+1. **Downloads** (GAEZ, GADM, UN WPP, FAOSTAT)
+2. **Preprocessing** (regions, resource classes, yields, population, health)
+3. **Model Building** (PyPSA network construction)
+4. **Solving** (LP optimization with health costs)
+5. **Visualization** (plots, maps, CSV exports)
 
-This page describes the workflow stages, key rules, and execution commands.
+Each stage is defined by Snakemake rules that specify inputs, outputs, and a script or piece of code.
 
-Workflow Stages
----------------
+The complete workflow dependency graph is shown below. Each node represents a Snakemake rule, and edges show dependencies between rules.
 
-The workflow follows a dependency graph:
+.. figure:: _static/figures/workflow_rulegraph.svg
+   :alt: Workflow dependency graph
+   :align: center
+   :width: 100%
 
-.. code-block:: text
-
-   Downloads (GAEZ, GADM, UN WPP, FAOSTAT)
-           ↓
-   Preprocessing (regions, resource classes, yields, population, health)
-           ↓
-   Model Building (PyPSA network construction)
-           ↓
-   Solving (LP optimization with health costs)
-           ↓
-   Visualization (plots, maps, CSV exports)
-
-Each stage is defined by Snakemake rules that specify inputs, outputs, and scripts.
+   Complete workflow dependency graph showing all Snakemake rules and their relationships
 
 Key Snakemake Rules
 -------------------
@@ -121,11 +112,6 @@ Visualization Rules
   * ``plot_food_consumption``: Dietary composition
   * ``plot_crop_use_breakdown``: How crops are used (food vs. feed vs. waste)
 
-Each visualization rule has:
-  * **Input**: ``results/{name}/solved/model.nc`` plus auxiliary data
-  * **Output**: ``.pdf`` plots and ``.csv`` data tables
-  * **Script**: Corresponding script in ``workflow/scripts/``
-
 Execution Commands
 ------------------
 
@@ -134,10 +120,11 @@ Running the Full Workflow
 
 Build, solve, and visualize everything::
 
-    tools/smk -j4 all
+    tools/smk -j4 --configfile config/my_scenario.yaml all
 
 * ``-j4``: Use 4 parallel cores (adjust to your CPU count)
-* ``all``: Target rule that depends on all major outputs
+* ``--configfile config/my_scenario.yaml``: Specify which configuration file to use
+* ``all``: Target rule that depends on all major outputs (strictly speaking optional)
 
 This will:
 
@@ -153,11 +140,11 @@ Running Specific Stages
 
     tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/build/model.nc
 
-**Solve existing built model**::
+**Solve model**::
 
     tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model.nc
 
-**Regenerate specific plot** (assuming model solved)::
+**Regenerate specific plot**::
 
     tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/crop_production.pdf
 
@@ -165,18 +152,18 @@ Running Specific Stages
 
     tools/smk -j4 --configfile config/my_scenario.yaml processing/my_scenario/regions.geojson processing/my_scenario/resource_classes.nc
 
+For any of the above targets, Snakemake will first run any other previous rules in order to generate the necessary inputs for the specified target output/rule.
+
 Checking Workflow Status
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Dry-run** (show what would be executed without running)::
 
-    tools/smk -j4 all --dry-run
+    tools/smk --configfile config/my_scenario.yaml -n
 
-**Dependency graph** (requires Graphviz)::
+**Dependency graph**: See the workflow dependency graph figure at the top of this page. To generate a detailed job-level DAG for a specific configuration (requires Graphviz)::
 
     tools/smk --dag all | dot -Tpdf > dag.pdf
-
-This generates a visual workflow diagram.
 
 **List all rules**::
 
@@ -188,11 +175,11 @@ Memory Management
 The ``tools/smk`` Wrapper
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Never run** ``snakemake`` directly for this project. Always use ``tools/smk``, which:
+It is possible to run the workflow directly with the ``snakemake`` command. Food-opt, however, provides a simple shell script, ``tools/smk``, which:
 
-1. Runs Snakemake in a systemd cgroup with hard memory limit (default 10 GB)
+1. Runs Snakemake in a systemd cgroup with hard memory limit (default 10 GB), killing the process group if memory limit is exceeded
 2. Disables swap to prevent system instability
-3. Kills the process group if memory limit is exceeded
+3. Sets the ``-j1`` argument (running only one job at a time) by default unless the user sets the ``-j<n>`` option explicitly.
 
 **Default memory limit**: 10 GB (configurable via ``SMK_MEM_MAX`` environment variable)
 
@@ -200,53 +187,17 @@ The ``tools/smk`` Wrapper
 
     SMK_MEM_MAX=12G tools/smk -j4 all
 
-**Why this matters**: The model can consume significant memory (especially with many regions/crops), and exceeding system RAM causes thrashing or OOM kills. The wrapper provides graceful failure.
-
 Parallelization
 ---------------
 
-Snakemake parallelizes independent tasks:
-
-* **Rule-level parallelism**: Different rules run concurrently (e.g., downloading multiple GAEZ files, processing yields for different crops)
-* **Within-rule parallelism**: Not used by default (scripts are single-threaded)
-
-**Optimal core count**:
-  * **Data prep**: ``-j`` = CPU cores (many independent rules)
-  * **Model solving**: ``-j1`` (solver uses all cores internally)
-
-**Example** — 8-core machine::
-
-    # Data prep with parallelism
-    tools/smk -j8 --configfile config/my_scenario.yaml processing/my_scenario/resource_classes.nc
-
-    # Solving (solver will use multiple cores)
-    tools/smk -j1 --configfile config/my_scenario.yaml results/my_scenario/solved/model.nc
+Snakemake automatically runs rules concurrently (e.g., downloading multiple GAEZ files, processing yields for different crops), depending on the configured number of parallel rules allowed. This is set with the ``-j<n>`` option, where ``n`` is the number of parallel rules. Note that individual rules (such as the model solving rule) may use more than one processor core. 
 
 Snakemake automatically detects dependencies and runs tasks in correct order.
-
-Handling Failures
------------------
-
-**Network downloads fail**:
-  * **Cause**: Timeout, connection issues
-  * **Solution**: Rerun; Snakemake resumes from where it failed
-
-**Script errors**:
-  * **Cause**: Missing data, invalid config, code bug
-  * **Solution**: Check error message, fix config/code, rerun
-
-**Memory limit exceeded**:
-  * **Cause**: Too many regions, insufficient system RAM
-  * **Solution**: Increase ``SMK_MEM_MAX`` or reduce ``aggregation.regions.target_count`` in config
-
-**Solver infeasibility**:
-  * **Cause**: Conflicting constraints (e.g., nutritional requirements impossible with available land/crops)
-  * **Solution**: Relax constraints, add more crops, increase land availability
 
 Incremental Development
 -----------------------
 
-**Workflow philosophy**: Snakemake tracks file modification times and only reruns rules whose inputs changed.
+**Workflow philosophy**: Snakemake tracks file modification times and only reruns rules whose inputs changed. This includes rule input files, the script associated with the rule as well as rule parameters (relevant configuration sections).
 
 **Example workflow**:
 
@@ -255,56 +206,10 @@ Incremental Development
 3. Modify solver options → only ``solve_model`` reruns (build model reused)
 4. Modify visualization script → only plotting rules rerun
 
-**Force rerun** (ignore timestamps)::
-
-    tools/smk -j4 all --forceall
-
 **Rerun specific rule**::
 
     tools/smk -j4 --configfile config/my_scenario.yaml results/my_scenario/solved/model.nc --forcerun solve_model
 
-Network Access for Downloads
------------------------------
+**Mark all existing outputs as up to date** (preventing rules from being run due to modification times, etc.)::
 
-Rules that download data (``retrieve_*``) require network access. The ``tools/smk`` wrapper runs in a restricted cgroup by default.
-
-**If downloads fail** due to network restrictions:
-
-1. Confirm you have internet connectivity
-2. Check firewall rules
-3. Run outside the memory-limited cgroup (not recommended for full workflow)::
-
-       snakemake -j4 data/downloads/gadm.gpkg
-
-   Then use ``tools/smk`` for the rest.
-
-Workflow Customization
-----------------------
-
-**Adding a new crop**:
-
-1. Add crop name to ``config.yaml`` ``crops`` list
-2. Ensure crop is in ``data/gaez_crop_code_mapping.csv``
-3. Rerun: ``tools/smk -j4 all``
-4. Snakemake will download new GAEZ files and integrate crop
-
-**Adding a new visualization**:
-
-1. Create script in ``workflow/scripts/plot_*.py``
-2. Add rule in ``workflow/rules/plotting.smk``
-3. Add output to ``all`` rule dependencies
-4. Run: ``tools/smk --configfile config/my_scenario.yaml results/my_scenario/plots/my_new_plot.pdf``
-
-**Changing spatial resolution**:
-
-1. Edit ``aggregation.regions.target_count`` in config
-2. Rerun: ``tools/smk -j4 all`` (will rebuild regions and downstream)
-
-Workflow Best Practices
------------------------
-
-* **Version control**: Commit config changes to track scenario evolution
-* **Separate scenarios**: Use different ``name`` values, don't overwrite results
-* **Incremental testing**: Test with small region counts (50-100) before full-scale runs
-* **Monitor memory**: Watch system resources during first run to gauge memory needs
-* **Checkpoint frequently**: For long-running workflows, confirm intermediate outputs (``build/model.nc``) succeed before solving
+    tools/smk --configfile config/my_scenario.yaml --touch

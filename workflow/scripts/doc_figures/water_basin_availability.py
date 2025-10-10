@@ -96,7 +96,6 @@ def main(
         cmap=COLORMAPS["water"],
         edgecolor="white",
         linewidth=0.2,
-        alpha=0.85,
         transform=ccrs.PlateCarree(),
         legend=False,
         missing_kwds={"color": "#e0e0e0", "alpha": 0.3},

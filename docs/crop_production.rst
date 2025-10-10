@@ -239,31 +239,6 @@ Blue water availability is allocated to optimization regions based on spatial ov
 
    Growing season water availability by optimization region (mm). The map shows area-normalized water available during the average growing season for each region, computed by summing monthly basin availability over the typical crop growing period. This represents the blue water constraint for irrigated crop production in the optimization model.
 
-Model Constraints
-~~~~~~~~~~~~~~~~~
-
-In the optimization model:
-
-* Each irrigated crop link consumes water proportional to production (m³/t × tonnes)
-* Regional water constraints ensure: Σ(crop water use) ≤ growing season availability
-* If a region has insufficient water, the model either:
-
-  * Limits irrigated production
-  * Shifts to rainfed production (lower yields but no water cost)
-  * Imports crops from water-rich regions
-
-Irrigation Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-The ``irrigation.irrigated_crops`` parameter controls which crops can use irrigation:
-
-.. literalinclude:: ../config/default.yaml
-   :language: yaml
-   :start-after: # --- section: irrigation ---
-   :end-before: # --- section: solving ---
-
-Setting this to a subset of crops (e.g., only high-value crops like rice, wheat, vegetables) can explore scenarios where irrigation infrastructure is limited.
-
 Irrigated Land Availability
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -359,30 +334,32 @@ Crop yield processing is handled by the ``build_crop_yields`` rule:
 
 Run for a specific crop with::
 
-    tools/smk processing/{name}/crop_yields/wheat_r.csv
+    tools/smk -j1 processing/{name}/crop_yields/wheat_r.csv
 
 Or for all crops automatically via dependencies of the ``build_model`` rule.
 
-Visualization
--------------
+.. TODO: update this with reference to yield plotting rule, etc.
+..
+   Visualization
+   -------------
 
-Crop production results can be visualized with several plotting rules:
+   Crop production results can be visualized with several plotting rules:
 
-**Production totals**::
+   **Production totals**::
 
-    tools/smk results/{name}/plots/crop_production.pdf
+       tools/smk results/{name}/plots/crop_production.pdf
 
-**Spatial distribution**::
+   **Spatial distribution**::
 
-    tools/smk results/{name}/plots/crop_production_map.pdf
+       tools/smk results/{name}/plots/crop_production_map.pdf
 
-**Land use by crop**::
+   **Land use by crop**::
 
-    tools/smk results/{name}/plots/crop_land_use_map.pdf
+       tools/smk results/{name}/plots/crop_land_use_map.pdf
 
-**Crop utilization** (food vs. feed vs. waste)::
+   **Crop utilization** (food vs. feed vs. waste)::
 
-    tools/smk results/{name}/plots/crop_use_breakdown.pdf
+       tools/smk results/{name}/plots/crop_use_breakdown.pdf
 
 
 References

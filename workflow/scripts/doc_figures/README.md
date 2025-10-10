@@ -123,19 +123,6 @@ To add a new figure:
       Caption text here.
    ```
 
-## Existing Figures
-
-### Introduction
-- `intro_global_coverage.svg` - Global map showing all modeled regions
-
-### Land Use
-- `land_regions_map.svg` - Regional aggregation with country info
-- `land_resource_classes.svg` - Resource class stratification overlay
-
-### Crop Production
-- `crop_yield_{crop}.svg` - Yield potential maps for specific crops
-  - Currently: wheat, rice (wetland-rice), maize
-
 ## Styling Guidelines
 
 ### Colors
@@ -161,20 +148,3 @@ Use presets from `FIGURE_SIZES`:
 - Labels: 10pt
 - Legend: 9pt
 - Annotations: 8pt
-
-## Troubleshooting
-
-### Font warnings
-```
-findfont: Generic family 'sans-serif' not found
-```
-This is harmless - matplotlib falls back to default fonts. The SVG will still render correctly in browsers.
-
-### Large file sizes
-SVG files with complex geometries can be 2-5 MB. This is acceptable for documentation. If files exceed 10 MB, consider:
-- Using PNG for raster-heavy maps
-- Simplifying geometries
-- Reducing the number of regions in config
-
-### Missing crop colors
-Crop colors are loaded from `config["plotting"]["colors"]["crops"]`. If a crop isn't defined, the fallback colormap (`Set3`) is used.

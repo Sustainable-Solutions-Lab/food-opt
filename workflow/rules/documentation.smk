@@ -27,6 +27,12 @@ DOC_FIGURES = [
     "water_basin_availability",
     "water_region_availability",
     "irrigated_land_fraction",
+    # Livestock figures
+    "grassland_yield",
+    # Trade figures
+    "trade_network",
+    # Workflow figures
+    "workflow_rulegraph",
 ]
 
 
@@ -108,6 +114,59 @@ rule doc_fig_irrigated_land_fraction:
         svg="docs/_static/figures/irrigated_land_fraction.svg",
     script:
         "../scripts/doc_figures/irrigated_land_fraction.py"
+
+
+rule doc_fig_grassland_yield:
+    """Generate managed grassland yield map."""
+    input:
+        grassland_yield="data/downloads/grassland_yield_historical.nc4",
+        regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
+    output:
+        svg="docs/_static/figures/grassland_yield.svg",
+    script:
+        "../scripts/doc_figures/grassland_yield_map.py"
+
+
+rule doc_fig_trade_network:
+    """Generate trade network map showing hubs and links."""
+    input:
+        regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
+    output:
+        svg="docs/_static/figures/trade_network.svg",
+    params:
+        n_hubs=config["trade"]["crop_hubs"],
+    script:
+        "../scripts/doc_figures/trade_network_map.py"
+
+
+rule doc_fig_workflow_rulegraph_dot:
+    """Generate workflow dependency graph in DOT format from Snakemake."""
+    output:
+        dot="docs/_static/figures/workflow_rulegraph_raw.dot",
+    shell:
+        """
+        snakemake --rulegraph --configfile config/doc_figures.yaml > {output.dot}
+        """
+
+
+rule doc_fig_workflow_rulegraph_styled:
+    """Apply custom styling and text wrapping to DOT graph."""
+    input:
+        dot="docs/_static/figures/workflow_rulegraph_raw.dot",
+    output:
+        dot="docs/_static/figures/workflow_rulegraph.dot",
+    script:
+        "../scripts/doc_figures/style_workflow_graph.py"
+
+
+rule doc_fig_workflow_rulegraph:
+    """Render workflow dependency graph to SVG using Graphviz."""
+    input:
+        dot="docs/_static/figures/workflow_rulegraph.dot",
+    output:
+        svg="docs/_static/figures/workflow_rulegraph.svg",
+    script:
+        "../scripts/doc_figures/render_graph.py"
 
 
 rule generate_all_doc_figures:

@@ -15,6 +15,20 @@ mkdir -p "$PWD/.cache" "$PWD/.tmp"
 export XDG_CACHE_HOME=$PWD/.cache
 export TMPDIR=$PWD/.tmp
 
+# Check if -j argument is already specified
+has_jobs_arg=false
+for arg in "$@"; do
+  if [[ "$arg" =~ ^-j ]]; then
+    has_jobs_arg=true
+    break
+  fi
+done
+
+# Add -j1 if not specified
+if [ "$has_jobs_arg" = false ]; then
+  set -- -j1 "$@"
+fi
+
 if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1; then
   exec systemd-run --user --scope -p MemoryMax="${MEM_MAX}" -p MemorySwapMax=0 \
     uv run snakemake "$@"

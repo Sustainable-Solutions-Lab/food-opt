@@ -12,7 +12,7 @@ The model uses empirical dietary intake data from the Global Dietary Database (G
 
 * **Health impact assessment**: Calculating disease burden attributable to current dietary patterns
 * **Baseline reference**: Comparing optimized diets against current consumption
-* **Model constraints**: (Future) Constraining optimization to remain near current diets
+* **Model constraints**: Optionally constrain the optimization to remain near current diets
 
 Data Source
 -----------
@@ -173,61 +173,6 @@ The GDD dataset covers 185 countries. For a small number of territories without 
 
 These proxies are defined in the ``COUNTRY_PROXIES`` dictionary in ``prepare_gdd_dietary_intake.py``.
 
-Age Stratification
-------------------
-
-The processed data preserves age stratification from the GDD source, providing dietary intake estimates for seven age groups. This stratification serves multiple purposes:
-
-**Variation across life stages**
-  Dietary patterns differ substantially across age groups. For example, dairy consumption is typically highest in early childhood (250-265 g/day for ages 0-10) and lower in adulthood (175 g/day for ages 11-74), reflecting both nutritional needs and cultural feeding practices.
-
-**Energy adjustment**
-  The GDD applies age-specific energy adjustment to normalize intakes (700 kcal/day for infants to 2000 kcal/day for adults). This ensures that reported intake values reflect dietary patterns after accounting for differences in total energy consumption across ages.
-
-**Health burden calculation**
-  Age-stratified data enables more accurate baseline health burden estimates, as disease risks and mortality rates vary substantially by age. The health module can weight dietary risks appropriately across the age distribution.
-
-**Future extensions**
-  Age-stratified baseline data supports planned model features such as age-specific dietary constraints, life-course health dynamics, and demographic transition scenarios.
-
-The ``All ages`` rows provide population-weighted averages useful for simple comparisons and validation against aggregate statistics.
-
-Integration with Health Module
--------------------------------
-
-Current dietary intake data is essential for calculating baseline health burden:
-
-1. **Baseline risk assessment**: GDD provides current intake levels for each dietary risk factor
-2. **Relative risk calculation**: Current intake is compared to optimal intake using dose-response curves
-3. **Attributable burden**: Disease burden attributable to suboptimal current diet is quantified
-4. **Health gains**: Optimization can reduce burden by shifting toward healthier dietary patterns
-
-See :doc:`health` for details on how dietary intake translates to health outcomes.
-
-**Current implementation note**: The health module currently uses the ``All ages`` population-weighted aggregate from the GDD data. Full age-specific matching of dietary intake with age-stratified mortality and morbidity data is planned for future development. The age-stratified dietary data is preserved in the processed output to support this enhancement.
-
-Example: Dairy Consumption
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The GDD "Total Milk" variable (v57) represents total dairy consumption in milk equivalents. Age-stratified data shows substantial variation across life stages:
-
-**USA (2018)**
-  * 0-10 years: 250-265 g/day (high consumption in childhood)
-  * 11-74 years: 175 g/day (adult average)
-  * 75+ years: 206 g/day (moderate elderly consumption)
-  * All ages: 187 g/day (population average)
-
-**France (2018)**
-  * All ages: 328 g/day (high cheese/yogurt consumption culture)
-
-**India (2018)**
-  * All ages: 82 g/day (lower but culturally significant)
-
-**China (2018)**
-  * All ages: 272 g/day (increasing with economic development)
-
-This "Total Milk" metric includes liquid milk, cheese, yogurt, and other dairy products converted to milk equivalents, providing a comprehensive measure of dairy consumption that aligns with the GBD dairy risk factor.
-
 Workflow Integration
 --------------------
 
@@ -252,54 +197,6 @@ Baseline diet enforcement in the optimization can be toggled via
 per-country equality loads for matching food groups, forcing the solution to
 replicate observed intake. ``baseline_age`` and ``baseline_reference_year``
 override which cohort/year slice the model locks to.
-
-To regenerate dietary intake data:
-
-.. code-block:: bash
-
-   tools/smk --configfile config/default.yaml -- processing/default/gdd_dietary_intake.csv
-
-Validation
-----------
-
-The processing script validates:
-
-1. **Country coverage**: All countries in ``config.countries`` must have data (or use proxies)
-2. **Food group coverage**: All food groups with GDD mappings must have complete data
-3. **Data completeness**: Each country must have values for all mapped food groups
-
-Missing data triggers an error with details about which countries or food groups are incomplete.
-
-Future Extensions
------------------
-
-Planned enhancements for current diet integration:
-
-**Age-specific health modeling**
-  * Match age-stratified dietary intake with age-specific mortality and morbidity rates
-  * Compute age-weighted health burdens rather than using population aggregates
-  * Enable life-course health impact analysis and age-targeted interventions
-  * Currently: health module uses ``All ages`` aggregate; age-stratified data available for future use
-
-**Dietary transition constraints**
-  * Limit how far optimized diets can deviate from current patterns
-  * Model feasibility of large-scale dietary shifts
-  * Account for cultural food preferences and acceptance
-
-**Temporal dynamics**
-  * Track dietary trends over time using GDD historical data (1990-2018)
-  * Project future dietary patterns under different scenarios
-  * Model gradual dietary transitions rather than instantaneous shifts
-
-**Subnational detail**
-  * Use GDD stratification (urban/rural, education) for within-country heterogeneity
-  * Model dietary inequality and access disparities
-  * Target interventions to specific population groups
-
-**Food waste**
-  * Distinguish between intake and production (accounting for waste)
-  * Use FAO food balance sheets to calibrate waste factors
-  * Optimize supply chain efficiency alongside dietary patterns
 
 References
 ----------

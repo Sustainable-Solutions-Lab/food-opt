@@ -2,6 +2,8 @@
 ..
 .. SPDX-License-Identifier: CC-BY-4.0
 
+.. _health-impacts:
+   
 Health Impacts
 ==============
 
@@ -269,27 +271,6 @@ The preprocessing rule saves all intermediate products under
 ``processing/{name}/health/``. Downstream plotting rules also create quick-look
 maps (``results/{name}/plots/health_*.pdf``) and CSV summaries to compare
 baseline versus optimised health outcomes.
-
-Limitations and Future Work
----------------------------
-
-- **Age mismatch** – GBD risk factors are defined for adult populations (≥25 years),
-  but the current implementation uses "All ages" dietary intake averages including
-  children. This may underestimate adult dietary risk exposure and should be
-  addressed by filtering to adult age groups and computing adult population-weighted
-  averages.
-- **Mortality focus** – only years of life lost are modelled; years lived with
-  disability are currently excluded.
-- **Static risk mapping** – all foods mapped to a risk factor contribute in
-  fixed proportions; nutrient interactions are not captured.
-- **Linearisation error** – SOS2 approximations introduce bounded error that
-  depends on the chosen grids. Monitor solver logs if experimenting with coarser
-  settings.
-- **Valuation assumptions** – a uniform value-per-YLL treats all clusters
-  identically; explore sensitivity if distributional differences matter.
-
-Future extensions may add morbidity effects, age-dependent optimal intakes, or
-multi-period health dynamics that capture delayed impacts of dietary change.
 
 References
 ----------

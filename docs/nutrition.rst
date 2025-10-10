@@ -10,11 +10,9 @@ Overview
 
 The nutrition module ensures that the optimized food system meets population dietary requirements. This includes:
 
-* **Macronutrient constraints**: Minimum carbohydrates, protein, fat, and calories per capita
-* **Food group constraints**: Minimum consumption of whole grains, fruits, vegetables, etc.
+* **Macronutrient constraints**: Carbohydrates, protein, fat, and calories per capita
+* **Food group constraints**: Consumption of whole grains, fruits, vegetables, etc.
 * **Population scaling**: Aggregating per-capita needs to regional/national totals
-
-Nutritional requirements drive the model to produce not just adequate calories, but a balanced, healthy diet.
 
 Macronutrients
 --------------
@@ -35,37 +33,15 @@ Macronutrient constraints are specified in ``config/default.yaml``:
 * ``max``: Upper bound (≤)
 * ``equal``: Exact requirement (=)
 
-**Reference values**: Based on WHO/FAO guidelines and EAT-Lancet recommendations for healthy diets.
-
-Model Implementation
-~~~~~~~~~~~~~~~~~~~~
-
-Macronutrient constraints are implemented as PyPSA global constraints:
-
-1. **Nutrient buses**: Per-country buses for each nutrient (e.g., ``nutrient_protein_USA``)
-
-2. **Food → Nutrient links**: Each food product contributes to nutrient buses
-
-   * Efficiency: Nutritional content per tonne of food (e.g., 12 kg protein per 100 kg wheat)
-   * From ``data/nutrition.csv``
-
-3. **Population constraints**: Σ(nutrient consumption) = population × requirement
-
-Example: Protein constraint for USA with 330M population and 50 g/person/day requirement:
-
-.. math::
-
-   \sum_{\text{foods}} (\text{food consumption}_\text{USA} \times \text{protein content}) \geq 330 \times 10^6 \times 50 \times 365 \times 10^{-9} \text{ Mt}
-
-Unit conversions handled in ``workflow/scripts/build_model.py``:
-
-* g/person/day → Mt/year (for mass nutrients)
-* kcal/person/day → Mcal/year (for energy)
+.. TODO: write in more detail about the implementation
+..
+   Model Implementation
+   ~~~~~~~~~~~~~~~~~~~~
 
 Food Groups
 -----------
 
-Beyond macronutrients, the model constrains consumption of food groups to promote dietary diversity and quality.
+Beyond macronutrients, the model can also constrains consumption of food groups. Moreover, food groups are used to assess dietary risk factors (see :ref:`health-impacts`).
 
 Configuration
 ~~~~~~~~~~~~~
@@ -73,37 +49,24 @@ Configuration
 .. literalinclude:: ../config/default.yaml
    :language: yaml
    :start-after: # --- section: food_groups ---
-   :end-before: # --- section: trade ---
+   :end-before: # --- section: diet ---
 
-**Defaults**: All minima are zero in the base config, leaving food group constraints inactive. Raise these values (e.g., 50 g/day for ``whole_grains``) to enforce dietary diversity targets aligned with WHO guidance (≥400 g/day fruit+vegetables, ≥150 g/day whole grains).
+Foods are assigned to groups in ``data/food_groups.csv``. Example:
 
-Food Group Mapping
-~~~~~~~~~~~~~~~~~~
+.. TODO: refine this section
+..
+   Model Implementation
+   ~~~~~~~~~~~~~~~~~~~~
 
-Foods are assigned to groups in ``data/food_groups.csv`` (mock data). Example:
+   Food group constraints work similarly to macronutrients:
 
-* ``bread`` → ``grain``
-* ``whole_wheat_bread`` → ``whole grain``
-* ``apple`` → ``fruit``
-* ``carrot`` → ``vegetable``
-* ``beef`` → ``animal protein``
+   1. **Food group buses**: Per-country buses (e.g., ``food_group_fruit_USA``)
 
-Some foods may belong to multiple groups or have fractional assignments.
+   2. **Food → Group links**: Foods contribute to their group bus
 
-Model Implementation
-~~~~~~~~~~~~~~~~~~~~
+   3. **Population constraints**: Σ(group consumption) ≥ population × min requirement
 
-Food group constraints work similarly to macronutrients:
-
-1. **Food group buses**: Per-country buses (e.g., ``food_group_fruit_USA``)
-
-2. **Food → Group links**: Foods contribute to their group bus
-
-   * Efficiency: 1.0 if fully in group, fractional if partial membership
-
-3. **Population constraints**: Σ(group consumption) ≥ population × min requirement
-
-This ensures dietary diversity even if macronutrient needs could be met by a narrow set of crops.
+   This ensures dietary diversity even if macronutrient needs could be met by a narrow set of crops.
 
 Population Data
 ---------------
@@ -138,19 +101,7 @@ Age-structured population is used in the health module to weight dietary risk fa
 Nutritional Content Data
 -------------------------
 
-The file ``data/nutrition.csv`` (currently mock data) contains nutritional composition for each food product. Required columns:
-
-* ``food``: Food name (matching ``data/foods.csv``)
-* Macronutrients: ``carb_g_per_100g``, ``protein_g_per_100g``, ``fat_g_per_100g``, ``kcal_per_100g``
-* Micronutrients (optional): ``calcium_mg_per_100g``, ``iron_mg_per_100g``, etc.
-
-**Units**: Typically per 100g (standard nutrition labeling convention)
-
-**Data sources** (recommended replacements for mock data):
-
-* **USDA FoodData Central**: https://fdc.nal.usda.gov/
-* **FAO INFOODS**: https://www.fao.org/infoods/infoods/tables-and-databases/en/
-* **National food composition tables**: Many countries maintain detailed databases
+The file ``data/nutrition.csv`` (currently mock data) contains nutritional composition for each food product. It is a work in progress to replace this with properly sourced data.
 
 Per-Capita vs. Total Consumption
 ---------------------------------
@@ -172,57 +123,10 @@ From the model's perspective:
 Dietary Patterns
 ----------------
 
-The model does not prescribe specific dietary patterns (e.g., Mediterranean, vegetarian, EAT-Lancet) but rather:
+The model does not currently prescribe specific dietary patterns (e.g., Mediterranean, vegetarian, EAT-Lancet) but rather:
 
-1. **Lower bounds**: Ensure minimum nutritional adequacy
+1. **Lower / upper bounds**: Ensure minimum nutritional adequacy
 2. **Cost minimization**: Subject to those bounds, minimize environmental + health costs
-
-This allows the optimizer to discover efficient dietary patterns rather than imposing them a priori.
-
-To explore specific diets, you can:
-
-* **Constrain animal products**: Set ``animal_products.max_per_person_per_day``
-* **Require high plant foods**: Increase fruit/vegetable/whole grain minimums
-* **Price emissions**: Higher ``emissions.ghg_price`` discourages ruminant meat
-
-Regional Dietary Heterogeneity
--------------------------------
-
-Currently, nutritional constraints are uniform across countries (same g/person/day requirements). Future extensions could add:
-
-* **Country-specific requirements**: Adjust for demographic differences (age structure, body size)
-* **Cultural preferences**: Minimum consumption of staple foods (rice in Asia, wheat in Europe)
-* **Income-dependent targets**: Lower-income regions may have different nutritional priorities
-
-Micronutrients
---------------
-
-The current model focuses on macronutrients. Micronutrients (vitamins, minerals) can be added by:
-
-1. Extending ``data/nutrition.csv`` with micronutrient columns
-2. Adding micronutrient buses and constraints in ``build_model.py``
-3. Setting minimum daily intakes (e.g., 10 mg iron, 1000 mg calcium)
-
-This would capture the "hidden hunger" problem where calorie needs are met but micronutrient deficiencies persist.
-
-Validation and Sanity Checks
------------------------------
-
-After solving, validate nutritional outcomes:
-
-**Total calories**::
-
-    tools/smk results/{name}/plots/food_consumption.pdf
-
-Check that per-capita calorie consumption equals the configured requirement.
-
-**Food group consumption**::
-
-    tools/smk results/{name}/plots/food_consumption.csv
-
-Verify that fruit, vegetable, whole grain consumption meets minimums.
-
-**Macronutrient balance**: Inspect protein/carb/fat ratios (should be reasonable, e.g., 10-35% protein, 20-35% fat, 45-65% carbs by energy)
 
 Workflow Integration
 --------------------

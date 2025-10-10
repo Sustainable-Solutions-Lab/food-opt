@@ -13,8 +13,6 @@ The livestock module models animal product production (meat, dairy, eggs) throug
 * **Grazing-based**: Animals feed on managed grasslands
 * **Feed-based**: Animals consume crops as concentrated feed
 
-This distinction captures the fundamental trade-off between extensive (land-intensive grazing) and intensive (crop-feed) livestock systems.
-
 Animal Products
 ---------------
 
@@ -36,21 +34,13 @@ Grazing-Based Production
 **Concept**: Animals graze on managed grasslands, converting grass biomass to animal products.
 
 **Inputs**:
-  * Land (grassland resource classes, similar to cropland)
+  * Land (per region and resource class, similar to cropland)
   * Managed grassland yields from ISIMIP LPJmL model
 
 **Process**:
   1. Grassland yields (t dry matter/ha/year) are computed per region and resource class
   2. Feed conversion ratios translate grass biomass → animal products
   3. Land allocation to grazing competes with cropland expansion
-
-**Advantages**:
-  * Can utilize marginal land unsuitable for crops
-  * Lower input costs (no crop production needed)
-
-**Disadvantages**:
-  * Lower productivity per hectare
-  * Higher land use and associated emissions
 
 **Configuration**: Enable/disable grazing with ``grazing.enabled: true``
 
@@ -67,15 +57,6 @@ Feed-Based Production
   1. Crops are allocated to animal feed (competing with direct human consumption)
   2. Feed conversion links transform crop inputs to animal products
   3. Multiple crops can contribute (e.g., maize + soybean for poultry)
-
-**Advantages**:
-  * Higher productivity per unit land (intensive)
-  * Can locate near demand centers (doesn't require grazing land)
-
-**Disadvantages**:
-  * Competes with human food for crops
-  * Depends on crop production infrastructure
-
 
 .. _grassland-yields:
 
@@ -101,7 +82,12 @@ Aggregation follows the same resource class structure as crops:
 2. Aggregate by (region, resource_class) using area-weighted means
 3. Output CSV with yields in t/ha/year
 
-Since grasslands are perennial, there's no growing season constraint—they're available year-round.
+.. figure:: _static/figures/grassland_yield.svg
+   :alt: Managed grassland yield potential
+   :width: 100%
+   :align: center
+
+   Global distribution of managed grassland yield potential (tonnes dry matter per hectare per year) from ISIMIP LPJmL historical simulations
 
 Feed Conversion
 ---------------
@@ -118,7 +104,7 @@ Maps crops to feed energy/protein content. Columns:
 * ``protein_g_per_kg``: Protein content
 * Other feed characteristics
 
-**Note**: Current values are mock data; replace with vetted livestock nutrition databases (e.g., Feedipedia).
+.. Note:: Current values are mock data; to be replaced by actual values.
 
 data/feed_to_animal_products.csv
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -130,20 +116,7 @@ Maps feed requirements to animal product yields. Columns:
 * ``feed_kg_per_kg_product``: Conversion ratio
 * ``production_system``: "grazing" or "feed-based"
 
-**Note**: Current values are mock data; replace with zootechnical conversion factors from FAO or academic literature.
-
-Example Conversion
-~~~~~~~~~~~~~~~~~~
-
-For cattle meat via feed-based system:
-
-* 7 kg grain + 2 kg protein feed (e.g., soybean meal) → 1 kg beef
-* Feed conversion efficiency: ~11% (9 kg feed → 1 kg beef)
-
-For cattle meat via grazing:
-
-* 40 kg grass dry matter → 1 kg beef
-* Extensive system with lower efficiency but uses marginal land
+.. Note:: Current values are mock data; to be replaced by actual values.
 
 Model Implementation
 --------------------
@@ -176,44 +149,12 @@ Feed-Based Links
 
 **Efficiency**: Feed conversion ratios (negative for inputs, positive for output)
 
-Competition and Trade-offs
----------------------------
-
-The model captures several key trade-offs:
-
-Land Use
-~~~~~~~~
-
-* **Cropland vs. Grassland**: Expanding crops may reduce grazing land, pushing livestock to feed-based systems or imports
-* **Resource Classes**: High-quality land is more valuable for crops, so grazing may concentrate on marginal land
-
-Feed vs. Food
-~~~~~~~~~~~~~
-
-* **Crop Allocation**: Crops can go to:
-
-  * Direct human consumption (e.g., wheat → bread)
-  * Animal feed (e.g., maize → chicken meat)
-  * Non-food uses (e.g., biofuel, waste)
-
-* The model optimizes this allocation based on nutritional needs, environmental costs, and production efficiencies
-
-Environmental Impacts
-~~~~~~~~~~~~~~~~~~~~~
-
-* **Grazing**: Higher land use, potential for land-use change emissions, CH₄ from ruminants
-* **Feed-based**: Lower land per kg product but higher crop system emissions (fertilizer, machinery)
-
-The optimal mix depends on:
-
-* Carbon price (penalizes ruminant CH₄ and land-use change)
-* Land availability (limits grazing expansion)
-* Nutritional constraints (protein needs may drive legume production → animal feed)
-
 Emissions from Livestock
 -------------------------
 
-Livestock production generates significant greenhouse gas emissions:
+Livestock production generates significant greenhouse gas emissions.
+
+.. Note:: The model currently uses mock data for these emissions.
 
 Enteric Fermentation (CH₄)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -253,31 +194,3 @@ Workflow Rules
   * **Script**: ``workflow/scripts/build_grassland_yields.py``
 
 Livestock production is then integrated into the ``build_model`` rule using the grassland yields and feed conversion CSVs.
-
-Visualization
--------------
-
-Livestock production results appear in:
-
-**Food production plots**::
-
-    tools/smk results/{name}/plots/food_production.csv
-
-This CSV includes animal products alongside plant-based foods.
-
-**Objective breakdown**::
-
-    tools/smk results/{name}/plots/objective_breakdown.pdf
-
-Shows contributions of livestock emissions to total environmental costs.
-
-Future Extensions
------------------
-
-Potential enhancements to the livestock module:
-
-* **Separate grazing types**: Distinguish pasture, rangeland, and mixed systems
-* **Manure as fertilizer**: Close nutrient loops by crediting manure N-P-K against synthetic fertilizer
-* **Monogastric vs. ruminant**: More detailed emission factor differentiation
-* **Dairy vs. beef cattle**: Currently combined; could separate for more realistic herd dynamics
-* **Regional suitability**: Some regions better suited for grazing (e.g., arid rangelands) vs. feedlots

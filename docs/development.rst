@@ -36,7 +36,7 @@ Installation
 
 3. Install development tools::
 
-       uv sync --dev
+       uv sync --extra dev
 
 4. Set up pre-commit hooks::
 
@@ -84,7 +84,7 @@ SPDX headers (required in all source files):
 
 .. code-block:: python
 
-   # SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+   # SPDX-FileCopyrightText: 2025 <Author>
    #
    # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -117,7 +117,7 @@ Adding New Features
 Adding a New Visualization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. **Create script** ``workflow/scripts/plot_my_metric.py``:
+1. **Create script** ``workflow/scripts/plotting/plot_my_metric.py``:
 
    .. code-block:: python
 
@@ -147,7 +147,7 @@ Adding a New Visualization
           output:
               plot="results/{name}/plots/my_metric.pdf"
           script:
-              "../scripts/plot_my_metric.py"
+              "../scripts/plotting/plot_my_metric.py"
 
 3. **Add to** ``all`` **rule** (optional):
 
@@ -174,7 +174,7 @@ Git Workflow
 
 2. **Commit frequently** with descriptive messages::
 
-       git commit -m "Add minimum legume production constraint"
+       git commit -m "feat: Add minimum legume production constraint"
 
 3. **Push to remote**::
 
@@ -230,7 +230,9 @@ Updating Documentation
 1. **Edit** ``.rst`` files in ``docs/``
 2. **Rebuild**::
 
-       tools/smk -j4 --configfile config/doc_figures.yaml -- build_docs
+       tools/smk -j4 --configfile config/doc_figures.yaml --forcerun build_docs -- build_docs
+
+   The ``--forcerun build_docs`` is necessary when only documentation text has been updated and no other files/figures.
 
 3. **Check** for warnings/errors
 4. **Commit** documentation changes
