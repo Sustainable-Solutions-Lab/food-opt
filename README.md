@@ -12,6 +12,10 @@ SPDX-License-Identifier: CC-BY-4.0
 
 food-opt is a global food-systems optimization model built on [PyPSA](https://pypsa.org/) and [Snakemake](https://snakemake.readthedocs.io). It explores environmental, nutritional, and economic trade-offs through a configuration-driven mixed integer linear program build by reproducible workflow.
 
+🚧 This project is currently **under construction**! 🚧
+
+Documentation is kept up to date at a best effort basis. Certain model elements are still missing. Validation of model results has not yet been conducted. Expect frequent breaking changes.
+
 ## Documentation
 
 Documentation (model design, configuration reference, data provenance, API) lives under `docs/`; the documentation is built automatically by a Github Action and, for now, can be accessed by clicking the documentation badge at the top of this page.
