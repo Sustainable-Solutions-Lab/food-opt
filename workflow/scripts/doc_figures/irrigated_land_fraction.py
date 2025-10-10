@@ -49,8 +49,8 @@ def main(
 
     # Load irrigated fraction raster (downsampled for memory efficiency)
     with rasterio.open(irrigated_fraction_path) as src:
-        # Downsample by factor of 5 to reduce memory usage while maintaining detail
-        out_shape = (src.height // 5, src.width // 5)
+        # Downsample by factor of 10 to reduce memory usage while maintaining detail
+        out_shape = (src.height // 10, src.width // 10)
         irrigated_fraction = src.read(
             1, out_shape=out_shape, resampling=rasterio.enums.Resampling.average
         )
@@ -61,6 +61,9 @@ def main(
             irrigated_fraction = np.where(
                 irrigated_fraction == src.nodata, np.nan, irrigated_fraction
             )
+
+    # Convert from percentage to fraction
+    irrigated_fraction = irrigated_fraction / 100.0
 
     # Mask very low values and values outside [0, 1]
     irrigated_fraction = np.where(
