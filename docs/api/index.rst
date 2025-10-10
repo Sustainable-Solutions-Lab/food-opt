@@ -93,32 +93,32 @@ Utility Modules
 Visualization Scripts
 ---------------------
 
-.. automodule:: workflow.scripts.plot_results
+.. automodule:: workflow.scripts.plotting.plot_results
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: workflow.scripts.plot_regions_map
+.. automodule:: workflow.scripts.plotting.plot_regions_map
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: workflow.scripts.plot_resource_classes_map
+.. automodule:: workflow.scripts.plotting.plot_resource_classes_map
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: workflow.scripts.plot_crop_production_map
+.. automodule:: workflow.scripts.plotting.plot_crop_production_map
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: workflow.scripts.plot_health_impacts
+.. automodule:: workflow.scripts.plotting.plot_health_impacts
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: workflow.scripts.plot_food_consumption
+.. automodule:: workflow.scripts.plotting.plot_food_consumption
    :members:
    :undoc-members:
    :show-inheritance:

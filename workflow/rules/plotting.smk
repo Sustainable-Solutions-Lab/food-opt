@@ -35,7 +35,7 @@ rule plot_yield_gap:
     output:
         pdf=f"results/{name}/plots/yield_gap_{{crop}}.pdf",
     script:
-        "../scripts/plot_yield_gap.py"
+        "../scripts/plotting/plot_yield_gap.py"
 
 
 rule plot_regions_map:
@@ -44,7 +44,7 @@ rule plot_regions_map:
     output:
         pdf=f"results/{name}/plots/regions_map.pdf",
     script:
-        "../scripts/plot_regions_map.py"
+        "../scripts/plotting/plot_regions_map.py"
 
 
 rule plot_resource_classes_map:
@@ -54,7 +54,7 @@ rule plot_resource_classes_map:
     output:
         pdf=f"results/{name}/plots/resource_classes_map.pdf",
     script:
-        "../scripts/plot_resource_classes_map.py"
+        "../scripts/plotting/plot_resource_classes_map.py"
 
 
 rule plot_results:
@@ -68,7 +68,7 @@ rule plot_results:
     params:
         output_dir="results/{name}/plots",
     script:
-        "../scripts/plot_results.py"
+        "../scripts/plotting/plot_results.py"
 
 
 rule plot_health_impacts:
@@ -95,7 +95,7 @@ rule plot_health_impacts:
         health_baseline_map_pdf="results/{name}/plots/health_baseline_map.pdf",
         health_baseline_map_csv="results/{name}/plots/health_baseline_by_region.csv",
     script:
-        "../scripts/plot_health_impacts.py"
+        "../scripts/plotting/plot_health_impacts.py"
 
 
 rule plot_crop_production_map:
@@ -109,7 +109,7 @@ rule plot_crop_production_map:
         crop_colors=crop_color_overrides,
         fallback_cmap=crop_fallback_cmap,
     script:
-        "../scripts/plot_crop_production_map.py"
+        "../scripts/plotting/plot_crop_production_map.py"
 
 
 rule plot_crop_use_breakdown:
@@ -119,7 +119,7 @@ rule plot_crop_use_breakdown:
         pdf=f"results/{name}/plots/crop_use_breakdown.pdf",
         csv=f"results/{name}/plots/crop_use_breakdown.csv",
     script:
-        "../scripts/plot_crop_use_breakdown.py"
+        "../scripts/plotting/plot_crop_use_breakdown.py"
 
 
 rule plot_food_consumption:
@@ -131,7 +131,7 @@ rule plot_food_consumption:
     params:
         group_colors=food_group_colors,
     script:
-        "../scripts/plot_food_consumption.py"
+        "../scripts/plotting/plot_food_consumption.py"
 
 
 rule plot_food_consumption_map:
@@ -146,7 +146,7 @@ rule plot_food_consumption_map:
     params:
         group_colors=food_group_colors,
     script:
-        "../scripts/plot_food_consumption_map.py"
+        "../scripts/plotting/plot_food_consumption_map.py"
 
 
 rule plot_food_consumption_baseline_map:
@@ -165,7 +165,7 @@ rule plot_food_consumption_baseline_map:
         ),
         group_colors=food_group_colors,
     script:
-        "../scripts/plot_baseline_food_consumption_map.py"
+        "../scripts/plotting/plot_baseline_food_consumption_map.py"
 
 
 def yield_map_inputs(wildcards):
@@ -190,7 +190,7 @@ rule plot_yield_map:
         unit="t/ha",
         cmap="YlGn",
     script:
-        "../scripts/plot_yield_map.py"
+        "../scripts/plotting/plot_yield_map.py"
 
 
 rule plot_cropland_fraction_map:
@@ -202,7 +202,7 @@ rule plot_cropland_fraction_map:
     output:
         pdf=f"results/{name}/plots/cropland_fraction_map.pdf",
     script:
-        "../scripts/plot_cropland_fraction_map.py"
+        "../scripts/plotting/plot_cropland_fraction_map.py"
 
 
 rule plot_irrigated_cropland_fraction_map:
@@ -219,7 +219,7 @@ rule plot_irrigated_cropland_fraction_map:
         colorbar_label="Irrigated cropland / irrigable land area",
         csv_prefix="irrigated_cropland",
     script:
-        "../scripts/plot_cropland_fraction_map.py"
+        "../scripts/plotting/plot_cropland_fraction_map.py"
 
 
 rule plot_average_yield_gap_by_country:
@@ -229,7 +229,7 @@ rule plot_average_yield_gap_by_country:
     output:
         pdf=f"results/{name}/plots/yield_gap_by_country_average.pdf",
     script:
-        "../scripts/plot_yield_gap_by_country_average.py"
+        "../scripts/plotting/plot_yield_gap_by_country_average.py"
 
 
 rule plot_water_value_map:
@@ -239,4 +239,4 @@ rule plot_water_value_map:
     output:
         pdf=f"results/{name}/plots/water_value_map.pdf",
     script:
-        "../scripts/plot_water_value_map.py"
+        "../scripts/plotting/plot_water_value_map.py"
