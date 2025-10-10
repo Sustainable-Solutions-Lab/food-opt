@@ -321,6 +321,7 @@ def _process_health_clusters(
     rr_lookup: RelativeRiskTable,
     risk_to_causes: Dict[str, List[str]],
     relevant_causes: List[str],
+    tmrel_g_per_day: Dict[str, float],
 ) -> tuple:
     """Process each health cluster to compute baseline metrics and intakes."""
     cluster_summary_rows = []
@@ -369,11 +370,14 @@ def _process_health_clusters(
                 }
             )
 
+            # Use TMREL as reference point for health cost calculations
+            # This ensures costs are zero when optimized intake reaches TMREL
+            tmrel_intake = float(tmrel_g_per_day.get(risk, 0.0))
             causes = risk_to_causes.get(risk, [])
             for cause in causes:
                 if (risk, cause) not in rr_lookup:
                     continue
-                rr_val = _evaluate_rr(rr_lookup, risk, cause, baseline_intake)
+                rr_val = _evaluate_rr(rr_lookup, risk, cause, tmrel_intake)
                 log_rr = math.log(rr_val)
                 log_rr_ref_totals[cause] = log_rr_ref_totals.get(cause, 0.0) + log_rr
 
@@ -417,6 +421,7 @@ def _generate_breakpoint_tables(
     risk_to_causes: Dict[str, List[str]],
     relevant_causes: List[str],
     log_rr_points: int,
+    tmrel_g_per_day: Dict[str, float],
 ) -> tuple:
     """Generate SOS2 linearization breakpoint tables for risks and causes."""
     risk_breakpoint_rows = []
@@ -437,6 +442,9 @@ def _generate_breakpoint_tables(
         grid_points.add(max_exposure)
         for val in baseline_intake_registry.get(risk, set()):
             grid_points.add(float(val))
+        # Include TMREL as a breakpoint for accurate interpolation at optimal intake
+        if risk in tmrel_g_per_day:
+            grid_points.add(float(tmrel_g_per_day[risk]))
         grid = sorted(grid_points)
 
         for cause in causes:
@@ -500,6 +508,7 @@ def main() -> None:
     reference_year = int(health_cfg["reference_year"])
     intake_step = float(health_cfg["intake_grid_step"])
     log_rr_points = int(health_cfg["log_rr_points"])
+    tmrel_g_per_day: Dict[str, float] = dict(health_cfg.get("tmrel_g_per_day", {}))
 
     # Load input data
     (
@@ -550,6 +559,7 @@ def main() -> None:
         rr_lookup,
         risk_to_causes,
         relevant_causes,
+        tmrel_g_per_day,
     )
 
     # Generate breakpoint tables for SOS2 linearization
@@ -562,6 +572,7 @@ def main() -> None:
         risk_to_causes,
         relevant_causes,
         log_rr_points,
+        tmrel_g_per_day,
     )
 
     # Write outputs

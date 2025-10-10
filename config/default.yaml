@@ -201,6 +201,19 @@ health:
   - Stroke           # Stroke (all types)
   - T2DM             # Type 2 Diabetes Mellitus
   - CRC              # Colorectal Cancer
+  # Theoretical minimum risk exposure levels (TMREL) from GBD Study 2021
+  # Source: Brauer et al. (2024), Global Burden of Disease Study 2021
+  # Values represent optimal intake levels where health risk is minimized
+  # Reference: https://doi.org/10.1016/S0140-6736(24)00933-4
+  tmrel_g_per_day:
+    fruits: 345         # TMREL: 340-350 g/day (midpoint)
+    vegetables: 339     # TMREL: 306-372 g/day (midpoint)
+    whole_grains: 185   # TMREL: 160-210 g/day (midpoint)
+    nuts_seeds: 21.5    # TMREL: 19-24 g/day (midpoint)
+    legumes: 105        # TMREL: 100-110 g/day (midpoint)
+    fish: 37.7          # TMREL: 470-660 mg/day omega-3 (midpoint 565 mg, converted using omega3_per_100g_fish)
+    red_meat: 0         # TMREL: 0-200 g/day (using conservative lower bound)
+    prc_meat: 0         # TMREL: 0 g/day (any intake increases risk)
 
 # --- section: aggregation ---
 aggregation:

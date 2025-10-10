@@ -194,7 +194,9 @@ def compute_health_results(
     inputs: HealthInputs,
     risk_factors: list[str],
     value_per_yll: float,
+    tmrel_g_per_day: dict[str, float],
 ) -> HealthResults:
+    """Compute health costs from optimized network, relative to TMREL intake levels."""
     (
         risk_tables,
         cause_tables,
@@ -298,17 +300,26 @@ def compute_health_results(
             }
         )
 
-        # Compute cost for each risk factor in isolation (comparing intake vs zero)
-        # This avoids the problematic "share" calculation with mixed signs
+        # Compute cost for each risk factor in isolation (comparing intake vs TMREL)
+        # This measures the cost of deviation from optimal (TMREL) intake
         for risk, log_rr_at_intake in risk_contribs.items():
-            # Cost if we change this risk factor from current intake to zero,
+            # Get log(RR) at TMREL for this risk factor
+            risk_table = risk_tables[risk]
+            if cause not in risk_table.columns:
+                continue
+            xs = risk_table.index.to_numpy(dtype=float)
+            ys = risk_table[cause].to_numpy(dtype=float)
+            tmrel_intake = float(tmrel_g_per_day.get(risk, 0.0))
+            log_rr_at_tmrel = float(np.interp(tmrel_intake, xs, ys))
+
+            # Cost if we change this risk factor from current intake to TMREL,
             # holding all other risk factors at their current levels
-            log_total_without_risk = total_log - log_rr_at_intake
-            rr_without_risk = float(
-                np.interp(log_total_without_risk, log_points, rr_points)
-            )
-            cost_without_risk = coeff / rr_ref * rr_without_risk - coeff
-            risk_cost_contribution = cost - cost_without_risk
+            log_total_at_tmrel = total_log - log_rr_at_intake + log_rr_at_tmrel
+            rr_at_tmrel = float(np.interp(log_total_at_tmrel, log_points, rr_points))
+            cost_at_tmrel = coeff / rr_ref * rr_at_tmrel - coeff
+            risk_cost_contribution = cost - cost_at_tmrel
+            # Cap at zero: intake beyond TMREL for protective foods provides no additional benefit
+            risk_cost_contribution = max(0.0, risk_cost_contribution)
             risk_costs[(cluster, risk)] += risk_cost_contribution
 
     cause_df = pd.DataFrame(cause_records)
@@ -335,9 +346,13 @@ def compute_baseline_risk_costs(
     inputs: HealthInputs,
     risk_factors: list[str],
     value_per_yll: float,
+    tmrel_g_per_day: dict[str, float],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Compute baseline health costs by risk factor and by cause.
+    Compute baseline health costs by risk factor and by cause, relative to TMREL intake levels.
+
+    Health costs represent the monetized burden from deviations from optimal (TMREL) intake.
+    Both total costs and individual risk factor contributions are measured relative to TMREL.
 
     Returns:
         (risk_costs_df, cause_costs_df) where risk_costs has columns
@@ -427,16 +442,26 @@ def compute_baseline_risk_costs(
             }
         )
 
-        # Compute cost for each risk factor in isolation (comparing baseline vs zero)
+        # Compute cost for each risk factor in isolation (comparing baseline vs TMREL)
+        # This measures the cost of deviation from optimal (TMREL) intake
         for risk, log_rr_at_baseline in contributions.items():
-            # Cost if we change this risk factor from baseline to zero,
+            # Get log(RR) at TMREL for this risk factor
+            risk_table = risk_tables[risk]
+            if cause not in risk_table.columns:
+                continue
+            xs = risk_table.index.to_numpy(dtype=float)
+            ys = risk_table[cause].to_numpy(dtype=float)
+            tmrel_intake = float(tmrel_g_per_day.get(risk, 0.0))
+            log_rr_at_tmrel = float(np.interp(tmrel_intake, xs, ys))
+
+            # Cost if we change this risk factor from baseline to TMREL,
             # holding all other risk factors at their baseline levels
-            log_total_without_risk = total_log - log_rr_at_baseline
-            rr_without_risk = float(
-                np.interp(log_total_without_risk, log_points, rr_points)
-            )
-            cost_without_risk = coeff / rr_ref * rr_without_risk - coeff
-            risk_cost_contribution = total_cost - cost_without_risk
+            log_total_at_tmrel = total_log - log_rr_at_baseline + log_rr_at_tmrel
+            rr_at_tmrel = float(np.interp(log_total_at_tmrel, log_points, rr_points))
+            cost_at_tmrel = coeff / rr_ref * rr_at_tmrel - coeff
+            risk_cost_contribution = total_cost - cost_at_tmrel
+            # Cap at zero: intake beyond TMREL for protective foods provides no additional benefit
+            risk_cost_contribution = max(0.0, risk_cost_contribution)
 
             risk_records.append(
                 {
@@ -817,12 +842,14 @@ def main() -> None:
     )
 
     value_per_yll = float(snakemake.params.health_value_per_yll)
+    tmrel_g_per_day: dict[str, float] = dict(snakemake.params.health_tmrel_g_per_day)
 
     health_results = compute_health_results(
         n,
         health_inputs,
         snakemake.params.health_risk_factors,
         value_per_yll,
+        tmrel_g_per_day,
     )
 
     system_costs = compute_system_costs(n)
@@ -909,6 +936,7 @@ def main() -> None:
         health_inputs,
         snakemake.params.health_risk_factors,
         value_per_yll,
+        tmrel_g_per_day,
     )
     (
         baseline_cost_by_risk,
