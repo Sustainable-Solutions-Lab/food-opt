@@ -92,3 +92,16 @@ Brief descriptions of key external datasets used by this project, with links and
 - License/terms (summary): Free for non-commercial research, teaching, and private study with attribution. Requires user registration. Data may not be redistributed, shared with third parties, or used for commercial purposes without written permission from Tufts.
   - Terms and conditions: https://globaldietarydatabase.org/terms-and-conditions-use
 - Citation: Global Dietary Database. Dietary intake data by country. https://www.globaldietarydatabase.org/.
+
+## USDA FoodData Central
+
+- Description: USDA's integrated nutritional database providing comprehensive food composition data including macronutrients (protein, carbohydrates, fat) and energy values. This project uses the FoodData Central API to retrieve nutritional data for model foods from the SR Legacy (Standard Reference) database, which provides laboratory-analyzed nutrient data for over 7,000 foods.
+- Website: https://fdc.nal.usda.gov/
+- API documentation: https://fdc.nal.usda.gov/api-guide.html
+- API key: The repository includes a shared API key for convenience. Users can optionally obtain their own API key (free, instant signup) at https://fdc.nal.usda.gov/api-key-signup.
+- Version/format: Retrieved via REST API; nutritional values per 100g of food product.
+- Content: Macronutrient composition (protein, carbohydrates, total lipid/fat, energy/calories) used to define food nutritional properties in `data/nutrition.csv`.
+- License/terms (summary): Public domain data published under CC0 1.0 Universal (CC0 1.0). No permission needed for use, but USDA requests attribution and notification of products using the data.
+  - License: https://creativecommons.org/publicdomain/zero/1.0/
+- Citation: U.S. Department of Agriculture, Agricultural Research Service. FoodData Central, 2019. fdc.nal.usda.gov.
+- Workflow integration: Optional rule `retrieve_usda_nutrition` (controlled by `config['data']['usda']['retrieve_nutrition']`) retrieves data via API and writes to `data/nutrition.csv`. By default, this rule is disabled and the repository includes pre-fetched nutritional data.

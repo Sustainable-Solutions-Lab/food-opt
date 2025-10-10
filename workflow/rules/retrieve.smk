@@ -194,3 +194,15 @@ rule download_waterfootprint_appendix:
         mkdir -p "$(dirname {output})"
         wget -O "{output}" "{params.url}"
         """
+
+
+# Conditional rule: retrieve nutrition data from USDA if enabled in config
+if config["data"]["usda"]["retrieve_nutrition"]:
+
+    rule retrieve_usda_nutrition:
+        input:
+            mapping="data/usda_food_mapping.csv",
+        output:
+            "data/nutrition.csv",
+        script:
+            "../scripts/retrieve_usda_nutrition.py"

@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Mapping from model food names to USDA FoodData Central IDs
+# FDC IDs are from SR Legacy database (most comprehensive nutritional data)
+# To find/verify IDs: https://fdc.nal.usda.gov/
+food,fdc_id,description,notes
+flour (white),168894,"Wheat flour, white, all-purpose, enriched, bleached",Standard all-purpose flour
+flour (wholemeal),168944,"Wheat flour, whole-grain, soft wheat",Whole wheat flour
+rice,168877,"Rice, white, long-grain, regular, raw, enriched",White rice raw enriched
+maize,170288,"Corn grain, yellow",Yellow corn grain
+sorghum,169716,Sorghum grain,Whole grain sorghum
+buckwheat,170286,Buckwheat,Buckwheat groats (raw)
+foxtail millet,169702,"Millet, raw",Raw millet grain
+pearl millet,169702,"Millet, raw",Raw millet grain (same as foxtail)
+soy,174270,Soybeans mature seeds raw,Raw mature soybeans
+cowpea,173758,"Cowpeas, common (blackeyes, crowder, southern), mature seeds, raw",Raw cowpeas
+gram,173756,"Chickpeas (garbanzo beans, bengal gram), mature seeds, raw",Chickpeas/garbanzo beans
+phaseolus bean,173744,"Beans, kidney, red, mature seeds, raw",Red kidney beans
+pigeon pea,172436,"Pigeon peas (red gram), mature seeds, raw",Mature pigeon peas
+sesame seed,170150,"Seeds, sesame seeds, whole, dried",Dried sesame seeds
+palm oil,171015,"Oil, palm",Palm oil
+olive oil,171413,Oil olive salad or cooking,Olive oil
+potato,170026,"Potatoes, flesh and skin, raw",Raw potato with skin
+apple,171688,"Apples, raw, with skin (Includes foods for USDA's Food Distribution Program)",Fresh apple with skin
+citrus,169097,Oranges raw all commercial varieties,Fresh oranges
+coconut,170169,"Nuts, coconut meat, raw",Fresh coconut meat
+tomato,170457,Tomatoes red ripe raw year round average,Fresh tomatoes
+barley (hulled),170283,Barley hulled,Hulled barley grain
+oat,169705,Oats (Includes foods for USDA's Food Distribution Program),Oat grain
+sunflower oil,171025,"Oil, sunflower, linoleic, (approx. 65%)",Sunflower oil
+carrot,170393,Carrots raw,Fresh raw carrots
+onion,170000,Onions raw,Fresh raw onions
+cabbage,169975,Cabbage raw,Fresh raw cabbage
+banana,173944,Bananas raw,Fresh bananas
+cassava,169985,Cassava raw,Fresh cassava root
+sweet potato,168482,"Sweet potato, raw, unprepared (Includes foods for USDA's Food Distribution Program)",Fresh sweet potato
+yam,170071,"Yam, raw",Fresh yam
+rye,168884,Rye grain,Rye grain
+rapeseed oil,172336,Oil canola,Canola/rapeseed oil
+groundnut,172430,"Peanuts, all types, raw",Raw peanuts
+dry pea,172428,"Peas, green, split, mature seeds, raw",Dried split peas
+chickpea,173756,"Chickpeas (garbanzo beans, bengal gram), mature seeds, raw",Chickpeas
+cattle meat,171796,"Beef, ground, 85% lean meat / 15% fat, raw (Includes foods for USDA's Food Distribution Program)",Ground beef
+pig meat,168263,"Pork, fresh, loin, center loin (chops), boneless, separable lean only, raw",Pork loin
+chicken meat,171077,"Chicken, broiler or fryers, breast, skinless, boneless, meat only, raw",Chicken breast
+dairy,171265,"Milk, whole, 3.25% milkfat, with added vitamin D",Whole milk
+eggs,171287,Egg whole raw fresh,Whole raw egg
+sugar,169655,Sugars granulated,White granulated sugar

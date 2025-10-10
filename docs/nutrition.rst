@@ -101,7 +101,21 @@ Age-structured population is used in the health module to weight dietary risk fa
 Nutritional Content Data
 -------------------------
 
-The file ``data/nutrition.csv`` (currently mock data) contains nutritional composition for each food product. It is a work in progress to replace this with properly sourced data.
+The file ``data/nutrition.csv`` contains nutritional composition for each food product, sourced from the **USDA FoodData Central** database. This data is retrieved from the SR Legacy (Standard Reference) database, which provides laboratory-analyzed nutrient data for foods.
+
+**Data source**: U.S. Department of Agriculture, Agricultural Research Service. FoodData Central, 2019. https://fdc.nal.usda.gov/
+
+**Content**: Macronutrient values (protein, carbohydrates, fat) and energy (kcal) per 100g of food product.
+
+**License**: Public domain under CC0 1.0 Universal. See :doc:`data_sources` for full details.
+
+**Retrieval**:
+
+* The repository includes pre-fetched nutritional data from USDA
+* To update with fresh data, enable ``data.usda.retrieve_nutrition: true`` in the config
+* Run: ``snakemake -- data/nutrition.csv`` (requires network access and API key)
+* Food-to-USDA mappings are maintained in ``data/usda_food_mapping.csv``
+* A shared API key is included in the repository; users can optionally obtain their own free API key at https://fdc.nal.usda.gov/api-key-signup
 
 Per-Capita vs. Total Consumption
 ---------------------------------

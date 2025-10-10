@@ -226,6 +226,34 @@ Water Footprint Network — Monthly Blue Water Availability
 
 **Usage**: Constraining irrigated crop production by basin-level water availability
 
+Nutritional Data
+----------------
+
+USDA FoodData Central
+~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: U.S. Department of Agriculture, Agricultural Research Service
+
+**Description**: Comprehensive food composition database providing nutritional data for foods. This project uses the SR Legacy (Standard Reference) database, which contains laboratory-analyzed nutrient data for over 7,000 foods.
+
+**Access**: https://fdc.nal.usda.gov/ (web interface) or via REST API
+
+**API Documentation**: https://fdc.nal.usda.gov/api-guide.html
+
+**License**: Public domain under CC0 1.0 Universal (CC0 1.0). No permission needed for use, but USDA requests attribution.
+
+**Citation**: U.S. Department of Agriculture, Agricultural Research Service. FoodData Central. fdc.nal.usda.gov.
+
+**Usage**: Nutritional composition of model foods (protein, carbohydrates, fat, energy)
+
+**Workflow retrieval**: Optional via ``retrieve_usda_nutrition`` rule (using the API with included API key)
+
+**Configuration**: Set ``data.usda.retrieve_nutrition: true`` in config to fetch fresh data. By default, the repository includes pre-fetched data in ``data/nutrition.csv``.
+
+**API Key**: The repository includes a shared API key for convenience. Users can optionally obtain their own API key (free, instant signup) at https://fdc.nal.usda.gov/api-key-signup and update the ``data.usda.api_key`` value in the config.
+
+The mapping from model foods to USDA FoodData Central IDs is maintained in ``data/usda_food_mapping.csv``. This file maps internal food names (e.g., "flour (white)", "rice", "chicken meat") to specific FDC IDs from the SR Legacy database (e.g., wheat flour white all-purpose enriched, white rice cooked, chicken breast raw).
+
 Mock and Placeholder Data
 --------------------------
 
@@ -248,9 +276,9 @@ data/food_groups.csv
 data/nutrition.csv
 ~~~~~~~~~~~~~~~~~~
 
-**Status**: Mock data
+**Status**: Sourced from USDA FoodData Central (see above)
 
-**Description**: Nutritional composition of foods (macronutrients, micronutrients)
+**Description**: Nutritional composition of foods (macronutrients: protein, carbohydrates, fat, energy). The repository includes pre-fetched data from USDA FoodData Central. To update with fresh data, enable ``data.usda.retrieve_nutrition: true`` in the config and run the ``retrieve_usda_nutrition`` rule.
 
 data/feed_conversion.csv
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -271,6 +299,7 @@ Data License Summary
 
 Most datasets used in this project require attribution. Some disallow redistribution, meaning that food-opt cannot be distributed together with these datasets. Some furthermore prohibit commercial use without prior agreement or a paid-for license.
 
+* **CC0 1.0 (Public Domain)** (USDA FoodData Central): Public domain, no restrictions; attribution requested
 * **CC BY 4.0** (GAEZ, CROPGRIDS, FAOSTAT): Requires attribution
 * **CC BY 3.0 IGO** (UN WPP): Requires attribution to UN
 * **Academic use only** (GADM, GBD, GDD): Commercial use requires permission or paid licensed.
