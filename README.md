@@ -4,7 +4,9 @@ SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
 SPDX-License-Identifier: CC-BY-4.0
 -->
 
-# food-opt
+<h1>
+  <img src="docs/_static/logo.svg" alt="food-opt logo" height="40" style="vertical-align: middle;"> food-opt
+</h1>
 
 [![Docs](https://github.com/Sustainable-Solutions-Lab/food-opt/actions/workflows/docs.yml/badge.svg)](https://github.com/Sustainable-Solutions-Lab/food-opt/actions/workflows/docs.yml)
 
