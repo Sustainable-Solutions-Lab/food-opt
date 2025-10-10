@@ -8,7 +8,7 @@ SPDX-License-Identifier: CC-BY-4.0
   <img src="docs/_static/logo.svg" alt="food-opt logo" height="40" style="vertical-align: middle;"> food-opt
 </h1>
 
-[![Docs](https://github.com/Sustainable-Solutions-Lab/food-opt/actions/workflows/docs.yml/badge.svg)](https://github.com/Sustainable-Solutions-Lab/food-opt/actions/workflows/docs.yml)
+[![Docs](https://github.com/Sustainable-Solutions-Lab/food-opt/actions/workflows/docs.yml/badge.svg)](https://sustainable-solutions-lab.github.io/food-opt/)
 
 food-opt is a global food-systems optimization model built on [PyPSA](https://pypsa.org/) and [Snakemake](https://snakemake.readthedocs.io). It explores environmental, nutritional, and economic trade-offs through a configuration-driven mixed integer linear program build by reproducible workflow.
 
