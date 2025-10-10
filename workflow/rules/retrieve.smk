@@ -196,6 +196,18 @@ rule download_waterfootprint_appendix:
         """
 
 
+rule download_fao_nutrient_conversion_table:
+    output:
+        protected("data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx"),
+    params:
+        url="https://www.fao.org/3/CC9678EN/Nutrient_conversion_table_for_SUA_2024.xlsx",
+    shell:
+        r"""
+        mkdir -p "$(dirname {output})"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        """
+
+
 # Conditional rule: retrieve nutrition data from USDA if enabled in config
 if config["data"]["usda"]["retrieve_nutrition"]:
 

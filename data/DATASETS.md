@@ -40,6 +40,14 @@ Brief descriptions of key external datasets used by this project, with links and
 - License/terms (summary): Datasets disseminated through FAO corporate statistical databases are licensed under Creative Commons Attribution 4.0 International (CC BY 4.0), complemented by FAO’s additional Statistical Database Terms of Use.
   - FAO Statistical Database Terms of Use: https://www.fao.org/contact-us/terms/db-terms-of-use/en/
 
+## FAO — Nutrient Conversion Table for SUA (2024)
+
+- Description: Food balance sheet nutrient conversion factors compiled for the FAO Supply Utilization Accounts (SUA), covering macro- and micronutrients for hundreds of commodities.
+- Download: https://www.fao.org/3/CC9678EN/Nutrient_conversion_table_for_SUA_2024.xlsx
+- Version/format: 2024 Excel workbook (`Nutrient_conversion_table_for_SUA_2024.xlsx`); retrieved automatically to `data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx` via the `download_fao_nutrient_conversion_table` Snakemake rule.
+- License/terms (summary): Material may be copied, downloaded, and printed for private study, research, teaching, or other non-commercial uses with proper acknowledgement of FAO as source; translation, adaptation, resale, and other commercial uses require prior permission (copyright@fao.org).
+- Notes: `workflow/scripts/extract_fao_edible_portion.py` parses sheet `03` to export crop-level edible portion coefficients to `processing/{name}/fao_edible_portion.csv` for use in the model.
+
 ## Water Footprint Network — Monthly Blue Water Availability
 
 - Description: Monthly blue water availability for 405 GRDC river basins, provided alongside blue-water scarcity indicators as part of the Water Footprint Network’s Appendix to Value of Water Research Report Series No. 53.

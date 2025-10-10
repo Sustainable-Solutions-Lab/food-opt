@@ -120,6 +120,18 @@ rule simplify_gadm:
         "scripts/simplify_gadm.py"
 
 
+rule extract_fao_edible_portion:
+    input:
+        table="data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx",
+        mapping="data/faostat_item_map.csv",
+    params:
+        crops=config["crops"],
+    output:
+        edible_portion=f"processing/{name}/fao_edible_portion.csv",
+    script:
+        "scripts/extract_fao_edible_portion.py"
+
+
 rule build_regions:
     input:
         world="processing/shared/gadm-simplified.gpkg",

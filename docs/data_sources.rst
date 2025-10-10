@@ -254,6 +254,21 @@ USDA FoodData Central
 
 The mapping from model foods to USDA FoodData Central IDs is maintained in ``data/usda_food_mapping.csv``. This file maps internal food names (e.g., "flour (white)", "rice", "chicken meat") to specific FDC IDs from the SR Legacy database (e.g., wheat flour white all-purpose enriched, white rice cooked, chicken breast raw).
 
+FAO Nutrient Conversion Table for SUA (2024)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: Food and Agriculture Organization of the United Nations (FAO)
+
+**Description**: Official nutrient conversion factors that align FAO Supply Utilization Account (SUA) quantities with macro- and micronutrient totals for hundreds of food items.
+
+**Access**: https://www.fao.org/3/CC9678EN/Nutrient_conversion_table_for_SUA_2024.xlsx
+
+**License**: © FAO 2024. Reuse for private study, research, teaching, or other non-commercial purposes is allowed with acknowledgement of FAO; translation, adaptation, resale, and commercial uses require prior permission via copyright@fao.org.
+
+**Workflow retrieval**: Automatically downloaded to ``data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx`` by the ``download_fao_nutrient_conversion_table`` rule in ``workflow/rules/retrieve.smk``.
+
+**Usage**: Contains data on edible portion of foods as well as water content. ``workflow/scripts/extract_fao_edible_portion.py`` reads sheet ``03`` to export edible portion coefficients for configured crops into ``processing/{name}/fao_edible_portion.csv``.
+
 Mock and Placeholder Data
 --------------------------
 

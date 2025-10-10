@@ -109,6 +109,8 @@ The file ``data/nutrition.csv`` contains nutritional composition for each food p
 
 **License**: Public domain under CC0 1.0 Universal. See :doc:`data_sources` for full details.
 
+The FAO Nutrient Conversion Table for Supply Utilization Accounts (2024 edition) is also stored locally in ``data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx`` via the ``download_fao_nutrient_conversion_table`` workflow rule, providing FAO-authored nutrient factors for cross-checking FAOSTAT supply data (subject to FAO’s non-commercial use guidance). ``workflow/scripts/extract_fao_edible_portion.py`` distils the edible portion coefficients from sheet ``03`` of that workbook for all configured crops, materialising them in ``processing/{name}/fao_edible_portion.csv`` for downstream use.
+
 **Retrieval**:
 
 * The repository includes pre-fetched nutritional data from USDA
