@@ -31,3 +31,9 @@ path = "data/**.csv"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Koen van Greevenbroek"
 SPDX-License-Identifier = "PDDL-1.0"
+
+[[annotations]]
+path = "docs/_static/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Koen van Greevenbroek"
+SPDX-License-Identifier = "CC-BY-4.0"

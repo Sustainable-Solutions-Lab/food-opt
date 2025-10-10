@@ -4,8 +4,6 @@
 
 # Sphinx build outputs
 _build/
-_static/
-_templates/
 
 # Sphinx cache
 .doctrees/

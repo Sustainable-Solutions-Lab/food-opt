@@ -1,0 +1,26 @@
+/* SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+ *
+ * SPDX-License-Identifier: CC-BY-4.0
+ */
+
+/* Disable clickable images to allow text selection */
+.reference.internal img {
+    pointer-events: none;
+}
+
+/* Make the parent link non-functional for images */
+a.reference.internal:has(img) {
+    pointer-events: none;
+    cursor: default;
+}
+
+/* Make logo smaller in sidebar */
+.sidebar-brand img {
+    max-height: 60px;
+    width: auto;
+}
+
+/* Center the sidebar brand text */
+.sidebar-brand {
+    text-align: center;
+}
