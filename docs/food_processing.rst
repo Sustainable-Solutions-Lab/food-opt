@@ -32,6 +32,23 @@ Data Files
 **data/food_groups.csv** (currently mock data)
   Maps foods to food groups for dietary constraint aggregation.
 
+Food Loss & Waste Adjustments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The workflow incorporates **food loss** (pre-retail) and **food waste** (retail & household) adjustments when converting crops to foods. Food loss and waste are measured and tracked by the UN under the Sustainable Development Goal 12.3. The FAO is responsible for preparing data on `food loss <https://openknowledge.fao.org/server/api/core/bitstreams/d420dd69-cf78-4464-ad91-115df3b5ed9f/content>`_, whereas the UNEP is responsible for preparing data on `food waste <https://www.unep.org/indicator-1231b>`_. Both are available through a UN Statistics Division `API <https://unstats.un.org/SDGAPI/swagger/>`_.
+
+* ``workflow/scripts/prepare_food_loss_waste.py`` retrieves
+  * SDG indicator 12.3.1 data (series ``AG_FLS_PCT`` and ``AG_FOOD_WST_PC``) from the UN Statistics Division API, using ISO-3 area codes.
+  * Food Balance Sheets data (``FBS`` domain) from FAOSTAT to obtain country-level per-capita food supply.
+* UNSD reports **food loss** as a percentage. Regional totals (``ALP`` product code) are available for M49 regions, while product-level breakdowns (``CRL_PUL``, ``FRT_VGT``, ``RT_TBR``, ``ANMPROD``) exist only for the global series. The script therefore:
+  1. Pulls the latest world loss percentages by product type.
+  2. Converts them into **correction factors** by dividing each product share by the global ``ALP`` total (e.g. fruits & vegetables ≈ 25 % / 13 % ≈ 1.9).
+  3. Applies these factors to each country’s regional ``ALP`` percentage, yielding group-specific loss fractions for the model food groups.
+* Food waste is reported as **kilograms per capita per year**. To convert this to a fraction of available food supply, the script retrieves the FAOSTAT FBS Grand Total item (kg/capita/year), converts both to grams/day, and computes ``waste_fraction = waste_g_day / supply_g_day``.
+* The resulting dataset ``processing/{name}/food_loss_waste.csv`` lists, for every country and model food group, the derived **loss_fraction** and **waste_fraction**.
+
+During ``build_model`` the crop→food conversion links multiply the baseline processing efficiency by ``(1 - loss_fraction) * (1 - waste_fraction)`` for the relevant country-food group pair. Because all factors are multiplicative (dry matter → fresh mass → edible portion → usable food), their ordering does not affect the final efficiency.
+
 Trade
 -----
 

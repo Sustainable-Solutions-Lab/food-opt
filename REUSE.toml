@@ -27,6 +27,12 @@ SPDX-FileCopyrightText = "Institute for Health Metrics and Evaluation (IHME)"
 SPDX-License-Identifier = "LicenseRef-IHME-NonCommercial"
 
 [[annotations]]
+path = "data/M49-codes.csv"
+precedence = "override"
+SPDX-FileCopyrightText = "2025 United Nations Statistics Division"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
 path = "data/**.csv"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Koen van Greevenbroek"

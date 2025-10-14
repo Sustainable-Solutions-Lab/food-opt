@@ -74,6 +74,36 @@ FAOSTAT Producer Prices
 
 **Usage**: Calibrating production costs in the objective function
 
+FAOSTAT Food Balance Sheets (FBS)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: FAO Statistics Division
+
+**Description**: Per-capita food supply quantities (kg/capita/year) by country, item, and year. We use the Grand Total item to benchmark available food supply when scaling food waste fractions.
+
+**Access**: https://www.fao.org/faostat/en/ (Food Balance Sheets domain)
+
+**License**: CC BY 4.0 + FAO database terms
+
+**Retrieval**: Via the ``faostat`` Python client inside ``workflow/scripts/prepare_food_loss_waste.py``.
+
+**Usage**: Converts per-capita waste (kg) to fractions relative to available food supply.
+
+UNSD SDG Indicator 12.3.1 (Food Loss & Waste)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: United Nations Statistics Division (UNSD)
+
+**Description**: SDG indicator database series ``AG_FLS_PCT`` (Food loss percentage) and ``AG_FOOD_WST_PC`` (Food waste per capita) covering SDG 12.3.1a/b.
+
+**Access**: https://unstats.un.org/sdgs/dataportal (see API documentation at https://unstats.un.org/sdgs/UNSDGAPIV5/swagger/index.html)
+
+**License**: UNdata terms — data may be copied and redistributed free of charge provided UNdata/UNSD is cited (“All data and metadata provided on UNdata’s website are available free of charge and may be copied freely, duplicated and further distributed provided that UNdata is cited as the reference.”).
+
+**Retrieval**: ``workflow/scripts/prepare_food_loss_waste.py`` queries the UNSD SDG API, falling back to global product shares to derive food group–specific loss factors where regional detail is missing.
+
+**Usage**: Supplies per-country loss and waste fractions for food groups, injected into the crop→food conversion efficiencies during ``build_model``.
+
 Grassland Yield Data
 ~~~~~~~~~~~~~~~~~~~~
 

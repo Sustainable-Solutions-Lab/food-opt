@@ -34,11 +34,22 @@ Brief descriptions of key external datasets used by this project, with links and
 
 ## FAOSTAT — FAO Statistics Division
 
-- Description: FAO’s global statistical database covering food and agriculture domains for 245+ countries and territories from 1961 onward. This project currently uses the Producer Prices (PP) domain to obtain 2015–2024 USD/tonne crop producer prices for cost calibration.
+- Description: FAO’s global statistical database covering food and agriculture domains for 245+ countries and territories from 1961 onward. This project currently uses:
+  - the **Producer Prices (PP)** domain (2015–2024 USD/tonne crop producer prices) for cost calibration.
+  - the **Food Balance Sheets (FBS)** domain to obtain per-capita food supply quantities (kg/capita/year), which feed the food loss and waste scaling step.
 - Website: https://www.fao.org/faostat/en/
-- Version/format: Producer Prices (PP) domain via FAOSTAT API, retrieved as CSV through the `faostat` Python client.
+- Version/format: Retrieved via the FAOSTAT API using the ``faostat`` Python client (JSON → Pandas DataFrame).
 - License/terms (summary): Datasets disseminated through FAO corporate statistical databases are licensed under Creative Commons Attribution 4.0 International (CC BY 4.0), complemented by FAO’s additional Statistical Database Terms of Use.
   - FAO Statistical Database Terms of Use: https://www.fao.org/contact-us/terms/db-terms-of-use/en/
+
+## UNSD SDG Indicator 12.3.1 — Food Loss and Waste
+
+- Description: United Nations Statistics Division SDG Indicator database. We use series ``AG_FLS_PCT`` (Food loss percentage) and ``AG_FOOD_WST_PC`` (Food waste per capita) to parameterize pre- and post-retail losses by country and food group.
+- Website: https://unstats.un.org/sdgs/dataportal
+- API documentation: https://unstats.un.org/sdgs/UNSDGAPIV5/swagger/index.html
+- Version/format: JSON retrieved via the UNSD SDG API.
+- License/terms (summary): Data may be copied, duplicated, and redistributed provided UNdata/UNSD is cited as the reference. (UNdata terms: “All data and metadata provided on UNdata’s website are available free of charge and may be copied freely, duplicated and further distributed provided that UNdata is cited as the reference.”)
+- Citation: United Nations Statistics Division. SDG Indicator Database, Goal 12.3.1a/b (Food Loss and Waste). https://unstats.un.org/sdgs/dataportal (accessed YYYY-MM-DD).
 
 ## FAO — Nutrient Conversion Table for SUA (2024)
 

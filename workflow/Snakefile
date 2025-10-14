@@ -172,6 +172,19 @@ rule prepare_gdd_dietary_intake:
         "scripts/prepare_gdd_dietary_intake.py"
 
 
+rule prepare_food_loss_waste:
+    input:
+        m49="data/M49-codes.csv",
+    params:
+        countries=config["countries"],
+        food_groups=list(config["food_groups"].keys()),
+        health_reference_year=config["health"]["reference_year"],
+    output:
+        food_loss_waste="processing/{name}/food_loss_waste.csv",
+    script:
+        "scripts/prepare_food_loss_waste.py"
+
+
 rule prepare_relative_risks:
     input:
         gbd_rr="data/manually_downloaded/IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX",
@@ -400,6 +413,7 @@ rule build_model:
         gaez_crop_mapping="data/gaez_crop_code_mapping.csv",
         population="processing/{name}/population.csv",
         baseline_diet="processing/{name}/gdd_dietary_intake.csv",
+        food_loss_waste="processing/{name}/food_loss_waste.csv",
         prices="processing/{name}/faostat_prices.csv",
         grassland_yields="processing/{name}/grassland_yields.csv",
         monthly_region_water="processing/{name}/water/monthly_region_water.csv",

@@ -591,13 +591,42 @@ def add_food_conversion_links(
     countries: list,
     crop_to_fresh_factor: dict[str, float],
     exception_crops: set[str],
+    food_to_group: dict[str, str],
+    loss_waste: pd.DataFrame,
 ) -> None:
     """Add links for converting crops to foods."""
+
+    loss_waste_pairs: dict[tuple[str, str], tuple[float, float]] = {}
+    if not loss_waste.empty:
+        required_cols = {"country", "food_group", "loss_fraction", "waste_fraction"}
+        missing_cols = required_cols - set(loss_waste.columns)
+        if missing_cols:
+            raise ValueError(
+                "food_loss_waste data missing columns: "
+                + ", ".join(sorted(missing_cols))
+            )
+        for column in ["loss_fraction", "waste_fraction"]:
+            loss_waste[column] = pd.to_numeric(
+                loss_waste[column], errors="coerce"
+            ).fillna(0)
+        for _, row in loss_waste.iterrows():
+            key = (str(row["country"]), str(row["food_group"]))
+            loss_waste_pairs[key] = (
+                float(row["loss_fraction"]),
+                float(row["waste_fraction"]),
+            )
+
+    missing_loss_waste: set[tuple[str, str]] = set()
+    missing_group_foods: set[str] = set()
+    excessive_losses: set[tuple[str, str]] = set()
+
+    normalized_countries = [str(c).upper() for c in countries]
+
     for _, row in foods.iterrows():
-        if row["food"] not in food_list:
+        crop = str(row["crop"]).strip()
+        food = str(row["food"]).strip()
+        if food not in food_list:
             continue
-        crop = row["crop"]
-        food = row["food"]
         if pd.isna(row["factor"]):
             raise ValueError(
                 f"Missing conversion factor for crop '{crop}' to food '{food}'"
@@ -618,20 +647,82 @@ def add_food_conversion_links(
                     f"Missing moisture/edible conversion data for crop '{crop}'"
                 ) from exc
 
+        safe_food_name = food.replace(" ", "_").replace("(", "").replace(")", "")
         names = [
-            f"convert_{crop}_to_{food.replace(' ', '_').replace('(', '').replace(')', '')}_{c}"
-            for c in countries
+            f"convert_{crop}_to_{safe_food_name}_{c}" for c in normalized_countries
         ]
-        bus0 = [f"crop_{crop}_{c}" for c in countries]
-        bus1 = [f"food_{food}_{c}" for c in countries]
+        bus0 = [f"crop_{crop}_{c}" for c in normalized_countries]
+        bus1 = [f"food_{food}_{c}" for c in normalized_countries]
+
+        efficiencies: list[float] = []
+        group = food_to_group.get(food)
+        for country in normalized_countries:
+            multiplier = 1.0
+            if group is None:
+                missing_group_foods.add(food)
+            else:
+                fractions = loss_waste_pairs.get((country, group))
+                if fractions is None:
+                    missing_loss_waste.add((country, group))
+                else:
+                    raw_loss, raw_waste = fractions
+                    loss_fraction = max(0.0, float(raw_loss))
+                    waste_fraction = max(0.0, float(raw_waste))
+                    loss_clamped = False
+                    waste_clamped = False
+                    if loss_fraction > 1.0:
+                        loss_fraction = 1.0
+                        loss_clamped = True
+                    if waste_fraction > 1.0:
+                        waste_fraction = 1.0
+                        waste_clamped = True
+                    if loss_clamped or waste_clamped:
+                        excessive_losses.add((country, group))
+                    multiplier = (1.0 - loss_fraction) * (1.0 - waste_fraction)
+                    if multiplier <= 0.0:
+                        excessive_losses.add((country, group))
+                        multiplier = 0.0
+                    else:
+                        multiplier = min(1.0, multiplier)
+            efficiencies.append(factor * conversion_factor * multiplier)
+
         n.add(
             "Link",
             names,
             bus0=bus0,
             bus1=bus1,
-            efficiency=[factor * conversion_factor] * len(countries),
-            marginal_cost=[0.01] * len(countries),
-            p_nom_extendable=[True] * len(countries),
+            efficiency=efficiencies,
+            marginal_cost=[0.01] * len(normalized_countries),
+            p_nom_extendable=[True] * len(normalized_countries),
+        )
+
+    if missing_group_foods:
+        logger.warning(
+            "Food items without food-group mapping (loss/waste ignored): %s",
+            ", ".join(sorted(missing_group_foods)),
+        )
+    unresolved = {
+        (country, group)
+        for (country, group) in missing_loss_waste
+        if (country, group) not in loss_waste_pairs
+    }
+    if unresolved:
+        sample = ", ".join(
+            f"{country}:{group}" for country, group in sorted(unresolved)[:10]
+        )
+        logger.warning(
+            "Missing food loss/waste data for %d country-group pairs; defaulting to no loss. Examples: %s",
+            len(unresolved),
+            sample,
+        )
+    if excessive_losses:
+        sample = ", ".join(
+            f"{country}:{group}" for country, group in sorted(excessive_losses)[:10]
+        )
+        logger.warning(
+            "Extreme food loss/waste values for %d country-group pairs (efficiency clamped to feasible range). Examples: %s",
+            len(excessive_losses),
+            sample,
         )
 
 
@@ -1309,7 +1400,11 @@ if __name__ == "__main__":
 
     # Read food conversion data
     foods = read_csv(snakemake.input.foods)
-    nutritional_conent_df = read_csv(snakemake.input.nutritional_content)
+    if not foods.empty:
+        foods["food"] = foods["food"].astype(str).str.strip()
+        foods["crop"] = foods["crop"].astype(str).str.strip()
+        foods["factor"] = pd.to_numeric(foods["factor"], errors="coerce")
+    nutritional_content_df = read_csv(snakemake.input.nutritional_content)
     yield_unit_conversion_df = read_csv(snakemake.input.yield_unit_conversions)
     gaez_code_mapping_df = read_csv(snakemake.input.gaez_crop_mapping)
     gaez_code_map = _gaez_code_to_crop_map(gaez_code_mapping_df)
@@ -1325,6 +1420,12 @@ if __name__ == "__main__":
 
     # Read feed requirements for animal products (feed pools -> foods)
     feed_to_products = read_csv(snakemake.input.feed_to_products)
+
+    # Read food loss & waste fractions per country and food group
+    food_loss_waste = read_csv(snakemake.input.food_loss_waste)
+    if not food_loss_waste.empty:
+        food_loss_waste["country"] = food_loss_waste["country"].astype(str).str.upper()
+        food_loss_waste["food_group"] = food_loss_waste["food_group"].astype(str)
 
     irrigation_cfg = snakemake.config["irrigation"]["irrigated_crops"]  # type: ignore[index]
     if irrigation_cfg == "all":
@@ -1352,9 +1453,9 @@ if __name__ == "__main__":
 
             yields_df, var_units = _load_crop_yield_table(path)
             yield_unit = var_units.get("yield")
-            if yield_unit != "t/ha":
+            if yield_unit != "t/ha (DM)":
                 raise ValueError(
-                    f"Unexpected unit for 'yield' in '{path}': expected 't/ha', found '{yield_unit}'"
+                    f"Unexpected unit for 'yield' in '{path}': expected 't/ha (DM)', found '{yield_unit}'"
                 )
             area_unit = var_units.get("suitable_area")
             if area_unit != "ha":
@@ -1516,13 +1617,29 @@ if __name__ == "__main__":
 
     food_crops = set(foods.loc[foods["crop"].isin(crop_list), "crop"])
     crop_to_fresh_factor = _fresh_mass_conversion_factors(
-        edible_portion_df, food_crops, exception_crops
+        nutritional_content_df, food_crops, exception_crops
     )
 
     base_food_list = foods.loc[foods["crop"].isin(crop_list), "food"].unique().tolist()
     food_list = sorted(set(base_food_list).union(animal_product_list))
-    food_group_list = food_groups.loc[
-        food_groups["food"].isin(food_list), "group"
+    food_groups_clean = food_groups.dropna(subset=["food", "group"]).copy()
+    food_groups_clean["food"] = food_groups_clean["food"].astype(str).str.strip()
+    food_groups_clean["group"] = food_groups_clean["group"].astype(str).str.strip()
+    duplicate_groups = (
+        food_groups_clean.groupby("food")["group"].nunique().loc[lambda s: s > 1]
+    )
+    if not duplicate_groups.empty:
+        raise ValueError(
+            "Each food must map to a single food group. Conflicts for: "
+            + ", ".join(duplicate_groups.index.tolist())
+        )
+    food_to_group = (
+        food_groups_clean.drop_duplicates(subset=["food"])
+        .set_index("food")["group"]
+        .to_dict()
+    )
+    food_group_list = food_groups_clean.loc[
+        food_groups_clean["food"].isin(food_list), "group"
     ].unique()
 
     if enforce_baseline:
@@ -1599,6 +1716,8 @@ if __name__ == "__main__":
         cfg_countries,
         crop_to_fresh_factor,
         exception_crops,
+        food_to_group,
+        food_loss_waste,
     )
     add_feed_to_animal_product_links(
         n, animal_product_list, feed_to_products, cfg_countries
