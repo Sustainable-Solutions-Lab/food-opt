@@ -53,7 +53,16 @@ def main(
         regions = regions.to_crs(4326)
 
     # Load crop yields
-    yields = pd.read_csv(crop_yields_path)
+    yields_long = pd.read_csv(crop_yields_path)
+    yields = (
+        yields_long.pivot(
+            index=["region", "resource_class"], columns="variable", values="value"
+        )
+        .rename_axis(columns=None)
+        .reset_index()
+    )
+    yields["resource_class"] = yields["resource_class"].astype(int)
+    yields["yield"] = pd.to_numeric(yields["yield"], errors="coerce")
 
     # Filter for the two resource classes
     yields_class_1 = yields[yields["resource_class"] == resource_class_1][

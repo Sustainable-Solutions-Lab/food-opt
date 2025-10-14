@@ -33,6 +33,7 @@ class ComponentRow:
     description: str
     edible_coefficient: Optional[float]
     edible_type: Optional[int]
+    water_content_g_per_100g: Optional[float]
 
 
 def _coerce_float(value) -> Optional[float]:
@@ -71,6 +72,8 @@ def _load_component_values(xlsx_path: Path) -> Dict[str, ComponentRow]:
 
         edible_coefficient = _coerce_float(row[4])
         edible_type = _coerce_int(row[5])
+        # Column index 8 corresponds to the WATER (g/100g) field in sheet "03".
+        water_content = _coerce_float(row[8])
 
         key = str(description).strip().lower()
         records[key] = ComponentRow(
@@ -78,6 +81,7 @@ def _load_component_values(xlsx_path: Path) -> Dict[str, ComponentRow]:
             description=str(description).strip(),
             edible_coefficient=edible_coefficient,
             edible_type=edible_type,
+            water_content_g_per_100g=water_content,
         )
 
     return records
@@ -101,7 +105,7 @@ def main() -> None:
     crops: List[str] = list(snakemake.params.crops)  # type: ignore[name-defined]
     xlsx_path = Path(snakemake.input.table)  # type: ignore[name-defined]
     mapping_path = Path(snakemake.input.mapping)  # type: ignore[name-defined]
-    output_path = Path(snakemake.output.edible_portion)  # type: ignore[name-defined]
+    output_path = Path(snakemake.output.nutritional_content)  # type: ignore[name-defined]
 
     records_by_name = _load_component_values(xlsx_path)
     crop_to_item = _read_crop_mapping(mapping_path)
@@ -120,6 +124,7 @@ def main() -> None:
                 "fao_code",
                 "edible_portion_coefficient",
                 "edible_portion_type",
+                "water_content_g_per_100g",
             ],
         )
         writer.writeheader()
@@ -135,6 +140,7 @@ def main() -> None:
                         "fao_code": "",
                         "edible_portion_coefficient": "",
                         "edible_portion_type": "",
+                        "water_content_g_per_100g": "",
                     }
                 )
                 continue
@@ -152,6 +158,7 @@ def main() -> None:
                         "fao_code": "",
                         "edible_portion_coefficient": "",
                         "edible_portion_type": "",
+                        "water_content_g_per_100g": "",
                     }
                 )
                 continue
@@ -168,6 +175,11 @@ def main() -> None:
                     ),
                     "edible_portion_type": (
                         "" if record.edible_type is None else record.edible_type
+                    ),
+                    "water_content_g_per_100g": (
+                        ""
+                        if record.water_content_g_per_100g is None
+                        else record.water_content_g_per_100g
                     ),
                 }
             )

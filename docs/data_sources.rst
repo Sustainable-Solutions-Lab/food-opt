@@ -267,7 +267,7 @@ FAO Nutrient Conversion Table for SUA (2024)
 
 **Workflow retrieval**: Automatically downloaded to ``data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx`` by the ``download_fao_nutrient_conversion_table`` rule in ``workflow/rules/retrieve.smk``.
 
-**Usage**: Contains data on edible portion of foods as well as water content. ``workflow/scripts/extract_fao_edible_portion.py`` reads sheet ``03`` to export edible portion coefficients for configured crops into ``processing/{name}/fao_edible_portion.csv``.
+**Usage**: Contains data on edible portion of foods as well as water content. ``workflow/scripts/prepare_fao_nutritional_content.py`` reads sheet ``03`` to export edible portion coefficients and water content (g/100g) for configured crops into ``processing/{name}/fao_nutritional_content.csv``; ``workflow/scripts/build_model.py`` combines these with crop yields to rescale dry harvests to fresh edible food mass.
 
 Mock and Placeholder Data
 --------------------------

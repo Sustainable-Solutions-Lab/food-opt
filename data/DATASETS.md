@@ -46,7 +46,7 @@ Brief descriptions of key external datasets used by this project, with links and
 - Download: https://www.fao.org/3/CC9678EN/Nutrient_conversion_table_for_SUA_2024.xlsx
 - Version/format: 2024 Excel workbook (`Nutrient_conversion_table_for_SUA_2024.xlsx`); retrieved automatically to `data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx` via the `download_fao_nutrient_conversion_table` Snakemake rule.
 - License/terms (summary): Material may be copied, downloaded, and printed for private study, research, teaching, or other non-commercial uses with proper acknowledgement of FAO as source; translation, adaptation, resale, and other commercial uses require prior permission (copyright@fao.org).
-- Notes: `workflow/scripts/extract_fao_edible_portion.py` parses sheet `03` to export crop-level edible portion coefficients to `processing/{name}/fao_edible_portion.csv` for use in the model.
+- Notes: `workflow/scripts/prepare_fao_nutritional_content.py` parses sheet `03` to export crop-level edible portion coefficients to `processing/{name}/fao_nutritional_content.csv` for use in the model.
 
 ## Water Footprint Network — Monthly Blue Water Availability
 

@@ -239,5 +239,45 @@ if __name__ == "__main__":
             ]
         ).set_index(["region", "resource_class"])  # type: ignore[name-defined]
 
+    df_reset = df.reset_index()
+    df_reset["resource_class"] = df_reset["resource_class"].astype(int)
+
+    variable_units = {
+        "yield": "t/ha (DM)",
+        "suitable_area": "ha",
+        "water_requirement_m3_per_ha": "m^3/ha",
+        "growing_season_start_day": "day-of-year",
+        "growing_season_length_days": "days",
+    }
+
+    tidy_frames = []
+    for variable, unit in variable_units.items():
+        if variable not in df_reset.columns:
+            continue
+        subset = df_reset[["region", "resource_class", variable]].dropna(
+            subset=[variable]
+        )
+        if subset.empty:
+            continue
+        subset = subset.rename(columns={variable: "value"})
+        subset["variable"] = variable
+        subset["unit"] = unit
+        tidy_frames.append(
+            subset[["region", "resource_class", "variable", "unit", "value"]]
+        )
+
+    if tidy_frames:
+        tidy_df = pd.concat(tidy_frames, ignore_index=True)
+    else:
+        tidy_df = pd.DataFrame(
+            columns=["region", "resource_class", "variable", "unit", "value"]
+        )
+
+    if not tidy_df.empty:
+        tidy_df["value"] = pd.to_numeric(tidy_df["value"], errors="coerce")
+        tidy_df.sort_values(
+            ["region", "resource_class", "variable"], inplace=True, ignore_index=True
+        )
+
     Path(snakemake.output[0]).parent.mkdir(parents=True, exist_ok=True)  # type: ignore[name-defined]
-    df.to_csv(snakemake.output[0])  # type: ignore[name-defined]
+    tidy_df.to_csv(snakemake.output[0], index=False)  # type: ignore[name-defined]

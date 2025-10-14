@@ -109,7 +109,9 @@ The file ``data/nutrition.csv`` contains nutritional composition for each food p
 
 **License**: Public domain under CC0 1.0 Universal. See :doc:`data_sources` for full details.
 
-The FAO Nutrient Conversion Table for Supply Utilization Accounts (2024 edition) is also stored locally in ``data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx`` via the ``download_fao_nutrient_conversion_table`` workflow rule, providing FAO-authored nutrient factors for cross-checking FAOSTAT supply data (subject to FAO’s non-commercial use guidance). ``workflow/scripts/extract_fao_edible_portion.py`` distils the edible portion coefficients from sheet ``03`` of that workbook for all configured crops, materialising them in ``processing/{name}/fao_edible_portion.csv`` for downstream use.
+The FAO Nutrient Conversion Table for Supply Utilization Accounts (2024 edition) is also stored locally in ``data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx`` via the ``download_fao_nutrient_conversion_table`` workflow rule, providing FAO-authored nutrient factors for cross-checking FAOSTAT supply data (subject to FAO’s non-commercial use guidance). ``workflow/scripts/prepare_fao_nutritional_content.py`` distils the edible portion coefficients and water content (g/100g) from sheet ``03`` of that workbook for all configured crops, materialising them in ``processing/{name}/fao_edible_portion.csv`` for downstream use.
+
+When the model assembles crop→food conversion links it rescales dry-matter crop production to fresh edible food mass using these coefficients: dry harvests are uplifted by ``edible_portion_coefficient / (1 - water_fraction)`` before applying the product-specific processing factor from ``data/foods.csv``. Crops flagged in ``data/yield_unit_conversions.csv`` retain their reported units and skip this rescaling, as their GAEZ yields already describe the processed output.
 
 **Retrieval**:
 

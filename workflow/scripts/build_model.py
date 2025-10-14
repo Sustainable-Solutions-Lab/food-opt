@@ -72,6 +72,122 @@ def _carrier_unit_for_nutrient(unit: str) -> str:
     raise ValueError(f"Unsupported nutrient kind '{kind}'")
 
 
+def _load_crop_yield_table(path: str) -> tuple[pd.DataFrame, dict[str, str | float]]:
+    df = pd.read_csv(path)
+
+    grouped_units = (
+        df.groupby("variable")["unit"].agg(lambda s: s.dropna().unique()).to_dict()
+    )
+    units: dict[str, str | float] = {}
+    for var, vals in grouped_units.items():
+        if len(vals) == 1:
+            units[var] = vals[0]
+        else:
+            units[var] = np.nan
+
+    pivot = (
+        df.pivot(index=["region", "resource_class"], columns="variable", values="value")
+        .rename_axis(index=("region", "resource_class"), columns=None)
+        .sort_index()
+    )
+
+    # Ensure resource_class level is integer
+    pivot.index = pivot.index.set_levels(
+        pivot.index.levels[1].astype(int), level="resource_class"
+    )
+
+    # Ensure numeric columns
+    for column in pivot.columns:
+        pivot[column] = pd.to_numeric(pivot[column], errors="coerce")
+
+    return pivot, units
+
+
+def _gaez_code_to_crop_map(mapping_df: pd.DataFrame) -> dict[str, str]:
+    code_columns = [c for c in mapping_df.columns if c.endswith("_code")]
+    mapping: dict[str, str] = {}
+    for _, row in mapping_df.iterrows():
+        crop_name = str(row.get("crop_name", "")).strip()
+        if not crop_name:
+            continue
+        for col in code_columns:
+            code = row.get(col)
+            if pd.isna(code):
+                continue
+            code_str = str(code).strip().lower()
+            if not code_str:
+                continue
+            mapping[code_str] = crop_name
+    return mapping
+
+
+def _exception_crops_from_unit_table(
+    unit_df: pd.DataFrame, code_map: dict[str, str]
+) -> set[str]:
+    if "code" not in unit_df.columns:
+        raise ValueError(
+            "yield_unit_conversions.csv must contain a 'code' column listing GAEZ crop codes"
+        )
+    codes = unit_df["code"].dropna().astype(str).str.strip().str.lower()
+    missing_codes = sorted(code for code in codes if code and code not in code_map)
+    if missing_codes:
+        logging.getLogger(__name__).warning(
+            "yield_unit_conversions.csv references GAEZ codes with no crop mapping: %s",
+            ", ".join(missing_codes),
+        )
+    return {code_map[code] for code in codes if code in code_map}
+
+
+def _fresh_mass_conversion_factors(
+    nutritional_content_df: pd.DataFrame,
+    crops: set[str],
+    exceptions: set[str],
+) -> dict[str, float]:
+    df = nutritional_content_df.copy()
+    df["crop"] = df["crop"].astype(str).str.strip()
+
+    df = df.set_index("crop")
+    for col in ["edible_portion_coefficient", "water_content_g_per_100g"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    factors: dict[str, float] = {}
+    missing_data: list[str] = []
+    for crop in sorted(crops):
+        if crop in exceptions:
+            continue
+        if crop not in df.index:
+            missing_data.append(crop)
+            continue
+        edible_coeff = df.at[crop, "edible_portion_coefficient"]
+        water_pct = df.at[crop, "water_content_g_per_100g"]
+        if pd.isna(edible_coeff) or pd.isna(water_pct):
+            missing_data.append(crop)
+            continue
+        if not (0 < edible_coeff <= 1):
+            raise ValueError(
+                f"Invalid edible portion coefficient {edible_coeff} for crop '{crop}'"
+            )
+        if water_pct < 0 or water_pct >= 100:
+            raise ValueError(
+                f"Water content for crop '{crop}' must be in [0, 100); found {water_pct}"
+            )
+        water_fraction = water_pct / 100.0
+        factor = edible_coeff / (1 - water_fraction)
+        if not np.isfinite(factor) or factor <= 0:
+            raise ValueError(
+                f"Computed non-positive fresh mass factor {factor} for crop '{crop}'"
+            )
+        factors[crop] = factor
+
+    if missing_data:
+        raise ValueError(
+            "Missing edible portion or water content data for crops: "
+            + ", ".join(sorted(missing_data))
+        )
+
+    return factors
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -469,7 +585,12 @@ def add_grassland_feed_links(
 
 
 def add_food_conversion_links(
-    n: pypsa.Network, food_list: list, foods: pd.DataFrame, countries: list
+    n: pypsa.Network,
+    food_list: list,
+    foods: pd.DataFrame,
+    countries: list,
+    crop_to_fresh_factor: dict[str, float],
+    exception_crops: set[str],
 ) -> None:
     """Add links for converting crops to foods."""
     for _, row in foods.iterrows():
@@ -477,7 +598,26 @@ def add_food_conversion_links(
             continue
         crop = row["crop"]
         food = row["food"]
-        factor = float(row["factor"]) if pd.notna(row["factor"]) else 1.0
+        if pd.isna(row["factor"]):
+            raise ValueError(
+                f"Missing conversion factor for crop '{crop}' to food '{food}'"
+            )
+        factor = float(row["factor"])
+        if not np.isfinite(factor) or factor <= 0:
+            raise ValueError(
+                f"Invalid conversion factor {factor} for crop '{crop}' to food '{food}'"
+            )
+
+        if crop in exception_crops:
+            conversion_factor = 1.0
+        else:
+            try:
+                conversion_factor = crop_to_fresh_factor[crop]
+            except KeyError as exc:
+                raise ValueError(
+                    f"Missing moisture/edible conversion data for crop '{crop}'"
+                ) from exc
+
         names = [
             f"convert_{crop}_to_{food.replace(' ', '_').replace('(', '').replace(')', '')}_{c}"
             for c in countries
@@ -489,7 +629,7 @@ def add_food_conversion_links(
             names,
             bus0=bus0,
             bus1=bus1,
-            efficiency=[factor] * len(countries),
+            efficiency=[factor * conversion_factor] * len(countries),
             marginal_cost=[0.01] * len(countries),
             p_nom_extendable=[True] * len(countries),
         )
@@ -1169,6 +1309,10 @@ if __name__ == "__main__":
 
     # Read food conversion data
     foods = read_csv(snakemake.input.foods)
+    nutritional_conent_df = read_csv(snakemake.input.nutritional_content)
+    yield_unit_conversion_df = read_csv(snakemake.input.yield_unit_conversions)
+    gaez_code_mapping_df = read_csv(snakemake.input.gaez_crop_mapping)
+    gaez_code_map = _gaez_code_to_crop_map(gaez_code_mapping_df)
 
     # Read food groups data
     food_groups = read_csv(snakemake.input.food_groups)
@@ -1206,7 +1350,24 @@ if __name__ == "__main__":
                     "step produced '%s'." % (supply_label, crop, yields_key)
                 ) from exc
 
-            yields_df = read_csv(path, index_col=["region", "resource_class"])
+            yields_df, var_units = _load_crop_yield_table(path)
+            yield_unit = var_units.get("yield")
+            if yield_unit != "t/ha":
+                raise ValueError(
+                    f"Unexpected unit for 'yield' in '{path}': expected 't/ha', found '{yield_unit}'"
+                )
+            area_unit = var_units.get("suitable_area")
+            if area_unit != "ha":
+                raise ValueError(
+                    f"Unexpected unit for 'suitable_area' in '{path}': expected 'ha', found '{area_unit}'"
+                )
+            if ws == "i":
+                water_unit = var_units.get("water_requirement_m3_per_ha")
+                if water_unit not in {None, np.nan, "m^3/ha"}:
+                    raise ValueError(
+                        f"Unexpected unit for 'water_requirement_m3_per_ha' in '{path}': "
+                        f"expected 'm^3/ha', found '{water_unit}'"
+                    )
             yields_data[yields_key] = yields_df
             logger.info(
                 "Loaded yields for %s (%s): %d rows",
@@ -1347,8 +1508,16 @@ if __name__ == "__main__":
     n.name = "food-opt"
 
     crop_list = snakemake.params.crops
+    exception_crops = _exception_crops_from_unit_table(
+        yield_unit_conversion_df, gaez_code_map
+    ).intersection(set(crop_list))
     animal_products_cfg = snakemake.params.animal_products
     animal_product_list = list(animal_products_cfg["include"])
+
+    food_crops = set(foods.loc[foods["crop"].isin(crop_list), "crop"])
+    crop_to_fresh_factor = _fresh_mass_conversion_factors(
+        edible_portion_df, food_crops, exception_crops
+    )
 
     base_food_list = foods.loc[foods["crop"].isin(crop_list), "food"].unique().tolist()
     food_list = sorted(set(base_food_list).union(animal_product_list))
@@ -1423,7 +1592,14 @@ if __name__ == "__main__":
             set(cfg_countries),
         )
     add_crop_to_feed_links(n, crop_list, feed_conversion, cfg_countries)
-    add_food_conversion_links(n, food_list, foods, cfg_countries)
+    add_food_conversion_links(
+        n,
+        food_list,
+        foods,
+        cfg_countries,
+        crop_to_fresh_factor,
+        exception_crops,
+    )
     add_feed_to_animal_product_links(
         n, animal_product_list, feed_to_products, cfg_countries
     )

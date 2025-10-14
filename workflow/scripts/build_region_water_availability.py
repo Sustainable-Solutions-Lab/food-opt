@@ -120,16 +120,16 @@ def load_crop_growing_seasons(
         crop, water_supply = stem.split("_", 1)
 
         df = pd.read_csv(path)
-        required_cols = {
-            "region",
-            "suitable_area",
-            "growing_season_start_day",
-            "growing_season_length_days",
-        }
-        if not required_cols.issubset(df.columns):
-            continue
 
-        df = df.dropna(
+        pivot = (
+            df.pivot(
+                index=["region", "resource_class"], columns="variable", values="value"
+            )
+            .rename_axis(columns=None)
+            .reset_index()
+        )
+
+        pivot = pivot.dropna(
             subset=[
                 "region",
                 "suitable_area",
@@ -137,11 +137,19 @@ def load_crop_growing_seasons(
                 "growing_season_length_days",
             ]
         )
-        df = df[df["suitable_area"] > 0]
-        if df.empty:
+        pivot = pivot[pivot["suitable_area"] > 0]
+        if pivot.empty:
             continue
 
-        grouped = df.groupby("region")
+        pivot["resource_class"] = pivot["resource_class"].astype(int)
+        for column in [
+            "suitable_area",
+            "growing_season_start_day",
+            "growing_season_length_days",
+        ]:
+            pivot[column] = pd.to_numeric(pivot[column], errors="coerce")
+
+        grouped = pivot.groupby("region")
         for region, group in grouped:
             weight = group["suitable_area"].sum()
             if weight <= 0:

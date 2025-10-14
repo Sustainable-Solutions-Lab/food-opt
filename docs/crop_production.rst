@@ -134,17 +134,16 @@ Aggregation Process
 5. **Compute class averages**: Within each (region, resource_class) combination:
 
    * Mean yield (t/ha) weighted by suitable area
-   * Mean water requirement (m³/tonne of crop produced)
+   * Mean water requirement (m³/ha)
    * Modal growing season start and length
 
-6. **Output**: CSV file (``processing/{name}/crop_yields/{crop}_{water_supply}.csv``) with columns:
+6. **Output**: CSV file (``processing/{name}/crop_yields/{crop}_{water_supply}.csv``) with tidy columns:
 
-   * ``region``: Optimization region ID
-   * ``resource_class``: Class number
-   * ``yield_t_per_ha``: Average attainable yield
-   * ``water_m3_per_t``: Water requirement per tonne (irrigated only)
-   * ``gs_start``: Growing season start (Julian day)
-   * ``gs_length``: Growing season length (days)
+   * ``region`` – Optimization region ID
+   * ``resource_class`` – Class number
+   * ``variable`` – One of ``yield``, ``suitable_area``, ``water_requirement_m3_per_ha``, ``growing_season_start_day``, ``growing_season_length_days``
+   * ``unit`` – Physical unit for the variable (``t/ha``, ``ha``, ``m³/ha``, ``day-of-year``, ``days``)
+   * ``value`` – Numeric value for the (region, class, variable) triplet
 
 Resource Class Yields
 ~~~~~~~~~~~~~~~~~~~~~
@@ -187,6 +186,8 @@ In the PyPSA model (``workflow/scripts/build_model.py``), crop production is rep
   * ``efficiency2`` (bus2, negative): Water requirement in m³/t
   * ``efficiency3`` (bus3, negative): Fertilizer requirement in kg/t
   * ``efficiency4`` (bus4, positive): Emissions in tCO₂-eq/t
+
+When crops are converted into foods, the model first rescales the dry-matter crop bus to fresh edible mass using FAO edible portion coefficients and moisture shares derived from ``processing/{name}/fao_nutritional_content.csv``. The scaling factor ``edible_portion_coefficient / (1 - water_fraction)`` is applied before product-specific extraction factors in ``data/foods.csv``. Crops listed in ``data/yield_unit_conversions.csv`` are assumed to already represent processed outputs and therefore skip this rescaling step.
 
 The model constrains:
 
