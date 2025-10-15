@@ -187,7 +187,13 @@ In the PyPSA model (``workflow/scripts/build_model.py``), crop production is rep
   * ``efficiency3`` (bus3, negative): Fertilizer requirement in kg/t
   * ``efficiency4`` (bus4, positive): Emissions in tCO₂-eq/t
 
-When crops are converted into foods, the model first rescales the dry-matter crop bus to fresh edible mass using FAO edible portion coefficients and moisture shares derived from ``processing/{name}/fao_nutritional_content.csv``. The scaling factor ``edible_portion_coefficient / (1 - water_fraction)`` is applied before product-specific extraction factors in ``data/foods.csv``. Crops listed in ``data/yield_unit_conversions.csv`` are assumed to already represent processed outputs and therefore skip this rescaling step.
+When crops are converted into foods, the model first rescales the dry-matter crop bus to fresh edible mass using FAO edible portion coefficients and moisture shares derived from ``processing/{name}/fao_edible_portion.csv``. The scaling factor ``edible_portion_coefficient / (1 - water_fraction)`` is applied before product-specific extraction factors in ``data/foods.csv``. Crops listed in ``data/yield_unit_conversions.csv`` are assumed to already represent processed outputs and therefore skip this rescaling step.
+
+**Crop-specific exceptions**: For certain crops, FAO's edible portion coefficients do not match the model's yield units, requiring special handling in ``workflow/scripts/prepare_fao_edible_portion.py``:
+
+* **Grains** (rice, barley, oat, buckwheat): FAO coefficients reflect milled/hulled conversion, but we track whole grain. Coefficient forced to 1.0; milling handled separately.
+* **Oil crops** (rapeseed, olive): GAEZ yields are already in kg oil/ha (see ``data/yield_unit_conversions.csv``), so no further conversion needed. Coefficient forced to 1.0.
+* **Sugar crops** (sugarcane, sugarbeet): GAEZ yields are already in kg sugar/ha (see ``data/yield_unit_conversions.csv``), so no further conversion needed. Coefficient forced to 1.0.
 
 The model constrains:
 

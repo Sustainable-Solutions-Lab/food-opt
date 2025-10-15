@@ -256,6 +256,39 @@ Water Footprint Network — Monthly Blue Water Availability
 
 **Usage**: Constraining irrigated crop production by basin-level water availability
 
+Food Processing Data
+--------------------
+
+data/foods.csv — Crop-to-Food Processing Pathways
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Type**: Hand-written configuration file (maintained in repository)
+
+**Description**: Defines processing pathways that convert raw crops into food products. Each pathway can produce multiple co-products (e.g., wheat → white flour + bran + germ), with conversion factors maintaining mass balance constraints.
+
+**Format**: CSV with pathway-based structure
+
+**Columns**:
+  * ``pathway``: Unique identifier for the processing pathway
+  * ``crop``: Input crop name (must match config crops list)
+  * ``food``: Output food product name
+  * ``factor``: Conversion factor (mass of food per unit mass of crop input)
+  * ``description``: Source reference and explanation
+
+**Key features**:
+  * **Multi-output pathways**: Multiple rows with the same pathway ID represent co-products from a single processing operation
+  * **Alternative pathways**: Different pathways for the same crop (e.g., white flour vs. wholemeal flour) let the model choose optimal processing routes
+  * **Mass balance**: Sum of conversion factors per pathway must be ≤ 1.0, with remainder representing unavoidable losses
+  * **Validation**: Model validates mass balance constraints when building the network
+
+**Primary source**: FAO Nutrient Conversion Table for Supply Utilization Accounts (2024), sheet 03. Additional factors from literature for specific crops.
+
+**License**: Data in this file is derived from FAO SUA 2024 (© FAO 2024, non-commercial use with attribution) and other cited sources. The pathway structure and organization is original to this project.
+
+**Usage**: ``workflow/scripts/build_model.py`` reads this file and creates multi-output PyPSA Links for each pathway, with efficiencies adjusted for country-specific food loss and waste factors.
+
+**Maintenance**: This is a hand-written configuration file that users should review and potentially customize for their analysis. When adding new crops or food products, corresponding pathways must be added to this file with appropriate conversion factors and source citations.
+
 Nutritional Data
 ----------------
 
@@ -297,33 +330,13 @@ FAO Nutrient Conversion Table for SUA (2024)
 
 **Workflow retrieval**: Automatically downloaded to ``data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx`` by the ``download_fao_nutrient_conversion_table`` rule in ``workflow/rules/retrieve.smk``.
 
-**Usage**: Contains data on edible portion of foods as well as water content. ``workflow/scripts/prepare_fao_nutritional_content.py`` reads sheet ``03`` to export edible portion coefficients and water content (g/100g) for configured crops into ``processing/{name}/fao_nutritional_content.csv``; ``workflow/scripts/build_model.py`` combines these with crop yields to rescale dry harvests to fresh edible food mass.
+**Usage**: Contains data on edible portion of foods as well as water content. ``workflow/scripts/prepare_fao_edible_portion.py`` reads sheet ``03`` to export edible portion coefficients and water content (g/100g) for configured crops into ``processing/{name}/fao_edible_portion.csv``; ``workflow/scripts/build_model.py`` combines these with crop yields to rescale dry harvests to fresh edible food mass. Note that for certain crops (grains: rice, barley, oat, buckwheat; oil crops: rapeseed, olive; sugar crops: sugarcane, sugarbeet), the script overrides FAO's coefficients to 1.0 to match the model's yield units, with processing losses handled separately.
 
 Mock and Placeholder Data
 --------------------------
 
 Several CSV files in ``data/`` currently contain **mock placeholder values** and must be replaced with sourced data before publication-quality analysis:
 
-data/foods.csv
-~~~~~~~~~~~~~~
-
-**Status**: Mock data
-
-**Description**: Food product definitions and processing relationships
-
-data/food_groups.csv
-~~~~~~~~~~~~~~~~~~~~
-
-**Status**: Mock data
-
-**Description**: Mapping of foods to dietary food groups
-
-data/nutrition.csv
-~~~~~~~~~~~~~~~~~~
-
-**Status**: Sourced from USDA FoodData Central (see above)
-
-**Description**: Nutritional composition of foods (macronutrients: protein, carbohydrates, fat, energy). The repository includes pre-fetched data from USDA FoodData Central. To update with fresh data, enable ``data.usda.retrieve_nutrition: true`` in the config and run the ``retrieve_usda_nutrition`` rule.
 
 data/feed_conversion.csv
 ~~~~~~~~~~~~~~~~~~~~~~~~~

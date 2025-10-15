@@ -9,6 +9,53 @@ This script fetches nutrition data for foods listed in data/usda_food_mapping.cs
 and outputs in the format expected by the model (data/nutrition.csv).
 
 Requires network access to call the USDA API.
+
+Adding New Foods
+----------------
+When adding a new food to the model, you must:
+
+1. Add the food to data/food_groups.csv with its food group classification
+2. Find the appropriate USDA FoodData Central (FDC) ID from the SR Legacy database
+3. Add the mapping to data/usda_food_mapping.csv
+
+To search for foods in the USDA database using the API:
+
+.. code-block:: bash
+
+    # Search for a food by name, filtering to SR Legacy database
+    curl -X POST -H "Content-Type:application/json" \\
+      -d '{"query": "brown rice raw", "dataType": ["SR Legacy"], "pageSize": 5}' \\
+      "https://api.nal.usda.gov/fdc/v1/foods/search?api_key=YOUR_API_KEY"
+
+    # The response will contain matching foods with their FDC IDs and descriptions
+    # Example output:
+    # {
+    #   "foods": [
+    #     {
+    #       "fdcId": 169703,
+    #       "description": "Rice, brown, long-grain, raw",
+    #       "dataType": "SR Legacy",
+    #       ...
+    #     }
+    #   ]
+    # }
+
+Search tips:
+- Use descriptive terms like "raw", "dried", "fresh" to match food forms
+- Prefer SR Legacy database entries for consistency (most comprehensive nutritional data)
+- Check the full description to ensure it matches the intended food item
+- For processed foods, look for the form closest to how it's consumed in the model
+
+Manual search via web interface:
+- Visit https://fdc.nal.usda.gov/
+- Use the search box and filter by "SR Legacy" database
+- Copy the FDC ID from the food detail page
+
+Validation
+----------
+This script validates that all non-byproduct foods in data/food_groups.csv have
+corresponding entries in data/usda_food_mapping.csv. The script will fail if any
+foods are missing from the mapping file.
 """
 
 import time
@@ -55,26 +102,38 @@ def get_food_nutrients(fdc_id: int, api_key: str) -> dict[str, tuple[float, str]
 
 
 def main():
-    # Get inputs from Snakemake or defaults
-    try:
-        mapping_path = snakemake.input.mapping  # noqa: F821
-        output_path = snakemake.output[0]  # noqa: F821
-        api_key = snakemake.config["data"]["usda"]["api_key"]  # noqa: F821
-        nutrient_name_map = snakemake.config["data"]["usda"]["nutrients"]  # noqa: F821
-    except NameError:
-        # Fallback for manual testing
-        mapping_path = "data/usda_food_mapping.csv"
-        output_path = "data/nutrition.csv"
-        api_key = "NZESBYEsg9Utlh3OmIsHu7pgEI2AD3jN76SxgCq6"
-        nutrient_name_map = {
-            "protein": "Protein",
-            "carb": "Carbohydrate, by difference",
-            "fat": "Total lipid (fat)",
-            "kcal": "Energy",
-        }
+    # Get inputs from Snakemake
+    mapping_path = snakemake.input.mapping  # noqa: F821
+    food_groups_path = snakemake.input.food_groups  # noqa: F821
+    output_path = snakemake.output[0]  # noqa: F821
+    api_key = snakemake.config["data"]["usda"]["api_key"]  # noqa: F821
+    nutrient_name_map = snakemake.config["data"]["usda"]["nutrients"]  # noqa: F821
+
+    # Read food groups file to get list of foods requiring nutrition data
+    food_groups_df = pd.read_csv(food_groups_path, comment="#")
+    # Exclude byproducts - they don't need USDA nutrition data
+    non_byproduct_foods = set(
+        food_groups_df[food_groups_df["group"] != "byproduct"]["food"]
+    )
 
     # Read mapping file
     mapping_df = pd.read_csv(mapping_path, comment="#")
+    mapped_foods = set(mapping_df["food"])
+
+    # Validate that all non-byproduct foods have mappings
+    missing_foods = non_byproduct_foods - mapped_foods
+    if missing_foods:
+        msg = (
+            "ERROR: The following foods are in food_groups.csv but missing from "
+            "usda_food_mapping.csv:\n"
+        )
+        for food in sorted(missing_foods):
+            msg += f"  - {food}\n"
+        msg += (
+            "\nPlease add USDA FoodData Central IDs for these foods. "
+            "See the script docstring for instructions on searching the USDA database."
+        )
+        raise ValueError(msg)
 
     # Prepare output data
     output_rows = []

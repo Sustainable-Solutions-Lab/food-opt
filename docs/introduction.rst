@@ -164,8 +164,8 @@ The repository is organized as follows::
     ├── data/                # Input data (downloaded and processed)
     │   ├── downloads/       # Raw downloaded datasets
     │   ├── crops.csv        # Crop definitions
-    │   ├── foods.csv        # Food product definitions (mock data)
-    │   └── nutrition.csv    # Nutritional content (mock data)
+    │   ├── foods.csv        # Crop-to-food processing pathways
+    │   └── nutrition.csv    # Nutritional content (from USDA FoodData Central)
     ├── processing/          # Intermediate processed datasets
     │   └── {config_name}/   # Processing outputs per scenario
     ├── results/             # Model outputs and analysis
@@ -186,6 +186,6 @@ Important Notes
 ~~~~~~~~~~~~~~~
 
 * The ``results/`` directory contains auto-generated files—never edit these manually
-* Several CSV files (``data/foods.csv``, ``data/nutrition.csv``, ``data/feed_conversion.csv``) contain mock placeholder data
+* Several CSV files (``data/feed_conversion.csv``, ``data/feed_to_animal_products.csv``, ``data/food_groups.csv``) contain mock placeholder data
 * Always use the ``tools/smk`` wrapper to run Snakemake, as it enforces memory limits to prevent system instability
 * The first run will take significant time to download global datasets (~several GB)

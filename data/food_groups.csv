@@ -1,7 +1,8 @@
 food,group
 flour (white),grain
 flour (wholemeal),whole_grains
-rice,grain
+rice (white),grain
+rice (brown),whole_grains
 maize,grain
 sorghum,whole_grains
 buckwheat,whole_grains
@@ -23,6 +24,7 @@ tomato,vegetables
 barley (hulled),whole_grains
 oat,whole_grains
 sunflower oil,oil
+sunflower seed,nuts_seeds
 carrot,vegetables
 onion,vegetables
 cabbage,vegetables
@@ -35,6 +37,15 @@ rapeseed oil,oil
 groundnut,nuts_seeds
 dry pea,legumes
 chickpea,legumes
+sugar,sugar
+wheat bran,byproduct
+wheat germ,byproduct
+rice bran,byproduct
+barley bran,byproduct
+oat bran,byproduct
+buckwheat hulls,byproduct
+sunflower meal,byproduct
+rapeseed meal,byproduct
 cattle meat,red_meat
 pig meat,red_meat
 chicken meat,poultry

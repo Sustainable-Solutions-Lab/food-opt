@@ -8,7 +8,8 @@
 food,fdc_id,description,notes
 flour (white),168894,"Wheat flour, white, all-purpose, enriched, bleached",Standard all-purpose flour
 flour (wholemeal),168944,"Wheat flour, whole-grain, soft wheat",Whole wheat flour
-rice,168877,"Rice, white, long-grain, regular, raw, enriched",White rice raw enriched
+rice (white),168877,"Rice, white, long-grain, regular, raw, enriched",White rice raw enriched
+rice (brown),169703,"Rice, brown, long-grain, raw",Brown rice raw
 maize,170288,"Corn grain, yellow",Yellow corn grain
 sorghum,169716,Sorghum grain,Whole grain sorghum
 buckwheat,170286,Buckwheat,Buckwheat groats (raw)
@@ -30,6 +31,7 @@ tomato,170457,Tomatoes red ripe raw year round average,Fresh tomatoes
 barley (hulled),170283,Barley hulled,Hulled barley grain
 oat,169705,Oats (Includes foods for USDA's Food Distribution Program),Oat grain
 sunflower oil,171025,"Oil, sunflower, linoleic, (approx. 65%)",Sunflower oil
+sunflower seed,170562,"Seeds, sunflower seed kernels, dried",Dried sunflower seed kernels
 carrot,170393,Carrots raw,Fresh raw carrots
 onion,170000,Onions raw,Fresh raw onions
 cabbage,169975,Cabbage raw,Fresh raw cabbage

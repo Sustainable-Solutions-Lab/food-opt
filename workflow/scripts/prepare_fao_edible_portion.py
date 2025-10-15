@@ -8,6 +8,15 @@ The script reads sheet "03" of the FAO Nutrient Conversion Table workbook and
 pulls the *edible portion coefficient* for each FAOSTAT item mapped to the
 model's configured crops. The resulting CSV lists the coefficient alongside the
 FAOSTAT item code and edible portion type flag supplied by FAO.
+
+Special handling is applied to certain crops where FAO's coefficient does not
+match the model's yield units:
+- Grains (rice, barley, oat, buckwheat): FAO gives milled/hulled conversion;
+  we force to 1.0 for whole grain, handling milling separately.
+- Oil crops (rapeseed, olive): GAEZ yields are already in kg oil/ha, so we
+  force to 1.0 (no further conversion needed).
+- Sugar crops (sugarcane, sugarbeet): GAEZ yields are already in kg sugar/ha,
+  so we force to 1.0 (no further conversion needed).
 """
 
 import csv
@@ -24,6 +33,26 @@ logger = logging.getLogger(__name__)
 ALTERNATE_ITEM_NAMES: Dict[str, str] = {
     "rape or colza seed": "rapeseed or colza seed",
     "oil palm fruit": "palm oil",
+}
+
+# Crops for which the edible portion coefficient should be set to 1.0
+# despite FAO listing a lower value. Reasons vary by crop type:
+# - Grains (rice, barley, oat, buckwheat): FAO coefficient represents milled/
+#   hulled grain; we track whole grain and handle milling separately.
+# - Oil crops (rapeseed, olive): FAO coefficient represents fruit/seed→oil
+#   extraction; GAEZ yields are already in kg oil/ha, so no further conversion.
+# - Sugar crops (sugarcane, sugarbeet): GAEZ yields are already in kg sugar
+#   per hectare, so no further conversion needed.
+EDIBLE_PORTION_EXCEPTIONS: set[str] = {
+    "dryland-rice",
+    "wetland-rice",
+    "barley",
+    "oat",
+    "buckwheat",
+    "rapeseed",
+    "olive",
+    "sugarcane",
+    "sugarbeet",
 }
 
 
@@ -105,7 +134,7 @@ def main() -> None:
     crops: List[str] = list(snakemake.params.crops)  # type: ignore[name-defined]
     xlsx_path = Path(snakemake.input.table)  # type: ignore[name-defined]
     mapping_path = Path(snakemake.input.mapping)  # type: ignore[name-defined]
-    output_path = Path(snakemake.output.nutritional_content)  # type: ignore[name-defined]
+    output_path = Path(snakemake.output.edible_portion)  # type: ignore[name-defined]
 
     records_by_name = _load_component_values(xlsx_path)
     crop_to_item = _read_crop_mapping(mapping_path)
@@ -163,16 +192,23 @@ def main() -> None:
                 )
                 continue
 
+            # Apply exception: force edible_coefficient to 1.0 for certain crops
+            edible_coeff = (
+                1.0
+                if crop in EDIBLE_PORTION_EXCEPTIONS
+                else (
+                    ""
+                    if record.edible_coefficient is None
+                    else record.edible_coefficient
+                )
+            )
+
             writer.writerow(
                 {
                     "crop": crop,
                     "faostat_item": record.description,
                     "fao_code": record.code,
-                    "edible_portion_coefficient": (
-                        ""
-                        if record.edible_coefficient is None
-                        else record.edible_coefficient
-                    ),
+                    "edible_portion_coefficient": edible_coeff,
                     "edible_portion_type": (
                         "" if record.edible_type is None else record.edible_type
                     ),

@@ -86,10 +86,10 @@ Model Building and Solving
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **build_model**
-  * **Input**: All crop yields, grassland yields, land areas, population, water availability, static data files (crops.csv, foods.csv, etc.)
+  * **Input**: All crop yields, grassland yields, land areas, population, water availability, static data files (crops.csv, foods.csv with pathway-based processing, etc.)
   * **Output**: ``results/{name}/build/model.nc``
   * **Script**: ``workflow/scripts/build_model.py``
-  * **Purpose**: Construct PyPSA network with all components, links, and constraints
+  * **Purpose**: Construct PyPSA network with all components, links, and constraints. Creates multi-output links for crop→food conversion based on processing pathways defined in foods.csv.
 
 **solve_model**
   * **Input**: Built model, health data, food-to-risk mapping

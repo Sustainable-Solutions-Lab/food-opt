@@ -120,16 +120,16 @@ rule simplify_gadm:
         "scripts/simplify_gadm.py"
 
 
-rule prepare_fao_nutritional_content:
+rule prepare_fao_edible_portion:
     input:
         table="data/downloads/fao_nutrient_conversion_table_for_sua_2024.xlsx",
         mapping="data/faostat_item_map.csv",
     params:
         crops=config["crops"],
     output:
-        nutritional_content="processing/{name}/fao_nutritional_content.csv",
+        edible_portion="processing/{name}/fao_edible_portion.csv",
     script:
-        "scripts/prepare_fao_nutritional_content.py"
+        "scripts/prepare_fao_edible_portion.py"
 
 
 rule build_regions:
@@ -404,11 +404,12 @@ rule build_model:
         foods="data/foods.csv",
         feed_conversion="data/feed_conversion.csv",
         feed_to_products="data/feed_to_animal_products.csv",
+        food_feed_conversion="data/food_feed_conversion.csv",
         food_groups="data/food_groups.csv",
         nutrition="data/nutrition.csv",
         regions="processing/{name}/regions.geojson",
         land_area_by_class="processing/{name}/land_area_by_class.csv",
-        nutritional_content=f"processing/{name}/fao_nutritional_content.csv",
+        edible_portion=f"processing/{name}/fao_edible_portion.csv",
         yield_unit_conversions="data/yield_unit_conversions.csv",
         gaez_crop_mapping="data/gaez_crop_code_mapping.csv",
         population="processing/{name}/population.csv",

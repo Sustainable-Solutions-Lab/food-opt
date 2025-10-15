@@ -97,14 +97,39 @@ The model uses feed conversion ratios to link feed inputs to animal outputs. The
 data/feed_conversion.csv
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maps crops to feed energy/protein content. Columns:
+Maps crops to feed energy/protein content for direct crop-to-feed conversion. Columns:
 
 * ``crop``: Crop name (e.g., "maize", "soybean")
-* ``energy_MJ_per_kg``: Energy content
-* ``protein_g_per_kg``: Protein content
-* Other feed characteristics
+* ``feed_type``: Feed category ("ruminant" or "monogastric")
+* ``efficiency``: Digestible fraction of the crop as feed
+* ``notes``: Description and source information
+
+This file enables crops to be used directly as animal feed, competing with human consumption and food processing pathways.
 
 .. Note:: Current values are mock data; to be replaced by actual values.
+
+.. _byproduct-feed-conversion:
+
+data/food_feed_conversion.csv
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Maps food byproducts to feed conversion efficiencies. Columns:
+
+* ``food``: Food byproduct name (e.g., "wheat bran", "sunflower meal")
+* ``feed_type``: Feed category ("ruminant" or "monogastric")
+* ``efficiency``: Digestible fraction of the byproduct as feed
+* ``notes``: Description and source information
+
+This file enables byproducts from food processing (assigned to the ``byproduct`` food group) to be used as animal feed. Byproducts are automatically excluded from human consumption and routed to animal feed systems.
+
+**Typical byproducts**:
+  * **Cereal brans**: wheat bran, rice bran, barley bran, oat bran (moderate fiber, good for ruminants)
+  * **Oilseed meals**: sunflower meal, rapeseed meal (high protein after oil extraction)
+  * **Other**: wheat germ (high protein/fat), buckwheat hulls (high fiber, lower digestibility)
+
+**Feed efficiency differences**: Ruminants generally have higher efficiency for fibrous byproducts due to their multi-stomach digestive system, while monogastrics (pigs, poultry) have lower efficiency for high-fiber materials but may utilize protein-rich meals effectively.
+
+.. Note:: Current values are mock data; to be replaced with actual feed value data from animal nutrition literature.
 
 data/feed_to_animal_products.csv
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -139,15 +164,25 @@ Grazing Links
 Feed-Based Links
 ~~~~~~~~~~~~~~~~
 
-**Inputs**:
-  * ``bus0``, ``bus2``, ...: Crop buses (e.g., maize, soybean)
-  * Multiple crops can feed a single animal product
+The feed-based production system utilizes two types of feed sources:
 
-**Outputs**:
-  * ``bus1``: Animal product
-  * ``bus3``: Emissions (primarily CH₄ from enteric fermentation)
+**Crop-to-Feed Links**:
+  * **Inputs**: Crop buses (e.g., maize, soybean from ``bus0``)
+  * **Outputs**: Feed pool buses (``feed_ruminant`` or ``feed_monogastric``)
+  * **Efficiency**: Crop digestibility as feed (from ``data/feed_conversion.csv``)
+  * Crops compete between human consumption, food processing, and animal feed use
 
-**Efficiency**: Feed conversion ratios (negative for inputs, positive for output)
+**Byproduct-to-Feed Links**:
+  * **Inputs**: Food byproduct buses (e.g., wheat bran, sunflower meal from ``bus0``)
+  * **Outputs**: Feed pool buses (``feed_ruminant`` or ``feed_monogastric``)
+  * **Efficiency**: Byproduct digestibility as feed (from ``data/food_feed_conversion.csv``)
+  * Byproducts from food processing are automatically excluded from human consumption and can only be used as feed
+
+**Feed-to-Animal-Product Links**:
+  * **Inputs**: Feed pool buses (``feed_ruminant`` or ``feed_monogastric`` from ``bus0``)
+  * **Outputs**: Animal product buses (``bus1``)
+  * **Emissions**: CH₄ from enteric fermentation (``bus3``)
+  * **Efficiency**: Feed conversion ratios (kg feed → kg product)
 
 Emissions from Livestock
 -------------------------

@@ -139,11 +139,11 @@ def _exception_crops_from_unit_table(
 
 
 def _fresh_mass_conversion_factors(
-    nutritional_content_df: pd.DataFrame,
+    edible_portion_df: pd.DataFrame,
     crops: set[str],
     exceptions: set[str],
 ) -> dict[str, float]:
-    df = nutritional_content_df.copy()
+    df = edible_portion_df.copy()
     df["crop"] = df["crop"].astype(str).str.strip()
 
     df = df.set_index("crop")
@@ -594,7 +594,18 @@ def add_food_conversion_links(
     food_to_group: dict[str, str],
     loss_waste: pd.DataFrame,
 ) -> None:
-    """Add links for converting crops to foods."""
+    """Add links for converting crops to foods via processing pathways.
+
+    Pathways can have multiple outputs (e.g., wheat → white flour + bran).
+    Each pathway creates one multi-output Link per country.
+    """
+
+    # Validate that foods.csv has the new pathway column
+    if "pathway" not in foods.columns:
+        raise ValueError(
+            "foods.csv must contain a 'pathway' column. "
+            "See data/foods.csv for the expected format with pathway-based structure."
+        )
 
     loss_waste_pairs: dict[tuple[str, str], tuple[float, float]] = {}
     if not loss_waste.empty:
@@ -619,24 +630,45 @@ def add_food_conversion_links(
     missing_loss_waste: set[tuple[str, str]] = set()
     missing_group_foods: set[str] = set()
     excessive_losses: set[tuple[str, str]] = set()
+    invalid_pathways: list[str] = []
 
     normalized_countries = [str(c).upper() for c in countries]
 
-    for _, row in foods.iterrows():
-        crop = str(row["crop"]).strip()
-        food = str(row["food"]).strip()
-        if food not in food_list:
-            continue
-        if pd.isna(row["factor"]):
-            raise ValueError(
-                f"Missing conversion factor for crop '{crop}' to food '{food}'"
-            )
-        factor = float(row["factor"])
-        if not np.isfinite(factor) or factor <= 0:
-            raise ValueError(
-                f"Invalid conversion factor {factor} for crop '{crop}' to food '{food}'"
-            )
+    # Group foods by pathway and crop
+    pathway_groups = foods.groupby(["pathway", "crop"])
 
+    for (pathway, crop), pathway_df in pathway_groups:
+        pathway = str(pathway).strip()
+        crop = str(crop).strip()
+
+        # Filter to foods that are in the food_list
+        pathway_df = pathway_df[pathway_df["food"].isin(food_list)].copy()
+        if pathway_df.empty:
+            continue
+
+        # Get output foods and factors
+        output_foods = []
+        output_factors = []
+        for _, row in pathway_df.iterrows():
+            food = str(row["food"]).strip()
+            if pd.isna(row["factor"]):
+                raise ValueError(
+                    f"Missing conversion factor in pathway '{pathway}' for crop '{crop}' to food '{food}'"
+                )
+            factor = float(row["factor"])
+            if not np.isfinite(factor) or factor <= 0:
+                raise ValueError(
+                    f"Invalid conversion factor {factor} in pathway '{pathway}' for crop '{crop}' to food '{food}'"
+                )
+            output_foods.append(food)
+            output_factors.append(factor)
+
+        # Verify mass balance (sum of factors should be ≤ 1.0)
+        total_factor = sum(output_factors)
+        if total_factor > 1.01:  # Allow small rounding tolerance
+            invalid_pathways.append(f"{pathway} ({crop}): sum={total_factor:.3f}")
+
+        # Get conversion factor (dry matter → fresh edible)
         if crop in exception_crops:
             conversion_factor = 1.0
         else:
@@ -644,56 +676,72 @@ def add_food_conversion_links(
                 conversion_factor = crop_to_fresh_factor[crop]
             except KeyError as exc:
                 raise ValueError(
-                    f"Missing moisture/edible conversion data for crop '{crop}'"
+                    f"Missing moisture/edible conversion data for crop '{crop}' in pathway '{pathway}'"
                 ) from exc
 
-        safe_food_name = food.replace(" ", "_").replace("(", "").replace(")", "")
-        names = [
-            f"convert_{crop}_to_{safe_food_name}_{c}" for c in normalized_countries
-        ]
+        # Create multi-output link names (one per country)
+        safe_pathway_name = pathway.replace(" ", "_").replace("(", "").replace(")", "")
+        names = [f"pathway_{safe_pathway_name}_{c}" for c in normalized_countries]
         bus0 = [f"crop_{crop}_{c}" for c in normalized_countries]
-        bus1 = [f"food_{food}_{c}" for c in normalized_countries]
 
-        efficiencies: list[float] = []
-        group = food_to_group.get(food)
-        for country in normalized_countries:
-            multiplier = 1.0
-            if group is None:
-                missing_group_foods.add(food)
-            else:
-                fractions = loss_waste_pairs.get((country, group))
-                if fractions is None:
-                    missing_loss_waste.add((country, group))
+        # Build parameters for multi-output link
+        link_params = {
+            "bus0": bus0,
+            "marginal_cost": [0.01] * len(normalized_countries),
+            "p_nom_extendable": [True] * len(normalized_countries),
+        }
+
+        # Add each output food as a separate bus with its efficiency
+        for output_idx, (food, factor) in enumerate(
+            zip(output_foods, output_factors), start=1
+        ):
+            bus_key = f"bus{output_idx}"
+            eff_key = "efficiency" if output_idx == 1 else f"efficiency{output_idx}"
+
+            link_params[bus_key] = [f"food_{food}_{c}" for c in normalized_countries]
+
+            # Calculate efficiencies per country (including loss/waste adjustments)
+            efficiencies: list[float] = []
+            group = food_to_group.get(food)
+            for country in normalized_countries:
+                multiplier = 1.0
+                if group is None:
+                    missing_group_foods.add(food)
                 else:
-                    raw_loss, raw_waste = fractions
-                    loss_fraction = max(0.0, float(raw_loss))
-                    waste_fraction = max(0.0, float(raw_waste))
-                    loss_clamped = False
-                    waste_clamped = False
-                    if loss_fraction > 1.0:
-                        loss_fraction = 1.0
-                        loss_clamped = True
-                    if waste_fraction > 1.0:
-                        waste_fraction = 1.0
-                        waste_clamped = True
-                    if loss_clamped or waste_clamped:
-                        excessive_losses.add((country, group))
-                    multiplier = (1.0 - loss_fraction) * (1.0 - waste_fraction)
-                    if multiplier <= 0.0:
-                        excessive_losses.add((country, group))
-                        multiplier = 0.0
+                    fractions = loss_waste_pairs.get((country, group))
+                    if fractions is None:
+                        missing_loss_waste.add((country, group))
                     else:
-                        multiplier = min(1.0, multiplier)
-            efficiencies.append(factor * conversion_factor * multiplier)
+                        raw_loss, raw_waste = fractions
+                        loss_fraction = max(0.0, float(raw_loss))
+                        waste_fraction = max(0.0, float(raw_waste))
+                        loss_clamped = False
+                        waste_clamped = False
+                        if loss_fraction > 1.0:
+                            loss_fraction = 1.0
+                            loss_clamped = True
+                        if waste_fraction > 1.0:
+                            waste_fraction = 1.0
+                            waste_clamped = True
+                        if loss_clamped or waste_clamped:
+                            excessive_losses.add((country, group))
+                        multiplier = (1.0 - loss_fraction) * (1.0 - waste_fraction)
+                        if multiplier <= 0.0:
+                            excessive_losses.add((country, group))
+                            multiplier = 0.0
+                        else:
+                            multiplier = min(1.0, multiplier)
+                efficiencies.append(factor * conversion_factor * multiplier)
 
-        n.add(
-            "Link",
-            names,
-            bus0=bus0,
-            bus1=bus1,
-            efficiency=efficiencies,
-            marginal_cost=[0.01] * len(normalized_countries),
-            p_nom_extendable=[True] * len(normalized_countries),
+            link_params[eff_key] = efficiencies
+
+        n.add("Link", names, **link_params)
+
+    # Warnings
+    if invalid_pathways:
+        logger.warning(
+            "Pathways with mass balance issues (sum of factors > 1.0): %s",
+            "; ".join(invalid_pathways[:5]),
         )
 
     if missing_group_foods:
@@ -701,6 +749,7 @@ def add_food_conversion_links(
             "Food items without food-group mapping (loss/waste ignored): %s",
             ", ".join(sorted(missing_group_foods)),
         )
+
     unresolved = {
         (country, group)
         for (country, group) in missing_loss_waste
@@ -715,6 +764,7 @@ def add_food_conversion_links(
             len(unresolved),
             sample,
         )
+
     if excessive_losses:
         sample = ", ".join(
             f"{country}:{group}" for country, group in sorted(excessive_losses)[:10]
@@ -779,6 +829,85 @@ def add_crop_to_feed_links(
                 for country in countries
             ]
             bus0 = [f"crop_{crop}_{country}" for country in countries]
+            bus1 = [f"feed_{feed_suffix}_{country}" for country in countries]
+            n.add(
+                "Link",
+                names,
+                bus0=bus0,
+                bus1=bus1,
+                efficiency=[efficiency] * len(countries),
+                marginal_cost=[0.01] * len(countries),
+                p_nom_extendable=[True] * len(countries),
+            )
+
+
+def add_food_to_feed_links(
+    n: pypsa.Network,
+    food_list: list,
+    food_groups: pd.DataFrame,
+    food_feed_conversion: pd.DataFrame,
+    countries: list,
+) -> None:
+    """Add links that turn foods (especially byproducts) into feed for ruminants and monogastrics.
+
+    This enables byproducts like bran and meal to be used as animal feed instead of
+    being consumed by humans.
+    """
+    if food_feed_conversion.empty:
+        logger.info("No food feed conversion data provided; skipping food→feed links")
+        return
+
+    df = food_feed_conversion.copy()
+    required_cols = {"food", "feed_type", "efficiency"}
+    missing_cols = required_cols - set(df.columns)
+    if missing_cols:
+        raise ValueError(
+            f"food_feed_conversion must contain columns: {', '.join(sorted(missing_cols))}"
+        )
+
+    df["feed_type"] = df["feed_type"].str.strip().str.lower()
+    df["food"] = df["food"].str.strip()
+    valid_types = {"ruminant", "monogastric"}
+    invalid_types = sorted(set(df["feed_type"]) - valid_types)
+    if invalid_types:
+        logger.warning(
+            "Ignoring unsupported feed types in food_feed_conversion: %s",
+            ", ".join(invalid_types),
+        )
+        df = df[df["feed_type"].isin(valid_types)]
+
+    # Get byproduct foods
+    byproduct_foods = set(food_groups.loc[food_groups["group"] == "byproduct", "food"])
+
+    for food in food_list:
+        food_rows = df[df["food"] == food]
+        if food_rows.empty:
+            if food in byproduct_foods:
+                logger.warning(
+                    "Byproduct food '%s' has no feed conversion data, skipping", food
+                )
+            continue
+
+        for _, row in food_rows.iterrows():
+            efficiency = float(row["efficiency"])
+            if not np.isfinite(efficiency) or efficiency <= 0:
+                logger.warning(
+                    "Invalid feed efficiency %.3f for food '%s' (%s), skipping",
+                    efficiency,
+                    food,
+                    row["feed_type"],
+                )
+                continue
+
+            feed_suffix = (
+                "ruminant" if row["feed_type"] == "ruminant" else "monogastric"
+            )
+            clean_food_name = food.replace(" ", "_").replace("(", "").replace(")", "")
+            names = [
+                f"convert_food_{clean_food_name}_to_{feed_suffix}_feed_{country}"
+                for country in countries
+            ]
+            bus0 = [f"food_{food}_{country}" for country in countries]
             bus1 = [f"feed_{feed_suffix}_{country}" for country in countries]
             n.add(
                 "Link",
@@ -1095,12 +1224,26 @@ def add_food_nutrition_links(
     nutrient_units: dict[str, str],
     countries: list,
 ) -> None:
-    """Add multilinks per country for converting foods to groups and macronutrients."""
+    """Add multilinks per country for converting foods to groups and macronutrients.
+
+    Byproduct foods (those with group='byproduct') are excluded from human consumption.
+    """
     # Pre-index food_groups for lookup
     food_to_group = food_groups.set_index("food")["group"].to_dict()
 
+    # Filter out byproducts from human consumption
+    byproduct_foods = set(food_groups.loc[food_groups["group"] == "byproduct", "food"])
+    consumable_foods = [f for f in food_list if f not in byproduct_foods]
+
+    if byproduct_foods:
+        logger.info(
+            "Excluding %d byproduct foods from human consumption: %s",
+            len(byproduct_foods),
+            ", ".join(sorted(byproduct_foods)),
+        )
+
     nutrients = list(nutrition.index.get_level_values("nutrient").unique())
-    for food in food_list:
+    for food in consumable_foods:
         group_val = food_to_group.get(food, None)
         names = [
             f"consume_{food.replace(' ', '_').replace('(', '').replace(')', '')}_{c}"
@@ -1404,7 +1547,7 @@ if __name__ == "__main__":
         foods["food"] = foods["food"].astype(str).str.strip()
         foods["crop"] = foods["crop"].astype(str).str.strip()
         foods["factor"] = pd.to_numeric(foods["factor"], errors="coerce")
-    nutritional_content_df = read_csv(snakemake.input.nutritional_content)
+    edible_portion_df = read_csv(snakemake.input.edible_portion)
     yield_unit_conversion_df = read_csv(snakemake.input.yield_unit_conversions)
     gaez_code_mapping_df = read_csv(snakemake.input.gaez_crop_mapping)
     gaez_code_map = _gaez_code_to_crop_map(gaez_code_mapping_df)
@@ -1420,6 +1563,9 @@ if __name__ == "__main__":
 
     # Read feed requirements for animal products (feed pools -> foods)
     feed_to_products = read_csv(snakemake.input.feed_to_products)
+
+    # Read food-to-feed conversion data (foods, especially byproducts -> feed pools)
+    food_feed_conversion = read_csv(snakemake.input.food_feed_conversion)
 
     # Read food loss & waste fractions per country and food group
     food_loss_waste = read_csv(snakemake.input.food_loss_waste)
@@ -1615,9 +1761,16 @@ if __name__ == "__main__":
     animal_products_cfg = snakemake.params.animal_products
     animal_product_list = list(animal_products_cfg["include"])
 
+    # Validate foods.csv structure
+    if "pathway" not in foods.columns:
+        raise ValueError(
+            "foods.csv must contain a 'pathway' column. "
+            "Update data/foods.csv to use the pathway-based format."
+        )
+
     food_crops = set(foods.loc[foods["crop"].isin(crop_list), "crop"])
     crop_to_fresh_factor = _fresh_mass_conversion_factors(
-        nutritional_content_df, food_crops, exception_crops
+        edible_portion_df, food_crops, exception_crops
     )
 
     base_food_list = foods.loc[foods["crop"].isin(crop_list), "food"].unique().tolist()
@@ -1721,6 +1874,9 @@ if __name__ == "__main__":
     )
     add_feed_to_animal_product_links(
         n, animal_product_list, feed_to_products, cfg_countries
+    )
+    add_food_to_feed_links(
+        n, food_list, food_groups, food_feed_conversion, cfg_countries
     )
     add_food_group_buses_and_loads(
         n,

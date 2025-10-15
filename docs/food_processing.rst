@@ -13,24 +13,46 @@ Overview
 
 The food processing module converts raw agricultural products (crops and animal products) into final food products consumed by the population. This captures:
 
-* **Mass losses**: Processing inefficiencies (e.g., wheat → flour loses bran/germ)
+* **Multi-output processing**: Single crops can produce multiple co-products (e.g., wheat → white flour + bran + germ)
+* **Alternative pathways**: Different processing options for the same crop (e.g., white flour vs. wholemeal flour from wheat)
+* **Mass balance**: Processing losses and byproducts are explicitly tracked
 * **Unit conversion**: Conversion from dry matter (DM) to fresh weight as consumed
 
-Processing is represented in the model as PyPSA links with crop buses as inputs and food buses as outputs.
+Processing is represented in the model as PyPSA multi-output links with crop buses as inputs and multiple food buses as outputs. Each pathway creates one link per country, with efficiencies adjusted for food loss and waste factors.
 
 Data Files
 ~~~~~~~~~~
 
-**data/foods.csv** (currently mock data)
-  Defines food products with columns:
+The two files below, created and distributed for internal food-opt use, define possible food processing pathways and food groups.
 
-  * ``crop``: Crop name
-  * ``food``: Food name
-  * ``factor``: Conversion factor
-  * ``description``: Free text description
+**data/foods.csv**
+  Defines crop-to-food processing pathways using a pathway-based format that supports multi-output processing. Each pathway can convert one crop into one or more food products, with conversion factors maintaining mass balance.
 
-**data/food_groups.csv** (currently mock data)
-  Maps foods to food groups for dietary constraint aggregation.
+  Columns:
+
+  * ``pathway``: Unique identifier for the processing pathway (e.g., ``white_flour``, ``milled_rice``)
+  * ``crop``: Input crop name (must match config crops list)
+  * ``food``: Output food product name
+  * ``factor``: Conversion factor (mass of food output per unit mass of crop input)
+  * ``description``: Explanation of the conversion and source reference
+
+  **Multi-output pathways**: Multiple rows with the same pathway name represent co-products from a single processing operation. For example, the ``white_flour`` pathway produces white flour (0.75), wheat bran (0.20), and wheat germ (0.03) from wheat, with factors summing to ≤ 1.0 to respect mass balance.
+
+  **Alternative pathways**: Different pathways for the same crop represent processing alternatives that the model can choose between based on demand and costs. For example, wheat can be processed via ``white_flour`` or ``wholemeal_flour`` pathways.
+
+**data/food_groups.csv**
+  Maps foods to food groups for dietary constraint aggregation and health impact assessment. Each food must be assigned to exactly one food group.
+
+  Columns:
+
+  * ``food``: Food product name (must match foods produced in ``data/foods.csv``)
+  * ``group``: Food group identifier (e.g., ``grain``, ``whole_grains``, ``legumes``, ``oil``, ``byproduct``)
+
+  **Coverage**: This file must include all foods that can be produced according to ``data/foods.csv`` pathways, including byproducts (bran, meal, hulls, etc.). Foods without group assignments will generate warnings and will not contribute to food group constraints or health impact calculations.
+
+  **Food groups**: Standard groups include grains, whole_grains, legumes, nuts_seeds, oil, starchy_vegetable, fruits, vegetables, sugar, byproduct, red_meat, poultry, dairy, and eggs. Additional groups can be defined in the config file under ``food_groups``.
+
+  **Byproduct handling**: Foods assigned to the ``byproduct`` group (such as wheat bran, rice bran, oat bran, wheat germ, sunflower meal, rapeseed meal, and buckwheat hulls) are **excluded from direct human consumption**. Instead, these byproducts can be utilized as animal feed (see :ref:`byproduct-feed-conversion`), making them available for livestock production systems.
 
 Food Loss & Waste Adjustments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

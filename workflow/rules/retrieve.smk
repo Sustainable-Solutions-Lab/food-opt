@@ -214,6 +214,7 @@ if config["data"]["usda"]["retrieve_nutrition"]:
     rule retrieve_usda_nutrition:
         input:
             mapping="data/usda_food_mapping.csv",
+            food_groups="data/food_groups.csv",
         output:
             "data/nutrition.csv",
         script:
