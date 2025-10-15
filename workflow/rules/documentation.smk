@@ -145,7 +145,7 @@ rule doc_fig_workflow_rulegraph_dot:
         dot="docs/_static/figures/workflow_rulegraph_raw.dot",
     shell:
         """
-        snakemake --rulegraph --configfile config/doc_figures.yaml > {output.dot}
+        snakemake --rulegraph --config name=test > {output.dot}
         """
 
 
