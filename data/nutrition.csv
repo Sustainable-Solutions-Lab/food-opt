@@ -1,0 +1,179 @@
+# Nutritional data retrieved from USDA FoodData Central
+# Source: https://fdc.nal.usda.gov/
+food,nutrient,unit,value
+apple,carb,g/100g,13.81
+apple,fat,g/100g,0.17
+apple,kcal,kcal/100g,52.1
+apple,protein,g/100g,0.26
+banana,carb,g/100g,22.84
+banana,fat,g/100g,0.33
+banana,kcal,kcal/100g,88.67
+banana,protein,g/100g,1.09
+barley (hulled),carb,g/100g,73.48
+barley (hulled),fat,g/100g,2.3
+barley (hulled),kcal,kcal/100g,353.97
+barley (hulled),protein,g/100g,12.48
+buckwheat,carb,g/100g,71.5
+buckwheat,fat,g/100g,3.4
+buckwheat,kcal,kcal/100g,342.97
+buckwheat,protein,g/100g,13.25
+cabbage,carb,g/100g,5.8
+cabbage,fat,g/100g,0.1
+cabbage,kcal,kcal/100g,24.62
+cabbage,protein,g/100g,1.28
+carrot,carb,g/100g,9.58
+carrot,fat,g/100g,0.24
+carrot,kcal,kcal/100g,41.35
+carrot,protein,g/100g,0.93
+cassava,carb,g/100g,38.06
+cassava,fat,g/100g,0.28
+cassava,kcal,kcal/100g,159.42
+cassava,protein,g/100g,1.36
+cattle meat,carb,g/100g,0.0
+cattle meat,fat,g/100g,15.0
+cattle meat,kcal,kcal/100g,214.63
+cattle meat,protein,g/100g,18.59
+chicken meat,carb,g/100g,0.0
+chicken meat,fat,g/100g,2.62
+chicken meat,kcal,kcal/100g,119.74
+chicken meat,protein,g/100g,22.5
+chickpea,carb,g/100g,62.95
+chickpea,fat,g/100g,6.04
+chickpea,kcal,kcal/100g,377.87
+chickpea,protein,g/100g,20.47
+citrus,carb,g/100g,11.75
+citrus,fat,g/100g,0.12
+citrus,kcal,kcal/100g,47.08
+citrus,protein,g/100g,0.94
+coconut,carb,g/100g,15.23
+coconut,fat,g/100g,33.49
+coconut,kcal,kcal/100g,353.97
+coconut,protein,g/100g,3.33
+cowpea,carb,g/100g,60.03
+cowpea,fat,g/100g,1.26
+cowpea,kcal,kcal/100g,336.04
+cowpea,protein,g/100g,23.52
+dairy,carb,g/100g,4.8
+dairy,fat,g/100g,3.25
+dairy,kcal,kcal/100g,60.71
+dairy,protein,g/100g,3.15
+dry pea,carb,g/100g,61.63
+dry pea,fat,g/100g,3.89
+dry pea,kcal,kcal/100g,363.53
+dry pea,protein,g/100g,23.12
+eggs,carb,g/100g,0.72
+eggs,fat,g/100g,9.51
+eggs,kcal,kcal/100g,143.16
+eggs,protein,g/100g,12.56
+flour (white),carb,g/100g,76.31
+flour (white),fat,g/100g,0.98
+flour (white),kcal,kcal/100g,364.01
+flour (white),protein,g/100g,10.33
+flour (wholemeal),carb,g/100g,74.48
+flour (wholemeal),fat,g/100g,1.95
+flour (wholemeal),kcal,kcal/100g,332.46
+flour (wholemeal),protein,g/100g,9.61
+foxtail millet,carb,g/100g,72.85
+foxtail millet,fat,g/100g,4.22
+foxtail millet,kcal,kcal/100g,378.11
+foxtail millet,protein,g/100g,11.02
+gram,carb,g/100g,62.95
+gram,fat,g/100g,6.04
+gram,kcal,kcal/100g,377.87
+gram,protein,g/100g,20.47
+groundnut,carb,g/100g,16.13
+groundnut,fat,g/100g,49.24
+groundnut,kcal,kcal/100g,567.4
+groundnut,protein,g/100g,25.8
+maize,carb,g/100g,74.26
+maize,fat,g/100g,4.74
+maize,kcal,kcal/100g,364.96
+maize,protein,g/100g,9.42
+oat,carb,g/100g,66.27
+oat,fat,g/100g,6.9
+oat,kcal,kcal/100g,389.1
+oat,protein,g/100g,16.89
+olive oil,carb,g/100g,0.0
+olive oil,fat,g/100g,100.0
+olive oil,kcal,kcal/100g,884.08
+olive oil,protein,g/100g,0.0
+onion,carb,g/100g,9.34
+onion,fat,g/100g,0.1
+onion,kcal,kcal/100g,39.67
+onion,protein,g/100g,1.1
+palm oil,carb,g/100g,0.0
+palm oil,fat,g/100g,100.0
+palm oil,kcal,kcal/100g,884.08
+palm oil,protein,g/100g,0.0
+pearl millet,carb,g/100g,72.85
+pearl millet,fat,g/100g,4.22
+pearl millet,kcal,kcal/100g,378.11
+pearl millet,protein,g/100g,11.02
+phaseolus bean,carb,g/100g,61.29
+phaseolus bean,fat,g/100g,1.06
+phaseolus bean,kcal,kcal/100g,336.52
+phaseolus bean,protein,g/100g,22.53
+pig meat,carb,g/100g,0.0
+pig meat,fat,g/100g,3.09
+pig meat,kcal,kcal/100g,122.85
+pig meat,protein,g/100g,23.75
+pigeon pea,carb,g/100g,62.78
+pigeon pea,fat,g/100g,1.49
+pigeon pea,kcal,kcal/100g,342.97
+pigeon pea,protein,g/100g,21.7
+potato,carb,g/100g,17.49
+potato,fat,g/100g,0.09
+potato,kcal,kcal/100g,76.96
+potato,protein,g/100g,2.05
+rapeseed oil,carb,g/100g,0.0
+rapeseed oil,fat,g/100g,100.0
+rapeseed oil,kcal,kcal/100g,884.08
+rapeseed oil,protein,g/100g,0.0
+rice (brown),carb,g/100g,76.25
+rice (brown),fat,g/100g,3.2
+rice (brown),kcal,kcal/100g,366.63
+rice (brown),protein,g/100g,7.54
+rice (white),carb,g/100g,79.95
+rice (white),fat,g/100g,0.66
+rice (white),kcal,kcal/100g,364.96
+rice (white),protein,g/100g,7.13
+rye,carb,g/100g,75.86
+rye,fat,g/100g,1.63
+rye,kcal,kcal/100g,337.95
+rye,protein,g/100g,10.34
+sesame seed,carb,g/100g,23.45
+sesame seed,fat,g/100g,49.67
+sesame seed,kcal,kcal/100g,572.9
+sesame seed,protein,g/100g,17.73
+sorghum,carb,g/100g,72.09
+sorghum,fat,g/100g,3.46
+sorghum,kcal,kcal/100g,329.11
+sorghum,protein,g/100g,10.62
+soy,carb,g/100g,30.16
+soy,fat,g/100g,19.94
+soy,kcal,kcal/100g,445.98
+soy,protein,g/100g,36.49
+sugar,carb,g/100g,99.98
+sugar,fat,g/100g,0.0
+sugar,kcal,kcal/100g,386.71
+sugar,protein,g/100g,0.0
+sunflower oil,carb,g/100g,0.0
+sunflower oil,fat,g/100g,100.0
+sunflower oil,kcal,kcal/100g,884.08
+sunflower oil,protein,g/100g,0.0
+sunflower seed,carb,g/100g,20.0
+sunflower seed,fat,g/100g,51.46
+sunflower seed,kcal,kcal/100g,584.37
+sunflower seed,protein,g/100g,20.78
+sweet potato,carb,g/100g,20.12
+sweet potato,fat,g/100g,0.05
+sweet potato,kcal,kcal/100g,85.8
+sweet potato,protein,g/100g,1.57
+tomato,carb,g/100g,3.89
+tomato,fat,g/100g,0.2
+tomato,kcal,kcal/100g,17.69
+tomato,protein,g/100g,0.88
+yam,carb,g/100g,27.88
+yam,fat,g/100g,0.17
+yam,kcal,kcal/100g,118.07
+yam,protein,g/100g,1.53
