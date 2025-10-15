@@ -39,9 +39,9 @@ health:
   - T2D
   - CKD
 
-# Select representative crops for visualization (subset of full list)
-# These will be used to generate crop-specific figures
-doc_figure_crops:
+# Override the full crop list with a limited subset for fast execution
+# This replaces the default crops list entirely
+crops:
   - wheat          # Major cereal
   - wetland-rice   # Major cereal (Asia)
   - maize          # Major cereal (Americas/Africa)
@@ -50,3 +50,14 @@ doc_figure_crops:
   - cassava        # Major tropical staple
   - tomato         # Vegetable
   - banana         # Fruit
+
+# Subset for crop-specific figures in documentation
+doc_figure_crops:
+  - wheat
+  - wetland-rice
+  - maize
+  - soybean
+  - white-potato
+  - cassava
+  - tomato
+  - banana

@@ -73,7 +73,7 @@ intersphinx_mapping = {
     "numpy": ("https://numpy.org/doc/stable/", None),
     "pandas": ("https://pandas.pydata.org/docs/", None),
     "xarray": ("https://docs.xarray.dev/en/stable/", None),
-    "pypsa": ("https://pypsa.readthedocs.io/en/latest/", None),
+    "pypsa": ("https://docs.pypsa.org/latest/", None),
 }
 
 # Type hints configuration
@@ -85,4 +85,5 @@ autodoc_typehints = "none"
 autodoc_mock_imports = [
     "linopy",
     "pypsa",
+    "color_utils",
 ]
