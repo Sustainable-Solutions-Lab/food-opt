@@ -17,11 +17,17 @@ For comprehensive documentation of all datasets, see ``data/DATASETS.md`` in the
 Manual Download Checklist
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Several licensed datasets cannot be fetched automatically. While their use is free for non-commercial research purposes, these have to be downloaded manually.
+Several licensed datasets cannot be fetched automatically. While their use is free for non-commercial research purposes, these have to be downloaded manually or require API key registration.
+
+**Required manual downloads:**
 
 1. Create an account with IHME and download ``IHME-GBD_2021-dealth-rates.csv`` as described in :ref:`ihme-gbd-mortality`.
 2. Download the IHME 2019 relative risk workbook ``IHME_GBD_2019_RELATIVE_RISKS_Y2020M10D15.XLSX`` (:ref:`ihme-relative-risks`).
 3. Register at the Global Dietary Database portal and download the dataset, placed locally as the directory ``GDD-dietary-intake`` (:ref:`gdd-dietary-intake`).
+
+**Required API key setup:**
+
+4. Register for a Copernicus Climate Data Store account and configure your API key to enable automatic retrieval of land cover data (:ref:`copernicus-land-cover`).
 
 
 Agricultural Production Data
@@ -33,6 +39,8 @@ GAEZ (Global Agro-Ecological Zones) v5
 **Provider**: FAO/IIASA
 
 **Description**: Global crop suitability and attainable yield estimates under various climate and management scenarios.
+
+**Resolution**: 0.083333° × 0.083333° (~5 arc-minute grid, ≈9 km at the equator)
 
 **Access**: https://data.apps.fao.org/gaez/; bulk downloads through a Google Cloud Storage interface.
 
@@ -136,6 +144,145 @@ GADM (Global Administrative Areas) v4.1
 **Citation**: GADM (2024). Global Administrative Areas, version 4.1. https://gadm.org/
 
 **Usage**: Building optimization regions via clustering of ADM_1 (states/provinces)
+
+.. _copernicus-land-cover:
+
+Copernicus Satellite Land Cover
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: Copernicus Climate Change Service (C3S)
+
+**Description**: Global land cover classification gridded maps from 1992 to present derived from satellite observations. The dataset describes the land surface into 22 classes including various vegetation types, water bodies, built-up areas, and bare land.
+
+**Resolution**: 300 m spatial resolution; annual temporal resolution (with approximately one-year publication delay)
+
+**Coverage**: Global (Plate Carrée projection)
+
+**Access**: https://cds.climate.copernicus.eu/datasets/satellite-land-cover
+
+**API Documentation**: https://cds.climate.copernicus.eu/how-to-api
+
+**Version**: v2.1.1 (2016 onwards)
+
+**License**: Multiple licenses apply including ESA CCI licence, CC-BY licence, and VITO licence. Users must also cite the Climate Data Store entry and provide attribution to the Copernicus program.
+
+**Citation**: Copernicus Climate Change Service, Climate Data Store, (2019): Land cover classification gridded maps from 1992 to present derived from satellite observation. Copernicus Climate Change Service (C3S) Climate Data Store (CDS). DOI: 10.24381/cds.006f2c9a
+
+**Usage**: Spatial analysis of agricultural land availability and land use constraints
+
+**Workflow retrieval**: Automatic via the ``download_land_cover`` and ``extract_land_cover_class`` Snakemake rules. The full dataset (~2.2GB) contains multiple variables (lccs_class, processed_flag, current_pixel_state, observation_count, change_count), but only the land cover classification (``lccs_class``) is needed for the model. The extraction rule automatically extracts just this variable to ``data/downloads/land_cover_lccs_class.nc`` (~440MB) and the full download is automatically deleted to save disk space
+
+**Manual setup required**:
+
+1. Register for a free CDS account at https://cds.climate.copernicus.eu/user/register
+2. Accept the required dataset licenses at https://cds.climate.copernicus.eu/datasets/satellite-land-cover?tab=download#manage-licences
+3. Obtain an API key from your account settings
+4. Configure the API key in ``~/.ecmwfdatastoresrc`` or via environment variables (see API documentation for setup instructions)
+
+**Configuration**: Year and version can be configured via ``config['data']['land_cover']['year']`` and ``config['data']['land_cover']['version']`` (defaults: year 2022, version v2_1_1)
+
+.. _esa-biomass-cci:
+
+ESA Biomass CCI — Global Above-Ground Biomass
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: ESA Climate Change Initiative (Biomass_cci), NERC EDS Centre for Environmental Data Analysis (CEDA)
+
+**Description**: Global forest above-ground biomass (AGB) maps derived from satellite observations (Sentinel-1 SAR, Envisat ASAR, ALOS PALSAR). The dataset provides annual AGB estimates in tonnes per hectare, along with per-pixel uncertainty estimates and change maps between consecutive years.
+
+**Resolution**: 10 km (10,000 m) spatial resolution; annual temporal resolution
+
+**Coverage**: Global (90°N to 90°S, 180°W to 180°E); years 2007, 2010, 2015-2022
+
+**Version**: v6.0 (released April 2025)
+
+**Access**: https://catalogue.ceda.ac.uk/uuid/95913ffb6467447ca72c4e9d8cf30501
+
+**License**: ESA CCI Biomass Terms and Conditions. Public data available to both registered and non-registered users. Must cite dataset correctly.
+
+  * License: https://artefacts.ceda.ac.uk/licences/specific_licences/esacci_biomass_terms_and_conditions_v2.pdf
+
+**Citation**: Santoro, M.; Cartus, O. (2025): ESA Biomass Climate Change Initiative (Biomass_cci): Global datasets of forest above-ground biomass for the years 2007, 2010, 2015, 2016, 2017, 2018, 2019, 2020, 2021 and 2022, v6.0. NERC EDS Centre for Environmental Data Analysis. DOI: 10.5285/95913ffb6467447ca72c4e9d8cf30501
+
+**Variables**: Above-ground biomass (tons/ha), per-pixel uncertainty (standard deviation), AGB change maps
+
+**Usage**: Analysis of carbon storage potential and forest biomass constraints on land use
+
+**Workflow retrieval**: Automatic via the ``download_biomass_cci`` Snakemake rule using curl. The file downloads directly to ``data/downloads/esa_biomass_cci_v6_0.nc``.
+
+.. _soilgrids-soc:
+
+ISRIC SoilGrids — Global Soil Organic Carbon Stock
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: ISRIC - World Soil Information
+
+**Description**: Global soil organic carbon (SOC) stock predictions for 0-30 cm depth interval based on digital soil mapping using Quantile Random Forest. The dataset provides mean predictions along with quantile estimates (5th, 50th, 95th percentiles) and uncertainty layers derived from the global compilation of soil ground observations (WoSIS).
+
+**Resolution**: Native 250 m; this project retrieves data at configurable resolution (default: 10 km) via WCS scaling
+
+**Coverage**: Global (-180° to 180°, -56° to 84°); Interrupted Goode Homolosine projection (EPSG:152160)
+
+**Temporal coverage**: Based on data from April 1905 to July 2016
+
+**Version**: SoilGrids250m 2.0 (v2.0)
+
+**Access**:
+
+  * Website: https://www.isric.org/explore/soilgrids
+  * Data catalogue: https://data.isric.org/geonetwork/srv/api/records/713396f4-1687-11ea-a7c0-a0481ca9e724
+  * FAQ: https://docs.isric.org/globaldata/soilgrids/SoilGrids_faqs.html
+
+**License**: Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+  * License: https://creativecommons.org/licenses/by/4.0/
+
+**Citation**: Poggio, L., de Sousa, L. M., Batjes, N. H., Heuvelink, G. B. M., Kempen, B., Ribeiro, E., & Rossiter, D. (2021). SoilGrids 2.0: producing soil information for the globe with quantified spatial uncertainty. *SOIL*, 7(1), 217–240. https://doi.org/10.5194/soil-7-217-2021
+
+**Units**: Tonnes per hectare (t/ha) for 0-30 cm depth interval
+
+**Variables**: Mean organic carbon stock (``ocs_0-30cm_mean``), 5th/50th/95th percentile estimates, uncertainty (standard deviation)
+
+**Usage**: Soil carbon baseline for carbon sequestration analysis and land use constraints
+
+**Workflow retrieval**: Automatic via the ``download_soilgrids_ocs`` Snakemake rule using ISRIC's Web Coverage Service (WCS). The script downloads global mean soil carbon stock at the resolution specified by ``config['data']['soilgrids']['target_resolution_m']`` (default: 10000m = 10km). Output file: ``data/downloads/soilgrids_ocs_0-30cm_mean.tif`` (~1.2 MB at 10km resolution). No registration or API key required.
+
+**Configuration**: Target resolution can be configured via ``config['data']['soilgrids']['target_resolution_m']`` (default: 10000 meters = 10 km)
+
+.. _cook-patton-regrowth:
+
+Cook-Patton & Griscom — Forest Carbon Accumulation Potential
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Provider**: Global Forest Watch / The Nature Conservancy / World Resources Institute
+
+**Description**: Global map of carbon accumulation potential from natural forest regrowth in forest and savanna biomes. The dataset estimates the rate at which carbon could be sequestered in aboveground and belowground (root) live biomass during the first thirty years of natural forest regrowth, regardless of current land cover or potential for reforestation. Based on a compilation of 13,112 georeferenced measurements combined with 66 environmental covariate layers in a machine learning model (random forest).
+
+**Resolution**: Native 1 km (1000 m); this project retrieves data at 1 km and resamples to configurable resolution (default: 10 km) using GDAL with average resampling
+
+**Coverage**: Global; all forest and savanna biomes (approximately 16% of global land pixels have valid data)
+
+**Projection**: ESRI:54034 (World Cylindrical Equal Area)
+
+**Units**: Megagrams (Mg) of carbon per hectare per year (Mg C/ha/yr) for the first 30 years of natural regrowth
+
+**Access**: https://data.globalforestwatch.org/documents/f950ea7878e143258a495daddea90cc0
+
+**Source publication**: Cook-Patton, S. C., Leavitt, S. M., Gibbs, D., Harris, N. L., Lister, K., Anderson-Teixeira, K. J., ... & Griscom, B. W. (2020). Mapping carbon accumulation potential from global natural forest regrowth. *Nature*, 585(7826), 545-550.
+
+  * DOI: https://doi.org/10.1038/s41586-020-2686-x
+
+**Methodology**: Machine learning model (random forest) trained on 13,112 field measurements from published literature and national forest inventories combined with 66 climate, soil, and land-use covariates to predict carbon accumulation rates globally
+
+**License**: Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+**Citation**: Cook-Patton, S. C., Leavitt, S. M., Gibbs, D., Harris, N. L., Lister, K., Anderson-Teixeira, K. J., Briggs, R. D., Chazdon, R. L., Crowther, T. W., Ellis, P. W., Griscom, H. P., Herrmann, V., Holl, K. D., Houghton, R. A., Larrosa, C., Lomax, G., Lucas, R., Madsen, P., Malhi, Y., ... Griscom, B. W. (2020). Mapping carbon accumulation potential from global natural forest regrowth. *Nature*, 585(7826), 545-550. https://doi.org/10.1038/s41586-020-2686-x
+
+**Variables**: Total carbon sequestration rate (aboveground + belowground/root biomass) from natural forest regrowth
+
+**Usage**: Estimating carbon sequestration potential from natural forest restoration and regrowth across all forest and savanna biomes
+
+**Workflow retrieval**: Automatic via the ``download_forest_carbon_accumulation_1km`` rule followed by ``resample_regrowth``. The native 1 km GeoTIFF (~610 MB) is downloaded with curl (stored as a temporary file), then resampled with an xarray/rasterio script using average aggregation onto the model's 1/12° resource grid. Final output: ``processing/{name}/luc/regrowth_resampled.nc`` (compressed NetCDF, ~12 MB per scenario). No registration or API key required.
 
 Population Data
 ---------------

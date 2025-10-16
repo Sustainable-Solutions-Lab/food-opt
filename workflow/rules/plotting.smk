@@ -71,10 +71,9 @@ rule plot_results:
         "../scripts/plotting/plot_results.py"
 
 
-rule plot_health_impacts:
+rule plot_objective_breakdown:
     input:
         network="results/{name}/solved/model.nc",
-        regions=f"processing/{name}/regions.geojson",
         risk_breakpoints=f"processing/{name}/health/risk_breakpoints.csv",
         health_cluster_cause=f"processing/{name}/health/cluster_cause_baseline.csv",
         health_cause_log=f"processing/{name}/health/cause_log_breakpoints.csv",
@@ -91,6 +90,27 @@ rule plot_health_impacts:
     output:
         breakdown_pdf="results/{name}/plots/objective_breakdown.pdf",
         breakdown_csv="results/{name}/plots/objective_breakdown.csv",
+    script:
+        "../scripts/plotting/plot_objective_breakdown.py"
+
+
+rule plot_health_impacts:
+    input:
+        network="results/{name}/solved/model.nc",
+        regions=f"processing/{name}/regions.geojson",
+        risk_breakpoints=f"processing/{name}/health/risk_breakpoints.csv",
+        health_cluster_cause=f"processing/{name}/health/cluster_cause_baseline.csv",
+        health_cause_log=f"processing/{name}/health/cause_log_breakpoints.csv",
+        health_cluster_summary=f"processing/{name}/health/cluster_summary.csv",
+        health_clusters=f"processing/{name}/health/country_clusters.csv",
+        health_cluster_risk_baseline=f"processing/{name}/health/cluster_risk_baseline.csv",
+        population=f"processing/{name}/population.csv",
+        food_groups="data/food_groups.csv",
+    params:
+        health_risk_factors=config["health"]["risk_factors"],
+        health_value_per_yll=config["health"]["value_per_yll"],
+        health_tmrel_g_per_day=config["health"]["tmrel_g_per_day"],
+    output:
         health_map_pdf="results/{name}/plots/health_risk_map.pdf",
         health_map_csv="results/{name}/plots/health_risk_by_region.csv",
         health_baseline_map_pdf="results/{name}/plots/health_baseline_map.pdf",

@@ -11,6 +11,11 @@ with domain-specific configuration.
 
 from pathlib import Path
 
+import numpy as np
+
+from matplotlib import cm
+from matplotlib import colors as mcolors
+
 # Color palette (matching Furo theme from docs/conf.py)
 COLORS = {
     "primary": "#3b745f",  # Brand green (dark)
@@ -30,14 +35,34 @@ MAP_STYLE = {
     "alpha": 0.85,
 }
 
-# Common colormaps for different data types
+
+def _cmap_with_white_base(name: str) -> mcolors.ListedColormap:
+    base = cm.get_cmap(name, 256)
+    colors = base(np.linspace(0, 1, 256))
+    colors[0, :] = np.array([1.0, 1.0, 1.0, 1.0])
+    return mcolors.ListedColormap(colors, name=f"{name}_white")
+
+
+def _diverging_with_white_mid(name: str) -> mcolors.ListedColormap:
+    base = cm.get_cmap(name, 256)
+    colors = base(np.linspace(0, 1, 256))
+    mid = colors.shape[0] // 2
+    colors[mid - 1 : mid + 1, :] = np.array([1.0, 1.0, 1.0, 1.0])
+    return mcolors.ListedColormap(colors, name=f"{name}_white")
+
+
+# Common colormaps for different data types (with light backgrounds by default)
 COLORMAPS = {
-    "yield": "YlGn",  # Yellow-green for crop yields
-    "water": "Blues",  # Blue for water-related
-    "emissions": "YlOrRd",  # Yellow-orange-red for emissions/impacts
-    "health": "RdYlGn_r",  # Red-yellow-green reversed (red=bad)
-    "diverging": "RdYlGn",  # Red-yellow-green for change/difference
-    "sequential": "viridis",  # General sequential data
+    "yield": _cmap_with_white_base("YlGn"),
+    "water": _cmap_with_white_base("Blues"),
+    "emissions": _cmap_with_white_base("YlOrRd"),
+    "health": cm.get_cmap("RdYlGn_r"),
+    "diverging": cm.get_cmap("RdBu_r"),
+    "sequential": _cmap_with_white_base("viridis"),
+    "biomass": _cmap_with_white_base("Greens"),
+    "soil": _cmap_with_white_base("YlGnBu"),
+    "forest": _cmap_with_white_base("YlGn"),
+    "regrowth": _cmap_with_white_base("YlOrRd"),
 }
 
 # Figure dimensions (width, height in inches)

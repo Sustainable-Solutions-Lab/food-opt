@@ -18,6 +18,8 @@ DOC_FIGURES = [
     "intro_global_coverage",
     # Land use figures
     "land_resource_classes",
+    "environment_luc_inputs",
+    "environment_luc_lef",
     # Crop production figures
     "crop_yield_wheat",
     "crop_yield_wetland-rice",
@@ -55,6 +57,31 @@ rule doc_fig_land_resource_classes:
         svg="docs/_static/figures/land_resource_classes.svg",
     script:
         "../scripts/doc_figures/land_resource_classes.py"
+
+
+rule doc_fig_environment_luc_inputs:
+    """Visualise LUC carbon input datasets used in the model."""
+    input:
+        lc_masks=f"processing/{DOC_FIG_NAME}/luc/lc_masks.nc",
+        agb=f"processing/{DOC_FIG_NAME}/luc/agb.nc",
+        soc=f"processing/{DOC_FIG_NAME}/luc/soc.nc",
+        regrowth=f"processing/{DOC_FIG_NAME}/luc/regrowth_resampled.nc",
+        regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
+    output:
+        svg="docs/_static/figures/environment_luc_inputs.svg",
+    script:
+        "../scripts/doc_figures/luc_inputs_map.py"
+
+
+rule doc_fig_environment_luc_lef:
+    """Visualise aggregated land-use change emission factors."""
+    input:
+        annualized=f"processing/{DOC_FIG_NAME}/luc/annualized.nc",
+        regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
+    output:
+        svg="docs/_static/figures/environment_luc_lef.svg",
+    script:
+        "../scripts/doc_figures/luc_lef_map.py"
 
 
 rule doc_fig_crop_yield:

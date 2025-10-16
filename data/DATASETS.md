@@ -124,3 +124,61 @@ Brief descriptions of key external datasets used by this project, with links and
   - License: https://creativecommons.org/publicdomain/zero/1.0/
 - Citation: U.S. Department of Agriculture, Agricultural Research Service. FoodData Central, 2019. fdc.nal.usda.gov.
 - Workflow integration: Optional rule `retrieve_usda_nutrition` (controlled by `config['data']['usda']['retrieve_nutrition']`) retrieves data via API and writes to `data/nutrition.csv`. By default, this rule is disabled and the repository includes pre-fetched nutritional data.
+
+## Copernicus — Satellite Land Cover
+
+- Description: Global land cover classification gridded maps from 1992 to present derived from satellite observations. The dataset describes the land surface into 22 classes including various vegetation types, water bodies, built-up areas, and bare land. This project uses land cover data for spatial analysis of agricultural land availability and land use constraints.
+- Website: https://cds.climate.copernicus.eu/datasets/satellite-land-cover
+- API documentation: https://cds.climate.copernicus.eu/how-to-api
+- Version/format: v2.1.1 (2016 onwards); NetCDF format via the Copernicus Climate Data Store API.
+- Resolution: 300 m spatial resolution; annual temporal resolution (with approximately one-year publication delay).
+- Coverage: Global (Plate Carrée projection).
+- License/terms (summary): Multiple licenses apply: the ESA CCI licence, CC-BY licence, and VITO licence. In addition, users must cite the climate data store entry (see below) and provide attribution to the Copernicus program.
+  - Terms of use: https://cds.climate.copernicus.eu/terms-of-use
+- Citation: Copernicus Climate Change Service, Climate Data Store, (2019): Land cover classification gridded maps from 1992 to present derived from satellite observation. Copernicus Climate Change Service (C3S) Climate Data Store (CDS). DOI: 10.24381/cds.006f2c9a (Accessed on 16-10-2025).
+- Workflow integration: Retrieved via the `download_land_cover` Snakemake rule using the `ecmwf-datastores` Python client. The full dataset (~2.2GB) contains multiple variables but only the land cover classification (`lccs_class`) is needed. The `extract_land_cover_class` rule automatically extracts just this variable to `data/downloads/land_cover_lccs_class.nc` (~440MB) and deletes the full download. Manual setup required: (1) Register for a free CDS account at https://cds.climate.copernicus.eu/user/register, (2) Accept the dataset licenses at https://cds.climate.copernicus.eu/datasets/satellite-land-cover?tab=download#manage-licences, (3) Configure your API key in `~/.ecmwfdatastoresrc` or via environment variables (see API documentation). The year and version can be configured via `config['data']['land_cover']['year']` and `config['data']['land_cover']['version']`.
+
+## ESA Biomass CCI — Global Above-Ground Biomass
+
+- Description: Global forest above-ground biomass (AGB) maps derived from satellite observations (Sentinel-1 SAR, Envisat ASAR, ALOS PALSAR). The dataset provides annual AGB estimates in tonnes per hectare, along with per-pixel uncertainty estimates and change maps between consecutive years. This project uses the merged multi-resolution product at 10 km resolution covering the years 2007, 2010, and 2015-2022.
+- Website: https://catalogue.ceda.ac.uk/uuid/95913ffb6467447ca72c4e9d8cf30501
+- Version/format: v6.0 (released April 2025); NetCDF format via direct download.
+- Resolution: 10 km (10,000 m) spatial resolution; annual temporal resolution.
+- Coverage: Global (90°N to 90°S, 180°W to 180°E); years 2007, 2010, 2015-2022.
+- Variables: Above-ground biomass (tons/ha), per-pixel uncertainty (standard deviation), AGB change maps.
+- License/terms (summary): Use is covered by the ESA CCI Biomass Terms and Conditions. Public data available to both registered and non-registered users. Must cite dataset correctly using the citation given on the catalogue record.
+  - License: https://artefacts.ceda.ac.uk/licences/specific_licences/esacci_biomass_terms_and_conditions_v2.pdf
+- Citation: Santoro, M.; Cartus, O. (2025): ESA Biomass Climate Change Initiative (Biomass_cci): Global datasets of forest above-ground biomass for the years 2007, 2010, 2015, 2016, 2017, 2018, 2019, 2020, 2021 and 2022, v6.0. NERC EDS Centre for Environmental Data Analysis. DOI: 10.5285/95913ffb6467447ca72c4e9d8cf30501
+- Workflow integration: Retrieved via the `download_biomass_cci` Snakemake rule using curl. The file downloads directly to `data/downloads/esa_biomass_cci_v6_0.nc`. No registration or API key required.
+
+## ISRIC SoilGrids — Global Soil Organic Carbon Stock
+
+- Description: Global soil organic carbon (SOC) stock predictions for 0-30 cm depth interval based on digital soil mapping using Quantile Random Forest. The dataset provides mean predictions along with quantile estimates (5th, 50th, 95th percentiles) and uncertainty layers derived from the global compilation of soil ground observations (WoSIS).
+- Website: https://www.isric.org/explore/soilgrids
+- Data catalogue: https://data.isric.org/geonetwork/srv/api/records/713396f4-1687-11ea-a7c0-a0481ca9e724
+- FAQ: https://docs.isric.org/globaldata/soilgrids/SoilGrids_faqs.html
+- Version/format: SoilGrids250m 2.0 (v2.0); GeoTIFF format via Web Coverage Service (WCS).
+- Resolution: Native 250 m; this project retrieves data at configurable resolution (default: 10 km) via WCS scaling.
+- Coverage: Global (-180° to 180°, -56° to 84°); Interrupted Goode Homolosine projection (EPSG:152160).
+- Temporal coverage: Based on data from April 1905 to July 2016.
+- Units: Tonnes per hectare (t/ha) for 0-30 cm depth interval.
+- Variables: Mean organic carbon stock (`ocs_0-30cm_mean`), 5th/50th/95th percentile estimates, uncertainty (standard deviation).
+- License/terms (summary): Creative Commons Attribution 4.0 International (CC BY 4.0). Free to use with attribution to ISRIC - World Soil Information.
+  - License: https://creativecommons.org/licenses/by/4.0/
+- Citation: Poggio, L., de Sousa, L. M., Batjes, N. H., Heuvelink, G. B. M., Kempen, B., Ribeiro, E., & Rossiter, D. (2021). SoilGrids 2.0: producing soil information for the globe with quantified spatial uncertainty. *SOIL*, 7(1), 217–240. https://doi.org/10.5194/soil-7-217-2021
+- Workflow integration: Retrieved via the `download_soilgrids_ocs` Snakemake rule using ISRIC's WCS endpoint. The script downloads the global mean soil carbon stock at the resolution specified by `config['data']['soilgrids']['target_resolution_m']` (default: 10000m = 10km). Output file: `data/downloads/soilgrids_ocs_0-30cm_mean.tif` (~1.2 MB at 10km resolution). No registration or API key required.
+
+## Cook-Patton & Griscom — Forest Carbon Accumulation Potential
+
+- Description: Global map of carbon accumulation potential from natural forest regrowth in forest and savanna biomes. The dataset estimates the rate at which carbon could be sequestered in aboveground and belowground (root) live biomass during the first thirty years of natural forest regrowth, regardless of current land cover or potential for reforestation. Based on a compilation of 13,112 georeferenced measurements combined with 66 environmental covariate layers in a machine learning model (random forest).
+- Website: https://data.globalforestwatch.org/documents/f950ea7878e143258a495daddea90cc0
+- Source publication: Cook-Patton, S. C., Leavitt, S. M., Gibbs, D., Harris, N. L., Lister, K., Anderson-Teixeira, K. J., ... & Griscom, B. W. (2020). Mapping carbon accumulation potential from global natural forest regrowth. *Nature*, 585(7826), 545-550. https://doi.org/10.1038/s41586-020-2686-x
+- Version/format: GeoTIFF format via direct download; native resolution 1 km.
+- Resolution: Native 1 km (1000 m); this project retrieves data at 1 km and resamples onto the model's 1/12° resource grid (≈9 km at the equator) using an xarray/rasterio script with average resampling.
+- Coverage: Global; all forest and savanna biomes (approximately 16% of global land pixels have valid data).
+- Projection: ESRI:54034 (World Cylindrical Equal Area).
+- Units: Megagrams (Mg) of carbon per hectare per year (Mg C/ha/yr) for the first 30 years of natural regrowth.
+- Variables: Total carbon sequestration rate (aboveground + belowground/root biomass) from natural forest regrowth.
+- License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+- Citation: Cook-Patton, S. C., Leavitt, S. M., Gibbs, D., Harris, N. L., Lister, K., Anderson-Teixeira, K. J., Briggs, R. D., Chazdon, R. L., Crowther, T. W., Ellis, P. W., Griscom, H. P., Herrmann, V., Holl, K. D., Houghton, R. A., Larrosa, C., Lomax, G., Lucas, R., Madsen, P., Malhi, Y., ... Griscom, B. W. (2020). Mapping carbon accumulation potential from global natural forest regrowth. *Nature*, 585(7826), 545-550. https://doi.org/10.1038/s41586-020-2686-x
+- Workflow integration: Retrieved via the `download_forest_carbon_accumulation_1km` rule (curl download, temporary file) and the scenario-specific `resample_regrowth` rule. The resampling script leverages xarray and rasterio to aggregate by area and reproject onto the resource grid used by `prepare_luc_inputs`, writing a compressed NetCDF at `processing/{name}/luc/regrowth_resampled.nc`. No registration or API key required.

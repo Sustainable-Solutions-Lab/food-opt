@@ -62,29 +62,6 @@ def sanitize_food_name(food: str) -> str:
     return sanitize_identifier(food)
 
 
-def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Series:
-    """Group assets into high-level categories for system cost aggregation."""
-
-    static = n.components[component].static
-    if static.empty:
-        return pd.Series(dtype="object")
-
-    index = static.index
-    if component == "Link":
-        mapping = {
-            "produce": "Crop production",
-            "trade": "Trade",
-            "convert": "Processing",
-            "consume": "Consumption",
-        }
-        categories = [
-            mapping.get(str(name).split("_", 1)[0], "Other") for name in index
-        ]
-        return pd.Series(categories, index=index, name="category")
-
-    return pd.Series(component, index=index, name="category")
-
-
 def _build_food_lookup(
     food_map: pd.DataFrame,
 ) -> Dict[str, list[dict[str, float | str]]]:
@@ -128,6 +105,7 @@ def _prepare_health_inputs(
     inputs: HealthInputs,
     risk_factors: list[str],
     value_per_yll: float,
+    food_groups_df: pd.DataFrame,
 ) -> tuple[
     Dict[str, pd.DataFrame],
     Dict[str, pd.DataFrame],
@@ -155,8 +133,7 @@ def _prepare_health_inputs(
         for cause, df in inputs.cause_log_breakpoints.groupby("cause")
     }
 
-    # Load food→risk factor mapping from food_groups.csv (only GBD risk factors)
-    food_groups_df = pd.read_csv(snakemake.input.food_groups)
+    # Load food→risk factor mapping for configured risk factors
     food_map = food_groups_df[food_groups_df["group"].isin(risk_factors)].copy()
     food_map = food_map.rename(columns={"group": "risk_factor"})
     food_map["share"] = 1.0
@@ -195,6 +172,7 @@ def compute_health_results(
     risk_factors: list[str],
     value_per_yll: float,
     tmrel_g_per_day: dict[str, float],
+    food_groups_df: pd.DataFrame,
 ) -> HealthResults:
     """Compute health costs from optimized network, relative to TMREL intake levels."""
     (
@@ -204,7 +182,7 @@ def compute_health_results(
         cluster_lookup,
         cluster_population,
         value_per_yll_const,
-    ) = _prepare_health_inputs(inputs, risk_factors, value_per_yll)
+    ) = _prepare_health_inputs(inputs, risk_factors, value_per_yll, food_groups_df)
 
     cluster_cause = inputs.cluster_cause.assign(
         health_cluster=lambda df: df["health_cluster"].astype(int)
@@ -347,6 +325,7 @@ def compute_baseline_risk_costs(
     risk_factors: list[str],
     value_per_yll: float,
     tmrel_g_per_day: dict[str, float],
+    food_groups_df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Compute baseline health costs by risk factor and by cause, relative to TMREL intake levels.
@@ -366,7 +345,7 @@ def compute_baseline_risk_costs(
         _cluster_lookup,
         _cluster_population,
         value_per_yll_const,
-    ) = _prepare_health_inputs(inputs, risk_factors, value_per_yll)
+    ) = _prepare_health_inputs(inputs, risk_factors, value_per_yll, food_groups_df)
 
     baseline = inputs.cluster_risk_baseline.assign(
         health_cluster=lambda df: df["health_cluster"].astype(int),
@@ -480,73 +459,6 @@ def compute_baseline_risk_costs(
         cause_df["cluster"] = cause_df["cluster"].astype(int)
 
     return risk_df.reset_index(drop=True), cause_df.reset_index(drop=True)
-
-
-def compute_system_costs(n: pypsa.Network) -> pd.Series:
-    costs = n.statistics.system_cost(groupby=objective_category)
-    if isinstance(costs, pd.DataFrame):
-        costs = costs.iloc[:, 0]
-    if costs.empty:
-        return pd.Series(dtype=float)
-    idx = costs.index
-    if "category" not in idx.names:
-        idx = idx.set_names(list(idx.names[:-1]) + ["category"])
-        costs.index = idx
-    return costs.groupby("category").sum().sort_values(ascending=False)
-
-
-def ghg_cost_from_network(n: pypsa.Network, ghg_price: float) -> float:
-    co2 = (
-        float(n.stores_t.e.loc["now", "co2"]) if "co2" in n.stores_t.e.columns else 0.0
-    )
-    ch4 = (
-        float(n.stores_t.e.loc["now", "ch4"]) if "ch4" in n.stores_t.e.columns else 0.0
-    )
-    return ghg_price * (co2 + 25.0 * ch4)
-
-
-def choose_scale(values: Iterable[float]) -> tuple[float, str]:
-    max_val = max((abs(v) for v in values), default=1.0)
-    if max_val >= 1e12:
-        return 1e12, "trillion USD"
-    if max_val >= 1e9:
-        return 1e9, "billion USD"
-    if max_val >= 1e6:
-        return 1e6, "million USD"
-    return 1.0, "USD"
-
-
-def plot_cost_breakdown(series: pd.Series, output_path: Path) -> None:
-    if series.empty:
-        logger.warning("No cost data available for plotting")
-        return
-
-    scale, label = choose_scale(series.values)
-    values = series / scale
-
-    fig, ax = plt.subplots(figsize=(8, 5), dpi=150)
-    bars = ax.bar(series.index, values, color="#4e79a7")
-
-    ax.set_ylabel(f"Cost ({label})")
-    ax.set_title("Objective Breakdown by Category")
-    ax.grid(axis="y", linestyle="--", alpha=0.3)
-
-    for bar, raw in zip(bars, series.values):
-        height = bar.get_height()
-        ax.annotate(
-            f"{raw / scale:,.2f}",
-            xy=(bar.get_x() + bar.get_width() / 2, height),
-            xytext=(0, 4),
-            textcoords="offset points",
-            ha="center",
-            va="bottom",
-            fontsize=8,
-        )
-
-    plt.xticks(rotation=25, ha="right")
-    plt.tight_layout()
-    fig.savefig(output_path, bbox_inches="tight", dpi=300)
-    plt.close(fig)
 
 
 def build_cluster_risk_tables(
@@ -841,6 +753,8 @@ def main() -> None:
         cluster_risk_baseline=pd.read_csv(snakemake.input.health_cluster_risk_baseline),
     )
 
+    food_groups_df = pd.read_csv(snakemake.input.food_groups)
+
     value_per_yll = float(snakemake.params.health_value_per_yll)
     tmrel_g_per_day: dict[str, float] = dict(snakemake.params.health_tmrel_g_per_day)
 
@@ -850,33 +764,8 @@ def main() -> None:
         snakemake.params.health_risk_factors,
         value_per_yll,
         tmrel_g_per_day,
+        food_groups_df,
     )
-
-    system_costs = compute_system_costs(n)
-    ghg_price = float(snakemake.params.ghg_price)
-    ghg_cost = ghg_cost_from_network(n, ghg_price)
-
-    total_series = system_costs.copy()
-    if not health_results.cause_costs.empty:
-        health_total = health_results.cause_costs["cost"].sum()
-        total_series.loc["Health burden"] = health_total
-        logger.info("Computed total health contribution %.3e USD", health_total)
-    else:
-        logger.warning("Health results are empty; skipping health contribution")
-
-    if ghg_cost != 0.0:
-        total_series.loc["GHG pricing"] = ghg_cost
-        logger.info("Computed GHG contribution %.3e USD", ghg_cost)
-
-    total_series = total_series.sort_values(key=np.abs, ascending=False)
-
-    breakdown_csv = Path(snakemake.output.breakdown_csv)  # type: ignore[attr-defined]
-    breakdown_pdf = Path(snakemake.output.breakdown_pdf)
-    breakdown_csv.parent.mkdir(parents=True, exist_ok=True)
-
-    total_series.rename("cost_usd").to_csv(breakdown_csv, header=True)
-    plot_cost_breakdown(total_series, breakdown_pdf)
-    logger.info("Wrote objective breakdown plot to %s", breakdown_pdf)
 
     (
         cost_by_risk,
@@ -937,6 +826,7 @@ def main() -> None:
         snakemake.params.health_risk_factors,
         value_per_yll,
         tmrel_g_per_day,
+        food_groups_df,
     )
     (
         baseline_cost_by_risk,

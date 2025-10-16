@@ -208,6 +208,64 @@ rule download_fao_nutrient_conversion_table:
         """
 
 
+rule download_land_cover:
+    output:
+        # TODO: mark as temp once downstream extraction is confirmed to work
+        "data/downloads/land_cover.zip",
+    params:
+        dataset="satellite-land-cover",
+        request={
+            "variable": "all",
+            "year": [config["data"]["land_cover"]["year"]],
+            "version": [config["data"]["land_cover"]["version"]],
+        },
+    script:
+        "../scripts/download_land_cover.py"
+
+
+rule extract_land_cover_class:
+    input:
+        "data/downloads/land_cover.zip",
+    output:
+        protected("data/downloads/land_cover_lccs_class.nc"),
+    script:
+        "../scripts/extract_land_cover_class.py"
+
+
+rule download_biomass_cci:
+    output:
+        protected("data/downloads/esa_biomass_cci_v6_0.nc"),
+    params:
+        url="https://dap.ceda.ac.uk/neodc/esacci/biomass/data/agb/maps/v6.0/netcdf/ESACCI-BIOMASS-L4-AGB-MERGED-10000m-fv6.0.nc?download=1",
+    shell:
+        r"""
+        mkdir -p "$(dirname {output})"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        """
+
+
+rule download_soilgrids_ocs:
+    output:
+        protected("data/downloads/soilgrids_ocs_0-30cm_mean.tif"),
+    params:
+        coverage_id="ocs_0-30cm_mean",
+        target_resolution_m=config["data"]["soilgrids"]["target_resolution_m"],
+    script:
+        "../scripts/download_soilgrids_ocs.py"
+
+
+rule download_forest_carbon_accumulation_1km:
+    output:
+        "data/downloads/forest_carbon_accumulation_griscom_1km.tif",
+    params:
+        url="https://www.arcgis.com/sharing/rest/content/items/f950ea7878e143258a495daddea90cc0/data",
+    shell:
+        r"""
+        mkdir -p "$(dirname {output})"
+        curl -L --fail --progress-bar -o "{output}" "{params.url}"
+        """
+
+
 # Conditional rule: retrieve nutrition data from USDA if enabled in config
 if config["data"]["usda"]["retrieve_nutrition"]:
 

@@ -52,6 +52,8 @@ GAEZ Yield Data
 
 Yield potentials come from the FAO/IIASA Global Agro-Ecological Zones (GAEZ) v5 dataset, which provides spatially-explicit crop suitability and attainable yields under various scenarios. The GAEZ documentation can be found `here <https://github.com/un-fao/gaezv5/wiki>`_. `Module II <https://github.com/un-fao/gaezv5/wiki/04.-Module-II-(Biomass-and-yield-calculation)#biomass-and-yield-calculation>`_ gives more details on biomass and yield calculations (including links to appendices with detailed calculations and parameter choices); subsequent modules apply climatic and technical constraints to arrive at potential yields in `Module V <https://github.com/un-fao/gaezv5/wiki/07.-Module-V-(Integration-of-climatic-and-edaphic-evaluation)>`_.
 
+All RES05 yield rasters used here are provided on a 0.083333° (~5 arc-minute, ≈9 km at the equator) latitude–longitude grid, which sets the native spatial resolution before aggregation to optimization regions.
+
 GAEZ Configuration
 ~~~~~~~~~~~~~~~~~~
 

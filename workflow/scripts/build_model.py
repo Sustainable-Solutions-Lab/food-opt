@@ -4,7 +4,7 @@
 
 import functools
 import logging
-from typing import Iterable
+from typing import Iterable, Mapping
 
 import geopandas as gpd
 import numpy as np
@@ -188,6 +188,53 @@ def _fresh_mass_conversion_factors(
     return factors
 
 
+def _build_luc_lef_lookup(
+    df: pd.DataFrame,
+) -> dict[tuple[str, int, str, str], float]:
+    """Return LEF (tCO2/ha/yr) lookup keyed by (region, class, water, use)."""
+
+    if df.empty:
+        return {}
+
+    lookup: dict[tuple[str, int, str, str], float] = {}
+    for row in df.itertuples(index=False):
+        lef = getattr(row, "LEF_tCO2_per_ha_yr", np.nan)
+        if not np.isfinite(lef):
+            continue
+        key = (
+            str(row.region),
+            int(row.resource_class),
+            str(row.water),
+            str(row.use),
+        )
+        lookup[key] = float(lef)
+    return lookup
+
+
+def _build_luc_agb_lookup(
+    df: pd.DataFrame,
+) -> dict[tuple[str, int, str, str], float]:
+    """Return mean AGB (tC/ha) lookup keyed by (region, class, water, use)."""
+
+    if df.empty:
+        return {}
+
+    lookup: dict[tuple[str, int, str, str], float] = {}
+    for row in df.itertuples(index=False):
+        agb = getattr(row, "mean_agb_tc_per_ha", np.nan)
+        # Default to 0 if missing (conservative - allows sparing)
+        if not np.isfinite(agb):
+            agb = 0.0
+        key = (
+            str(row.region),
+            int(row.resource_class),
+            str(row.water),
+            str(row.use),
+        )
+        lookup[key] = float(agb)
+    return lookup
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -308,6 +355,7 @@ def add_primary_resources(
     n: pypsa.Network,
     primary_config: dict,
     region_water_limits: pd.Series,
+    co2_price: float,
 ) -> None:
     """Add stores for primary resources with their limits."""
     for region, raw_limit in region_water_limits.items():
@@ -366,6 +414,12 @@ def add_primary_resources(
 
     n.stores.at["fertilizer", "e_nom_max"] = fertilizer_limit
 
+    # Track CO2 balance with extendable store charged at carbon price
+    n.stores.at["co2", "marginal_cost"] = co2_price
+    n.stores.at["co2", "e_nom_extendable"] = True
+    n.stores.at["co2", "p_nom_extendable"] = True
+    n.stores.at["co2", "e_nom_min"] = -np.inf
+
 
 def add_regional_crop_production_links(
     n: pypsa.Network,
@@ -375,6 +429,7 @@ def add_regional_crop_production_links(
     region_to_country: pd.Series,
     allowed_countries: set,
     crop_prices_usd_per_t: pd.Series,
+    luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
 ) -> None:
     """Add crop production links per region/resource class and water supply.
 
@@ -382,6 +437,8 @@ def add_regional_crop_production_links(
     provided by the preprocessing pipeline. Output links produce into the same
     crop bus per country; link names encode supply type (i/r) and resource class.
     """
+    luc_lef_lookup = luc_lef_lookup or {}
+
     for crop in crop_list:
         if crop not in crops.index.get_level_values(0):
             logger.warning("Crop '%s' not found in crops data, skipping", crop)
@@ -396,10 +453,7 @@ def add_regional_crop_production_links(
         fert_use = float(fert_use) if np.isfinite(fert_use) else 0.0
 
         # Get emission coefficients (if they exist)
-        co2_emission = 0
-        ch4_emission = 0
-        if "co2" in crop_data.index:
-            co2_emission = crop_data.loc["co2", "value"] / 1000.0  # kg/t → t/t
+        ch4_emission = 0.0
         if "ch4" in crop_data.index:
             ch4_emission = crop_data.loc["ch4", "value"] / 1000.0  # kg/t → t/t
 
@@ -452,6 +506,20 @@ def add_regional_crop_production_links(
             # Add links
             # Connect to class-level land bus per region/resource class and water supply
             # Land is now tracked in Mha, so scale yields and areas accordingly
+            resource_classes = df["resource_class"].astype(int).to_numpy()
+            regions = df["region"].astype(str).to_numpy()
+            water_code = "i" if ws == "i" else "r"
+            luc_lefs = np.array(
+                [
+                    luc_lef_lookup.get(
+                        (region, int(resource_class), water_code, "cropland"), 0.0
+                    )
+                    for region, resource_class in zip(regions, resource_classes)
+                ],
+                dtype=float,
+            )  # tCO2/ha/yr
+            base_cost = (price * df["yield"] * 1e6).to_numpy()
+
             link_params = {
                 "name": df.index,
                 # Use the crop's own carrier so no extra carrier is needed
@@ -464,9 +532,8 @@ def add_regional_crop_production_links(
                 "efficiency": df["yield"] * 1e6,  # t/ha → t/Mha
                 "bus3": "fertilizer",
                 "efficiency3": -fert_use / df["yield"],  # kg/t remains kg/t
-                # Link marginal_cost is per unit of bus0 flow (now Mha). To apply a
-                # cost per tonne on bus1, multiply by efficiency (t/Mha).
-                "marginal_cost": price * df["yield"] * 1e6,  # USD/t * t/Mha = USD/Mha
+                # Link marginal_cost is per unit of bus0 flow (now Mha).
+                "marginal_cost": base_cost,
                 "p_nom_max": df["suitable_area"] / 1e6,  # ha → Mha
                 "p_nom_extendable": True,
             }
@@ -503,15 +570,30 @@ def add_regional_crop_production_links(
                 # Convert m³/ha to km³/Mha for compatibility with scaled water units
                 link_params["efficiency2"] = -water_requirement * 1e-3
 
-            # Add emission outputs if they exist
-            if co2_emission > 0:
-                link_params["bus4"] = "co2"
-                link_params["efficiency4"] = co2_emission / df["yield"]
+            emission_outputs: dict[str, np.ndarray] = {}
 
             if ch4_emission > 0:
-                bus_idx = 5 if co2_emission > 0 else 4
-                link_params[f"bus{bus_idx}"] = "ch4"
-                link_params[f"efficiency{bus_idx}"] = ch4_emission / df["yield"]
+                arr = (ch4_emission / df["yield"]).to_numpy(dtype=float)
+                emission_outputs["ch4"] = emission_outputs.get(
+                    "ch4", np.zeros(len(arr), dtype=float)
+                )
+                emission_outputs["ch4"] += arr
+
+            luc_emissions = luc_lefs * 1e6  # tCO2/ha/yr → tCO2/Mha/yr
+            if not np.allclose(luc_emissions, 0.0):
+                emission_outputs["co2"] = emission_outputs.get(
+                    "co2", np.zeros(len(luc_emissions), dtype=float)
+                )
+                emission_outputs["co2"] += luc_emissions
+
+            next_bus_idx = 4
+            for bus_name in sorted(emission_outputs.keys()):
+                values = emission_outputs[bus_name]
+                key_bus = f"bus{next_bus_idx}"
+                key_eff = f"efficiency{next_bus_idx}"
+                link_params[key_bus] = [bus_name] * len(values)
+                link_params[key_eff] = values
+                next_bus_idx += 1
 
             n.add("Link", **link_params)
 
@@ -522,8 +604,11 @@ def add_grassland_feed_links(
     land_rainfed: pd.DataFrame,
     region_to_country: pd.Series,
     allowed_countries: set,
+    luc_lef_lookup: Mapping[tuple[str, int, str, str], float] | None = None,
 ) -> None:
     """Add links supplying ruminant feed directly from rainfed land."""
+
+    luc_lef_lookup = luc_lef_lookup or {}
 
     df = grassland.copy()
     df = df[np.isfinite(df["yield"]) & (df["yield"] > 0)]
@@ -571,17 +656,152 @@ def add_grassland_feed_links(
     )
     merged["bus1"] = merged["country"].apply(lambda c: f"feed_ruminant_{c}")
 
-    n.add(
-        "Link",
-        merged["name"].tolist(),
-        carrier=["feed_ruminant"] * len(merged),
-        bus0=merged["bus0"].tolist(),
-        bus1=merged["bus1"].tolist(),
-        efficiency=merged["yield"].to_numpy() * 1e6,  # t/ha → t/Mha
-        marginal_cost=[0.0] * len(merged),
-        p_nom_max=merged["available_area"].to_numpy() / 1e6,  # ha → Mha
-        p_nom_extendable=[True] * len(merged),
+    luc_emissions = (
+        np.array(
+            [
+                luc_lef_lookup.get(
+                    (row["region"], int(row["resource_class"]), "r", "pasture"), 0.0
+                )
+                for _, row in merged.iterrows()
+            ],
+            dtype=float,
+        )
+        * 1e6
+    )  # tCO2/ha/yr → tCO2/Mha/yr
+
+    params = {
+        "carrier": ["feed_ruminant"] * len(merged),
+        "bus0": merged["bus0"].tolist(),
+        "bus1": merged["bus1"].tolist(),
+        "efficiency": merged["yield"].to_numpy() * 1e6,  # t/ha → t/Mha
+        "p_nom_max": merged["available_area"].to_numpy() / 1e6,  # ha → Mha
+        "p_nom_extendable": [True] * len(merged),
+        "marginal_cost": [0.0] * len(merged),
+    }
+
+    if not np.allclose(luc_emissions, 0.0):
+        params["bus2"] = ["co2"] * len(merged)
+        params["efficiency2"] = luc_emissions
+
+    n.add("Link", merged["name"].tolist(), **params)
+
+
+def add_spared_land_links(
+    n: pypsa.Network,
+    land_class_df: pd.DataFrame,
+    luc_lef_lookup: Mapping[tuple[str, int, str, str], float],
+    luc_mean_agb: Mapping[tuple[str, int, str, str], float],
+    agb_threshold: float,
+) -> None:
+    """Add optional links to allocate spared land and credit CO2 sinks.
+
+    Only creates spared land links for regions/classes with current above-ground
+    biomass below the threshold. This ensures regrowth sequestration is only credited
+    where natural regeneration would actually occur (recently cleared or degraded land),
+    not on already-mature forest.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The network to add links to.
+    land_class_df : pd.DataFrame
+        Land area by region/water_supply/resource_class.
+    luc_lef_lookup : Mapping
+        Land-use change emission factors (tCO2/ha/yr) by (region, class, water, use).
+    luc_mean_agb : Mapping
+        Mean above-ground biomass (tC/ha) by (region, class, water, use).
+    agb_threshold : float
+        Maximum AGB (tC/ha) for spared land eligibility. Areas with higher biomass
+        are assumed to be mature forest that would not exhibit regrowth sequestration.
+    """
+
+    if not luc_lef_lookup:
+        logger.info("No LUC LEF entries available for spared land; skipping")
+        return
+
+    entries: list[dict[str, object]] = []
+    filtered_high_agb = 0
+    filtered_zero_lef = 0
+
+    for (region, water_supply, resource_class), row in land_class_df.iterrows():
+        key = (region, int(resource_class), water_supply, "spared")
+        lef = float(luc_lef_lookup.get(key, 0.0))
+        if lef == 0.0:
+            filtered_zero_lef += 1
+            continue
+
+        # Filter by AGB threshold - only allow sparing on low-biomass areas
+        mean_agb = float(luc_mean_agb.get(key, 0.0))
+        if mean_agb > agb_threshold:
+            filtered_high_agb += 1
+            continue
+
+        area_mha = float(row["area_ha"]) / 1e6
+        if area_mha <= 0:
+            continue
+        entries.append(
+            {
+                "name": f"spare_{region}_class{int(resource_class)}_{water_supply}",
+                "bus0": f"land_{region}_class{int(resource_class)}_{water_supply}",
+                "sink_bus": f"land_spared_{region}_class{int(resource_class)}_{water_supply}",
+                "lef": lef,
+                "p_nom_max": area_mha,
+                "mean_agb": mean_agb,
+            }
+        )
+
+    if filtered_high_agb > 0:
+        logger.info(
+            "Filtered %d spared land entries with AGB > %.1f tC/ha (mature forest)",
+            filtered_high_agb,
+            agb_threshold,
+        )
+    if filtered_zero_lef > 0:
+        logger.debug("Filtered %d spared land entries with zero LEF", filtered_zero_lef)
+
+    if not entries:
+        logger.info(
+            "No eligible spared land entries after AGB filtering (threshold=%.1f tC/ha); skipping spared links",
+            agb_threshold,
+        )
+        return
+
+    logger.info(
+        "Adding %d spared land links (AGB threshold=%.1f tC/ha)",
+        len(entries),
+        agb_threshold,
     )
+
+    for entry in entries:
+        sink_bus = str(entry["sink_bus"])
+        if sink_bus not in n.buses.index:
+            n.add("Bus", sink_bus, carrier="land")
+        store_name = f"{sink_bus}_store"
+        if store_name not in n.stores.index:
+            p_max = float(entry["p_nom_max"])
+            n.add(
+                "Store",
+                store_name,
+                bus=sink_bus,
+                carrier="land",
+                e_nom_extendable=True,
+                e_nom_max=p_max,
+                p_nom_extendable=True,
+                p_nom_max=p_max,
+            )
+        n.add(
+            "Link",
+            str(entry["name"]),
+            carrier="land",
+            bus0=str(entry["bus0"]),
+            bus1=sink_bus,
+            efficiency=1.0,
+            bus2="co2",
+            efficiency2=float(entry["lef"]) * 1e6,  # tCO2/ha/yr → tCO2/Mha/yr
+            marginal_cost=0.0,
+            p_nom_extendable=True,
+            p_nom_max=float(entry["p_nom_max"]),
+        )
 
 
 def add_food_conversion_links(
@@ -1633,6 +1853,33 @@ if __name__ == "__main__":
         ["region", "water_supply", "resource_class"]
     ).sort_index()
 
+    luc_lef_lookup: dict[tuple[str, int, str, str], float] = {}
+    luc_agb_lookup: dict[tuple[str, int, str, str], float] = {}
+    carbon_price = float(snakemake.params.emissions.get("ghg_price", 0.0))
+    try:
+        luc_coefficients_path = snakemake.input.luc_carbon_coefficients
+        luc_coeff_df = read_csv(luc_coefficients_path)
+        if not luc_coeff_df.empty:
+            luc_lef_lookup = _build_luc_lef_lookup(luc_coeff_df)
+            luc_agb_lookup = _build_luc_agb_lookup(luc_coeff_df)
+            logger.info(
+                "Loaded LUC LEFs for %d (region, class, water, use) combinations",
+                len(luc_lef_lookup),
+            )
+            logger.info(
+                "Loaded mean AGB for %d (region, class, water, use) combinations",
+                len(luc_agb_lookup),
+            )
+        else:
+            logger.warning(
+                "LUC carbon coefficients file is empty; skipping LUC emission adjustments"
+            )
+    except (AttributeError, FileNotFoundError) as e:
+        logger.info(
+            "LUC carbon coefficients not available (%s); skipping LUC emission adjustments",
+            type(e).__name__,
+        )
+
     land_rainfed_df = land_class_df.xs("r", level="water_supply").copy()
     grassland_df = pd.DataFrame()
     if snakemake.params.grazing["enabled"]:
@@ -1828,7 +2075,12 @@ if __name__ == "__main__":
         regions,
         water_bus_regions,
     )
-    add_primary_resources(n, snakemake.params.primary, positive_water_limits)
+    add_primary_resources(
+        n,
+        snakemake.params.primary,
+        positive_water_limits,
+        carbon_price,
+    )
 
     # Add class-level land buses and generators (shared pools), replacing region-level caps
     # Apply same regional_limit factor per class pool
@@ -1844,6 +2096,12 @@ if __name__ == "__main__":
         p_nom_extendable=[True] * len(bus_names),
         p_nom_max=(reg_limit * land_class_df["area_ha"] / 1e6).values,  # ha → Mha
     )
+    spared_land_agb_threshold = float(
+        snakemake.params.luc.get("spared_land_agb_threshold_tc_per_ha", 20.0)
+    )
+    add_spared_land_links(
+        n, land_class_df, luc_lef_lookup, luc_agb_lookup, spared_land_agb_threshold
+    )
     add_regional_crop_production_links(
         n,
         crop_list,
@@ -1852,6 +2110,7 @@ if __name__ == "__main__":
         region_to_country,
         set(cfg_countries),
         crop_prices,
+        luc_lef_lookup,
     )
     if snakemake.params.grazing["enabled"]:
         add_grassland_feed_links(
@@ -1860,6 +2119,7 @@ if __name__ == "__main__":
             land_rainfed_df,
             region_to_country,
             set(cfg_countries),
+            luc_lef_lookup,
         )
     add_crop_to_feed_links(n, crop_list, feed_conversion, cfg_countries)
     add_food_conversion_links(

@@ -50,6 +50,7 @@ def get_gaez_code(crop_name: str, module: str) -> str:
 
 
 include: "rules/retrieve.smk"
+include: "rules/luc.smk"
 include: "rules/plotting.smk"
 include: "rules/yield_gaps.smk"
 include: "rules/documentation.smk"
@@ -420,10 +421,12 @@ rule build_model:
         monthly_region_water="processing/{name}/water/monthly_region_water.csv",
         growing_season_water="processing/{name}/water/region_growing_season_water.csv",
         blue_water_availability="processing/{name}/water/blue_water_availability.csv",
+        luc_carbon_coefficients=f"processing/{name}/luc/luc_carbon_coefficients.csv",
     params:
         crops=config["crops"],
         countries=config["countries"],
         primary=config["primary"],
+        emissions=config["emissions"],
         food_groups=config["food_groups"],
         macronutrients=config["macronutrients"],
         diet=config["diet"],

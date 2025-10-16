@@ -34,6 +34,8 @@ dependencies = [
     "xlrd>=2.0.1",
     "openpyxl>=3.1.5",
     "gsutil>=5.35",
+    "ecmwf-datastores-client",
+    "requests",
 ]
 
 [project.optional-dependencies]
