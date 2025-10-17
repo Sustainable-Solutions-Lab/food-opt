@@ -28,7 +28,8 @@ def main(
     yield_raster_path: str,
     regions_path: str,
     conversions_path: str,
-    output_path: str,
+    svg_output_path: str,
+    png_output_path: str,
     crop_name: str,
 ):
     """Generate crop yield potential map.
@@ -37,7 +38,8 @@ def main(
         yield_raster_path: Path to GAEZ yield raster
         regions_path: Path to regions GeoJSON file
         conversions_path: Path to yield unit conversions CSV
-        output_path: Path for output SVG file
+        svg_output_path: Path for output SVG file
+        png_output_path: Path for output PNG file
         crop_name: Name of the crop being visualized
     """
     # Apply documentation styling
@@ -142,8 +144,9 @@ def main(
 
     plt.tight_layout()
 
-    # Save figure
-    save_doc_figure(fig, output_path, format="svg")
+    # Save SVG and PNG
+    save_doc_figure(fig, svg_output_path, format="svg")
+    save_doc_figure(fig, png_output_path, format="png", dpi=300)
     plt.close(fig)
 
 
@@ -153,6 +156,7 @@ if __name__ == "__main__":
         yield_raster_path=snakemake.input.yield_raster,
         regions_path=snakemake.input.regions,
         conversions_path=snakemake.input.conversions,
-        output_path=snakemake.output.svg,
+        svg_output_path=snakemake.output.svg,
+        png_output_path=snakemake.output.png,
         crop_name=snakemake.wildcards.crop,
     )

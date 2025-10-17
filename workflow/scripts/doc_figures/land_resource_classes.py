@@ -26,13 +26,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from doc_figures_config import apply_doc_style, save_doc_figure
 
 
-def main(classes_path: str, regions_path: str, output_path: str):
+def main(
+    classes_path: str, regions_path: str, svg_output_path: str, png_output_path: str
+):
     """Generate resource class distribution map for California region.
 
     Args:
         classes_path: Path to resource classes NetCDF file
         regions_path: Path to regions GeoJSON file
-        output_path: Path for output SVG file
+        svg_output_path: Path for output SVG file
+        png_output_path: Path for output PNG file
     """
     # Apply documentation styling
     apply_doc_style()
@@ -221,8 +224,9 @@ def main(classes_path: str, regions_path: str, output_path: str):
 
     plt.tight_layout()
 
-    # Save figure
-    save_doc_figure(fig, output_path, format="svg")
+    # Save SVG and PNG
+    save_doc_figure(fig, svg_output_path, format="svg")
+    save_doc_figure(fig, png_output_path, format="png", dpi=300)
     plt.close(fig)
 
 
@@ -231,5 +235,6 @@ if __name__ == "__main__":
     main(
         classes_path=snakemake.input.classes,
         regions_path=snakemake.input.regions,
-        output_path=snakemake.output.svg,
+        svg_output_path=snakemake.output.svg,
+        png_output_path=snakemake.output.png,
     )

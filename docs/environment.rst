@@ -87,7 +87,7 @@ These layers are reprojected, resampled, and combined by dedicated Snakemake rul
 
 .. _fig-luc-inputs:
 
-.. figure:: /_static/figures/environment_luc_inputs.svg
+.. figure:: /_static/figures/environment_luc_inputs.png
    :alt: Global maps showing forest fraction, biomass, soil carbon, and regrowth inputs
    :align: center
    :width: 95%
@@ -124,7 +124,7 @@ The threshold of 20 tC/ha is intermediate between typical agricultural land (0-1
 
 .. _fig-luc-lef:
 
-.. figure:: /_static/figures/environment_luc_lef.svg
+.. figure:: /_static/figures/environment_luc_lef.png
    :alt: Global maps of cropland, pasture, and spared land LEFs
    :align: center
    :width: 95%

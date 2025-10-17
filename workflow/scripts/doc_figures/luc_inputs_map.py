@@ -111,7 +111,8 @@ def main(
     soc_path: str,
     regrowth_path: str,
     regions_path: str,
-    output_path: str,
+    svg_output_path: str,
+    png_output_path: str,
 ) -> None:
     """Generate figure showcasing LUC carbon input datasets."""
 
@@ -211,7 +212,8 @@ def main(
         fontsize=8,
     )
 
-    save_doc_figure(fig, output_path, format="svg")
+    save_doc_figure(fig, svg_output_path, format="svg")
+    save_doc_figure(fig, png_output_path, format="png", dpi=300)
     plt.close(fig)
 
 
@@ -222,5 +224,6 @@ if __name__ == "__main__":
         soc_path=snakemake.input.soc,  # type: ignore[name-defined]
         regrowth_path=snakemake.input.regrowth,  # type: ignore[name-defined]
         regions_path=snakemake.input.regions,  # type: ignore[name-defined]
-        output_path=snakemake.output.svg,  # type: ignore[name-defined]
+        svg_output_path=snakemake.output.svg,  # type: ignore[name-defined]
+        png_output_path=snakemake.output.png,  # type: ignore[name-defined]
     )

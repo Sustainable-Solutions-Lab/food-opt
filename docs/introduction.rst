@@ -54,7 +54,7 @@ Global Extent & Flexible Spatial Resolution
 * Optimization at configurable sub-national regional scale
 * Global coverage with detailed country and regional analysis
 
-.. figure:: _static/figures/intro_global_coverage.svg
+.. figure:: _static/figures/intro_global_coverage.png
    :width: 100%
    :alt: Global model coverage map
 

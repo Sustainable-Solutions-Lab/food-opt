@@ -26,14 +26,16 @@ from doc_figures_config import apply_doc_style, FIGURE_SIZES, save_doc_figure
 def main(
     irrigated_fraction_path: str,
     regions_path: str,
-    output_path: str,
+    svg_output_path: str,
+    png_output_path: str,
 ):
     """Generate irrigated land fraction map.
 
     Args:
         irrigated_fraction_path: Path to GAEZ irrigated land fraction raster
         regions_path: Path to regions GeoJSON file
-        output_path: Path for output SVG file
+        svg_output_path: Path for output SVG file
+        png_output_path: Path for output PNG file
     """
     # Apply documentation styling
     apply_doc_style()
@@ -139,8 +141,9 @@ def main(
 
     plt.tight_layout()
 
-    # Save figure
-    save_doc_figure(fig, output_path, format="svg")
+    # Save SVG and PNG
+    save_doc_figure(fig, svg_output_path, format="svg")
+    save_doc_figure(fig, png_output_path, format="png", dpi=300)
     plt.close(fig)
 
 
@@ -149,5 +152,6 @@ if __name__ == "__main__":
     main(
         irrigated_fraction_path=snakemake.input.irrigated_fraction,
         regions_path=snakemake.input.regions,
-        output_path=snakemake.output.svg,
+        svg_output_path=snakemake.output.svg,
+        png_output_path=snakemake.output.png,
     )

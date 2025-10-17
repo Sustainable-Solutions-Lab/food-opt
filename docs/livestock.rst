@@ -82,7 +82,7 @@ Aggregation follows the same resource class structure as crops:
 2. Aggregate by (region, resource_class) using area-weighted means
 3. Output CSV with yields in t/ha/year
 
-.. figure:: _static/figures/grassland_yield.svg
+.. figure:: _static/figures/grassland_yield.png
    :alt: Managed grassland yield potential
    :width: 100%
    :align: center

@@ -8,12 +8,13 @@
 import pydot
 
 
-def main(dot_path: str, svg_path: str):
-    """Render DOT file to SVG.
+def main(dot_path: str, svg_path: str, png_path: str):
+    """Render DOT file to SVG and PNG.
 
     Args:
         dot_path: Path to input DOT file
         svg_path: Path for output SVG file
+        png_path: Path for output PNG file
     """
     # Read DOT file
     graphs = pydot.graph_from_dot_file(dot_path)
@@ -28,10 +29,18 @@ def main(dot_path: str, svg_path: str):
     with open(svg_path, "wb") as f:
         f.write(svg_data)
 
+    # Render to PNG using Graphviz (high DPI for crisp rendering)
+    png_data = graph.create_png(prog="dot")
+
+    # Write PNG file
+    with open(png_path, "wb") as f:
+        f.write(png_data)
+
 
 if __name__ == "__main__":
     # Snakemake integration
     main(
         dot_path=snakemake.input.dot,
         svg_path=snakemake.output.svg,
+        png_path=snakemake.output.png,
     )

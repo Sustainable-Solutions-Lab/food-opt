@@ -1,0 +1,30 @@
+{#
+SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+
+SPDX-License-Identifier: CC-BY-4.0
+#}
+{% extends "!layout.html" %}
+
+{% block content %}
+{{ super() }}
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded', function() {
+    var images = document.querySelectorAll('.figure img');
+    images.forEach(function(img) {
+        var parent = img.closest('.figure');
+        // Find the SVG version of the image
+        var svg_path = img.src.replace('.png', '.svg');
+
+        // Create a link wrapper
+        var link = document.createElement('a');
+        link.href = svg_path;
+        link.target = '_blank';
+        link.title = 'Open full SVG in new tab';
+
+        // Insert link before the current image
+        img.parentNode.insertBefore(link, img);
+        link.appendChild(img);
+    });
+});
+</script>
+{% endblock %}

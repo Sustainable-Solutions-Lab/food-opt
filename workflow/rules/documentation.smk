@@ -44,6 +44,7 @@ rule doc_fig_intro_global_coverage:
         regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
     output:
         svg="docs/_static/figures/intro_global_coverage.svg",
+        png="docs/_static/figures/intro_global_coverage.png",
     script:
         "../scripts/doc_figures/intro_global_coverage.py"
 
@@ -55,6 +56,7 @@ rule doc_fig_land_resource_classes:
         regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
     output:
         svg="docs/_static/figures/land_resource_classes.svg",
+        png="docs/_static/figures/land_resource_classes.png",
     script:
         "../scripts/doc_figures/land_resource_classes.py"
 
@@ -69,6 +71,7 @@ rule doc_fig_environment_luc_inputs:
         regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
     output:
         svg="docs/_static/figures/environment_luc_inputs.svg",
+        png="docs/_static/figures/environment_luc_inputs.png",
     script:
         "../scripts/doc_figures/luc_inputs_map.py"
 
@@ -80,6 +83,7 @@ rule doc_fig_environment_luc_lef:
         regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
     output:
         svg="docs/_static/figures/environment_luc_lef.svg",
+        png="docs/_static/figures/environment_luc_lef.png",
     script:
         "../scripts/doc_figures/luc_lef_map.py"
 
@@ -92,6 +96,7 @@ rule doc_fig_crop_yield:
         conversions="data/yield_unit_conversions.csv",
     output:
         svg="docs/_static/figures/crop_yield_{crop}.svg",
+        png="docs/_static/figures/crop_yield_{crop}.png",
     script:
         "../scripts/doc_figures/crop_yield_map.py"
 
@@ -103,6 +108,7 @@ rule doc_fig_crop_yield_resource_class:
         regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
     output:
         svg="docs/_static/figures/crop_yield_resource_class_{crop}.svg",
+        png="docs/_static/figures/crop_yield_resource_class_{crop}.png",
     params:
         resource_class_1=1,
         resource_class_2=2,
@@ -117,6 +123,7 @@ rule doc_fig_water_basin_availability:
         water_data=f"processing/{DOC_FIG_NAME}/water/blue_water_availability.csv",
     output:
         svg="docs/_static/figures/water_basin_availability.svg",
+        png="docs/_static/figures/water_basin_availability.png",
     script:
         "../scripts/doc_figures/water_basin_availability.py"
 
@@ -128,6 +135,7 @@ rule doc_fig_water_region_availability:
         water_data=f"processing/{DOC_FIG_NAME}/water/region_growing_season_water.csv",
     output:
         svg="docs/_static/figures/water_region_availability.svg",
+        png="docs/_static/figures/water_region_availability.png",
     script:
         "../scripts/doc_figures/water_region_availability.py"
 
@@ -139,6 +147,7 @@ rule doc_fig_irrigated_land_fraction:
         regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
     output:
         svg="docs/_static/figures/irrigated_land_fraction.svg",
+        png="docs/_static/figures/irrigated_land_fraction.png",
     script:
         "../scripts/doc_figures/irrigated_land_fraction.py"
 
@@ -150,6 +159,7 @@ rule doc_fig_grassland_yield:
         regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
     output:
         svg="docs/_static/figures/grassland_yield.svg",
+        png="docs/_static/figures/grassland_yield.png",
     script:
         "../scripts/doc_figures/grassland_yield_map.py"
 
@@ -160,6 +170,7 @@ rule doc_fig_trade_network:
         regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
     output:
         svg="docs/_static/figures/trade_network.svg",
+        png="docs/_static/figures/trade_network.png",
     params:
         n_hubs=config["trade"]["crop_hubs"],
     script:
@@ -187,28 +198,22 @@ rule doc_fig_workflow_rulegraph_styled:
 
 
 rule doc_fig_workflow_rulegraph:
-    """Render workflow dependency graph to SVG using Graphviz."""
+    """Render workflow dependency graph to SVG and PNG using Graphviz."""
     input:
         dot="docs/_static/figures/workflow_rulegraph.dot",
     output:
         svg="docs/_static/figures/workflow_rulegraph.svg",
+        png="docs/_static/figures/workflow_rulegraph.png",
     script:
         "../scripts/doc_figures/render_graph.py"
-
-
-rule generate_all_doc_figures:
-    """Generate all documentation figures."""
-    input:
-        expand("docs/_static/figures/{fig}.svg", fig=DOC_FIGURES),
-    output:
-        touch("docs/_static/figures/.doc_figures_complete"),
 
 
 rule build_docs:
     """Build Sphinx documentation including all figures."""
     input:
-        # Ensure all figures are generated first
-        "docs/_static/figures/.doc_figures_complete",
+        # Figures
+        expand("docs/_static/figures/{fig}.svg", fig=DOC_FIGURES),
+        expand("docs/_static/figures/{fig}.png", fig=DOC_FIGURES),
         # Documentation source files
         "docs/conf.py",
         "docs/index.rst",

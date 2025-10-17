@@ -91,19 +91,19 @@ The model uses several GAEZ raster products for each crop:
 
 The following figures show yield potential maps for three major crops, illustrating the spatial variation in productivity that drives the optimization:
 
-.. figure:: _static/figures/crop_yield_wheat.svg
+.. figure:: _static/figures/crop_yield_wheat.png
    :width: 100%
    :alt: Wheat yield potential map
 
    Wheat rainfed yield potential (tonnes/hectare) from GAEZ v5. Higher yields are shown in darker green. Black lines indicate region boundaries. Wheat performs best in temperate zones with adequate rainfall.
 
-.. figure:: _static/figures/crop_yield_wetland-rice.svg
+.. figure:: _static/figures/crop_yield_wetland-rice.png
    :width: 100%
    :alt: Rice yield potential map
 
    Wetland rice rainfed yield potential (tonnes/hectare) from GAEZ v5. Rice shows high productivity in tropical and subtropical regions with suitable water availability, particularly in Asia.
 
-.. figure:: _static/figures/crop_yield_maize.svg
+.. figure:: _static/figures/crop_yield_maize.png
    :width: 100%
    :alt: Maize yield potential map
 
@@ -161,7 +161,7 @@ This allows the optimizer to preferentially allocate crops to high-quality land 
 
 The following figure illustrates this variation, comparing rainfed wheat yields between resource classes 1 and 2 across all regions:
 
-.. figure:: _static/figures/crop_yield_resource_class_wheat.svg
+.. figure:: _static/figures/crop_yield_resource_class_wheat.png
    :width: 100%
    :alt: Wheat yields by resource class
 
@@ -218,7 +218,7 @@ Processing steps (``workflow/scripts/process_blue_water_availability.py``):
 1. **Load basin shapefile** with monthly availability (Mm³/month)
 2. **Aggregate by basin and month** to get monthly water budgets
 
-.. figure:: _static/figures/water_basin_availability.svg
+.. figure:: _static/figures/water_basin_availability.png
    :width: 100%
    :alt: Basin water availability map
 
@@ -242,7 +242,7 @@ Blue water availability is allocated to optimization regions based on spatial ov
    * ``processing/{name}/water/monthly_region_water.csv``: Monthly water by region
    * ``processing/{name}/water/region_growing_season_water.csv``: Growing season totals
 
-.. figure:: _static/figures/water_region_availability.svg
+.. figure:: _static/figures/water_region_availability.png
    :width: 100%
    :alt: Regional water availability map
 
@@ -261,7 +261,7 @@ Only a fraction of agricultural land is equipped with irrigation infrastructure.
 
 The following figure shows the global distribution of land equipped for irrigation:
 
-.. figure:: _static/figures/irrigated_land_fraction.svg
+.. figure:: _static/figures/irrigated_land_fraction.png
    :width: 100%
    :alt: Irrigated land fraction map
 

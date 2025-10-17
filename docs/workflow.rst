@@ -20,7 +20,7 @@ Each stage is defined by Snakemake rules that specify inputs, outputs, and a scr
 
 The complete workflow dependency graph is shown below. Each node represents a Snakemake rule, and edges show dependencies between rules.
 
-.. figure:: _static/figures/workflow_rulegraph.svg
+.. figure:: _static/figures/workflow_rulegraph.png
    :alt: Workflow dependency graph
    :align: center
    :width: 100%

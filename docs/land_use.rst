@@ -38,7 +38,7 @@ The model operates at sub-national regional resolution, defined by clustering ad
 
 The result is a set of contiguous optimization regions that respect national boundaries (unless cross-border clustering is enabled) and balance spatial detail with computational tractability.
 
-.. figure:: _static/figures/intro_global_coverage.svg
+.. figure:: _static/figures/intro_global_coverage.png
    :width: 100%
    :alt: Global model coverage map
 
@@ -95,7 +95,7 @@ Visual Example
 
 The figure below shows resource class stratification for a region in the western United States. Each colored pixel represents agricultural land classified by its yield potential, with darker blue indicating higher productivity (class 2) and lighter green-blue indicating lower productivity (class 0). The red boundary delineates the optimization region.
 
-.. figure:: _static/figures/land_resource_classes.svg
+.. figure:: _static/figures/land_resource_classes.png
    :width: 50%
    :alt: Resource class distribution map showing yield potential categories
 

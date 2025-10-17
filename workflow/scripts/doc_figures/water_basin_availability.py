@@ -24,14 +24,16 @@ from doc_figures_config import apply_doc_style, COLORMAPS, FIGURE_SIZES, save_do
 def main(
     basin_shapefile_path: str,
     water_data_path: str,
-    output_path: str,
+    svg_output_path: str,
+    png_output_path: str,
 ):
     """Generate basin water availability map.
 
     Args:
         basin_shapefile_path: Path to basin shapefile
         water_data_path: Path to blue water availability CSV
-        output_path: Path for output SVG file
+        svg_output_path: Path for output SVG file
+        png_output_path: Path for output PNG file
     """
     # Apply documentation styling
     apply_doc_style()
@@ -143,8 +145,9 @@ def main(
 
     plt.tight_layout()
 
-    # Save figure
-    save_doc_figure(fig, output_path, format="svg")
+    # Save SVG and PNG
+    save_doc_figure(fig, svg_output_path, format="svg")
+    save_doc_figure(fig, png_output_path, format="png", dpi=300)
     plt.close(fig)
 
 
@@ -153,5 +156,6 @@ if __name__ == "__main__":
     main(
         basin_shapefile_path=snakemake.input.basin_shapefile,
         water_data_path=snakemake.input.water_data,
-        output_path=snakemake.output.svg,
+        svg_output_path=snakemake.output.svg,
+        png_output_path=snakemake.output.png,
     )
