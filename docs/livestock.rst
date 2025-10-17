@@ -92,56 +92,68 @@ Aggregation follows the same resource class structure as crops:
 Feed Conversion
 ---------------
 
-The model uses feed conversion ratios to link feed inputs to animal outputs. These are stored in CSV files with mock placeholder data.
+The model uses feed conversion ratios to link feed inputs to animal outputs, with explicit categorization by feed quality to enable accurate CH₄ emissions tracking.
 
-data/feed_conversion.csv
+Feed System Architecture
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The feed system uses **six distinct feed pools** that combine animal type with feed quality:
+
+* **Ruminant pools**: ``ruminant_forage``, ``ruminant_concentrate``, ``ruminant_byproduct``
+* **Monogastric pools**: ``monogastric_forage``, ``monogastric_concentrate``, ``monogastric_byproduct``
+
+This categorization enables the model to:
+
+1. Differentiate methane emissions based on feed digestibility (forage vs. concentrate)
+2. Route crops and byproducts to appropriate feed pools based on nutritional properties
+3. Model production system choices (e.g., grass-fed vs. grain-finished beef)
+
+data/feed_properties.csv
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maps crops to feed energy/protein content for direct crop-to-feed conversion. Columns:
+Unified database mapping all feed items (crops and food byproducts) to feed categories and digestibility values. Columns:
 
-* ``crop``: Crop name (e.g., "maize", "soybean")
-* ``feed_type``: Feed category ("ruminant" or "monogastric")
-* ``efficiency``: Digestible fraction of the crop as feed
+* ``feed_item``: Item name (e.g., "maize", "wheat bran")
+* ``source_type``: Either "crop" or "food" (byproduct)
+* ``feed_category``: Feed quality category (``forage``, ``concentrate``, or ``byproduct``)
+* ``digestibility_ruminant``: Digestible fraction for ruminants (0-1)
+* ``digestibility_monogastric``: Digestible fraction for monogastrics (0-1)
+* ``ME_MJ_per_kg_DM``: Metabolizable energy (MJ per kg dry matter) - for future use
+* ``CP_pct_DM``: Crude protein (% of dry matter) - for future use
+* ``NDF_pct_DM``: Neutral detergent fiber (% of dry matter) - for future use
 * ``notes``: Description and source information
 
-This file enables crops to be used directly as animal feed, competing with human consumption and food processing pathways.
+**Feed categories**:
+  * **Forage**: High-fiber forages (grassland, silage, hay-type crops) - low digestibility, high CH₄
+  * **Concentrate**: Energy/protein concentrates (grains, oilseeds, pulses) - high digestibility, low CH₄
+  * **Byproduct**: Processing byproducts (brans, meals, hulls) - moderate digestibility, moderate CH₄
 
-.. Note:: Current values are mock data; to be replaced by actual values.
+**Typical items**:
+  * *Forages*: alfalfa, biomass sorghum, silage maize
+  * *Concentrates*: wheat, maize, soybean, dry pea
+  * *Byproducts*: wheat bran, rice bran, sunflower meal, rapeseed meal
 
-.. _byproduct-feed-conversion:
+Byproducts from food processing (with ``source_type=food``) are automatically excluded from human consumption and can only be used as animal feed.
 
-data/food_feed_conversion.csv
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Maps food byproducts to feed conversion efficiencies. Columns:
-
-* ``food``: Food byproduct name (e.g., "wheat bran", "sunflower meal")
-* ``feed_type``: Feed category ("ruminant" or "monogastric")
-* ``efficiency``: Digestible fraction of the byproduct as feed
-* ``notes``: Description and source information
-
-This file enables byproducts from food processing (assigned to the ``byproduct`` food group) to be used as animal feed. Byproducts are automatically excluded from human consumption and routed to animal feed systems.
-
-**Typical byproducts**:
-  * **Cereal brans**: wheat bran, rice bran, barley bran, oat bran (moderate fiber, good for ruminants)
-  * **Oilseed meals**: sunflower meal, rapeseed meal (high protein after oil extraction)
-  * **Other**: wheat germ (high protein/fat), buckwheat hulls (high fiber, lower digestibility)
-
-**Feed efficiency differences**: Ruminants generally have higher efficiency for fibrous byproducts due to their multi-stomach digestive system, while monogastrics (pigs, poultry) have lower efficiency for high-fiber materials but may utilize protein-rich meals effectively.
-
-.. Note:: Current values are mock data; to be replaced with actual feed value data from animal nutrition literature.
+.. Note:: Current digestibility and nutritional values are mock data; to be replaced with actual feed value data from animal nutrition literature.
 
 data/feed_to_animal_products.csv
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maps feed requirements to animal product yields. Columns:
+Maps feed pool requirements to animal product yields. Columns:
 
-* ``animal_product``: Product name (e.g., "cattle meat", "dairy")
-* ``feed_type``: Type of feed (e.g., "grass", "grain", "protein")
-* ``feed_kg_per_kg_product``: Conversion ratio
-* ``production_system``: "grazing" or "feed-based"
+* ``product``: Product name (e.g., "cattle meat", "dairy")
+* ``feed_category``: Specific feed pool (e.g., ``ruminant_forage``, ``ruminant_concentrate``)
+* ``efficiency``: Feed conversion efficiency (tonnes product per tonne feed DM)
+* ``notes``: Description and source information
 
-.. Note:: Current values are mock data; to be replaced by actual values.
+This structure allows modeling different production systems for the same product:
+  * Grass-fed beef: ``cattle meat`` from ``ruminant_forage``
+  * Grain-finished beef: ``cattle meat`` from ``ruminant_concentrate``
+  * Pasture dairy: ``dairy`` from ``ruminant_forage``
+  * Intensive dairy: ``dairy`` from ``ruminant_concentrate``
+
+.. Note:: Current values are mock data; to be replaced by actual feed conversion ratios.
 
 Model Implementation
 --------------------
@@ -153,52 +165,160 @@ Grazing Links
 
 **Inputs**:
   * ``bus0``: Grassland (land bus for region/class)
-  * ``bus2``: Primary resources (water, if constrained)
 
 **Outputs**:
-  * ``bus1``: Animal product (to animal product bus)
-  * ``bus3``: Emissions (CH₄ from enteric fermentation, N₂O from manure)
+  * ``bus1``: Ruminant forage feed pool (``feed_ruminant_forage``)
+  * ``bus2``: CO₂ emissions from land-use change (if configured)
 
-**Efficiency**: Grassland yield (t/ha) × feed conversion (t grass → t product)
+**Efficiency**: Grassland yield (t DM/ha)
 
-Feed-Based Links
-~~~~~~~~~~~~~~~~
+Grassland is treated as forage-quality feed and routed to the ``feed_ruminant_forage`` pool, where it competes with other forage sources.
 
-The feed-based production system utilizes two types of feed sources:
+Feed Supply Links
+~~~~~~~~~~~~~~~~~
 
-**Crop-to-Feed Links**:
-  * **Inputs**: Crop buses (e.g., maize, soybean from ``bus0``)
-  * **Outputs**: Feed pool buses (``feed_ruminant`` or ``feed_monogastric``)
-  * **Efficiency**: Crop digestibility as feed (from ``data/feed_conversion.csv``)
+The ``add_feed_supply_links()`` function creates links from crops and food byproducts to the six feed pools:
+
+**Item-to-Feed-Pool Links**:
+  * **Inputs**: Crop or food byproduct buses (``bus0``)
+  * **Outputs**: One of six feed pool buses (``bus1``)
+    - ``feed_ruminant_forage``, ``feed_ruminant_concentrate``, ``feed_ruminant_byproduct``
+    - ``feed_monogastric_forage``, ``feed_monogastric_concentrate``, ``feed_monogastric_byproduct``
+  * **Efficiency**: Animal-specific digestibility (from ``data/feed_properties.csv``)
+  * **Routing**: Each item creates links to both ruminant and monogastric pools with appropriate efficiencies
   * Crops compete between human consumption, food processing, and animal feed use
+  * Food byproducts are automatically excluded from human consumption
 
-**Byproduct-to-Feed Links**:
-  * **Inputs**: Food byproduct buses (e.g., wheat bran, sunflower meal from ``bus0``)
-  * **Outputs**: Feed pool buses (``feed_ruminant`` or ``feed_monogastric``)
-  * **Efficiency**: Byproduct digestibility as feed (from ``data/food_feed_conversion.csv``)
-  * Byproducts from food processing are automatically excluded from human consumption and can only be used as feed
+**Example flow**:
+  * Maize (concentrate) → ``feed_ruminant_concentrate`` (0.85) + ``feed_monogastric_concentrate`` (0.85)
+  * Wheat bran (byproduct) → ``feed_ruminant_byproduct`` (0.85) + ``feed_monogastric_byproduct`` (0.75)
+  * Alfalfa (forage) → ``feed_ruminant_forage`` (0.88) + ``feed_monogastric_forage`` (0.50)
 
-**Feed-to-Animal-Product Links**:
-  * **Inputs**: Feed pool buses (``feed_ruminant`` or ``feed_monogastric`` from ``bus0``)
-  * **Outputs**: Animal product buses (``bus1``)
-  * **Emissions**: CH₄ from enteric fermentation (``bus3``)
-  * **Efficiency**: Feed conversion ratios (kg feed → kg product)
+Feed-to-Animal-Product Links
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``add_feed_to_animal_product_links()`` function converts feed pools to animal products with CH₄ emissions:
+
+**Feed-Pool-to-Product Links**:
+  * **Inputs**: Feed pool bus (``bus0``, e.g., ``feed_ruminant_forage``)
+  * **Outputs**: Animal product bus (``bus1``, e.g., ``food_cattle_meat``)
+  * **Emissions**: CH₄ from enteric fermentation (``bus2`` for ruminants only)
+  * **Efficiency**: Feed conversion ratio (tonnes product per tonne feed DM)
+  * **CH₄ calculation**: For ruminants only:
+
+    .. math::
+
+       \text{DMI} &= 1 / \text{efficiency} \quad \text{(t DM per t product)} \\
+       \text{MY} &= \text{methane yield from category} \quad \text{(g CH}_4\text{/kg DM)} \\
+       \text{CH}_4 &= \text{DMI} \times \text{MY} / 1000 \quad \text{(t CH}_4\text{ per t product)}
+
+**Example**: Grass-fed beef with efficiency 0.15 (6.7 t DM/t product) and forage MY 23.3 g/kg:
+  * DMI = 1/0.15 = 6.67 t DM/t product
+  * CH₄ = 6.67 × 23.3 / 1000 = 0.155 t CH₄/t product
 
 Emissions from Livestock
 -------------------------
 
 Livestock production generates significant greenhouse gas emissions.
 
-.. Note:: The model currently uses mock data for these emissions.
-
 Enteric Fermentation (CH₄)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Ruminants (cattle, sheep) produce methane through digestive fermentation. Emission factors:
+Ruminants (cattle, sheep) produce methane through digestive fermentation. The model uses a simplified IPCC Tier 2 approach based on methane yields (MY) per unit dry matter intake (DMI).
 
-* **Cattle**: ~100-300 kg CH₄/head/year (varies by diet and system)
-* **Dairy**: Higher per animal but lower per liter milk than meat
-* **Pigs/Poultry**: Minimal enteric fermentation
+Methodology
+^^^^^^^^^^^
+
+Methane emissions are calculated as:
+
+.. math::
+
+   \text{CH}_4 = \text{DMI} \times \text{MY}
+
+where:
+  * **DMI** is dry matter intake (kg/day)
+  * **MY** is methane yield (g CH₄ per kg DMI)
+
+The methane yield depends on feed quality, specifically digestibility (DE%) and fiber content (NDF%). The IPCC provides differentiated conversion factors for various livestock categories and feeding systems.
+
+IPCC Conversion Factors
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The model uses methane yields from the `2019 Refinement to the 2006 IPCC Guidelines for National Greenhouse Gas Inventories <https://www.ipcc.ch/report/2019-refinement-to-the-2006-ipcc-guidelines-for-national-greenhouse-gas-inventories/>`_, Volume 4, Table 10.12:
+
+.. table:: Cattle/Buffalo Methane Conversion Factors (Ym)
+   :widths: 20 40 20 10 10
+
+   +-------------------+-------------------------------------------+----------------------+------------+----------+
+   | Livestock         | Description                               | Feed Digestibility   | MY         | Ym³ (%)  |
+   | category          |                                           | (DE %) and Neutral   | g CH₄ kg   |          |
+   |                   |                                           | Detergent Fibre      | DMI⁻¹      |          |
+   |                   |                                           | (NDF, % DMI)         |            |          |
+   +===================+===========================================+======================+============+==========+
+   | Dairy cows        | High-producing cows⁵                      | DE ≥ 70              | 19.0       | 5.7      |
+   | and Buffalo       | (>8500 kg/head/yr⁻¹)                      | NDF ≤ 35             |            |          |
+   |                   +-------------------------------------------+----------------------+------------+----------+
+   |                   | High-producing cows⁵                      | DE ≥ 70              | 20.0       | 6.0      |
+   |                   | (>8500 kg/head/yr⁻¹)                      | NDF ≥ 35             |            |          |
+   |                   +-------------------------------------------+----------------------+------------+----------+
+   |                   | Medium producing cows                     | DE 63-70             | 21.0       | 6.3      |
+   |                   | (5000 – 8500 kg yr⁻¹)                     | NDF > 37             |            |          |
+   |                   +-------------------------------------------+----------------------+------------+----------+
+   |                   | Low producing cows                        | DE ≤ 62              | 21.4       | 6.5      |
+   |                   | (<5000 kg yr⁻¹)                           | NDF >38              |            |          |
+   +-------------------+-------------------------------------------+----------------------+------------+----------+
+   | Non dairy and     | > 75 % forage                             | DE ≤ 62              | 23.3       | 7.0      |
+   | multi-purpose     +-------------------------------------------+----------------------+------------+----------+
+   | Cattle and        | Rations of >75% high quality              | DE 62–71             | 21.0       | 6.3      |
+   | Buffalo           | forage and/or mixed rations,              |                      |            |          |
+   |                   | forage of between 15 and 75%              |                      |            |          |
+   |                   | the total ration mixed with               |                      |            |          |
+   |                   | grain, and/or silage.                     |                      |            |          |
+   |                   +-------------------------------------------+----------------------+------------+----------+
+   |                   | Feedlot (all other grains, 0-15%          | DE ≥ 72              | 13.6       | 4.0      |
+   |                   | forage)                                   |                      |            |          |
+   |                   +-------------------------------------------+----------------------+------------+----------+
+   |                   | Feedlot (steam-flaked corn - 0-           | DE ≥ 75              | 10.0       | 3.0      |
+   |                   | 10% forage)                               |                      |            |          |
+   +-------------------+-------------------------------------------+----------------------+------------+----------+
+
+**Source**: IPCC (2019), Table 10.12 (Updated)
+
+**Notes**:
+  * ⁵ High-producing cows are defined as those yielding >8500 kg milk/head/year
+  * Ym³ (%) represents the methane conversion factor (percentage of gross energy in feed converted to methane)
+  * DE = Digestible Energy
+  * NDF = Neutral Detergent Fibre
+
+Implementation
+^^^^^^^^^^^^^^
+
+The model implements IPCC Tier 2 methodology using feed quality-differentiated methane yields:
+
+* Feed is categorized into **6 pools** combining animal type (ruminant/monogastric) with feed quality (forage/concentrate/byproduct)
+* Each feed category is assigned a specific MY value based on IPCC guidelines:
+
+  - **Forage** (23.3 g CH₄/kg DMI): High-forage diets >75% forage, DE ≤ 62%
+  - **Byproduct** (21.0 g CH₄/kg DMI): Mixed rations 15-75% forage + byproducts/grain, DE 62-71%
+  - **Concentrate** (13.6 g CH₄/kg DMI): Feedlot/grain-based feeding 0-15% forage, DE ≥ 72%
+
+* Monogastric animals (pigs, poultry) produce minimal enteric methane (not modeled)
+* CH₄ emissions are calculated dynamically in ``add_feed_to_animal_product_links()`` based on DMI and feed category
+
+data/enteric_methane_yields.csv
+++++++++++++++++++++++++++++++++
+
+Simplified methane yield lookup table mapping feed categories to MY values. Columns:
+
+* ``feed_category``: Feed quality category (``forage``, ``byproduct``, ``concentrate``)
+* ``MY_g_CH4_per_kg_DMI``: Methane yield (g CH₄ per kg dry matter intake)
+* ``notes``: IPCC source and diet description
+
+**Source**: IPCC (2019), 2019 Refinement to the 2006 IPCC Guidelines for National Greenhouse Gas Inventories, Volume 4, Table 10.12
+
+The file contains only 3 rows - one for each feed quality category. The values are inferred from IPCC Table 10.12 cattle/buffalo categories based on forage percentage and digestibility.
+
+.. Note:: Future refinements could differentiate by production intensity (high/medium/low-producing dairy) and more detailed feed composition (NDF percentage).
 
 Manure Management (N₂O, CH₄)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

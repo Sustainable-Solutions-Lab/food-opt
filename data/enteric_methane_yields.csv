@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC0-1.0
+#
+# Enteric methane yields for livestock feed categories
+#
+# Source: IPCC (2019). 2019 Refinement to the 2006 IPCC Guidelines for
+# National Greenhouse Gas Inventories. Volume 4: Agriculture, Forestry
+# and Other Land Use, Table 10.12 (Updated).
+# https://www.ipcc.ch/report/2019-refinement-to-the-2006-ipcc-guidelines-for-national-greenhouse-gas-inventories/
+#
+# Methane yield (MY) is given in g CH4 per kg dry matter intake (DMI).
+#
+# Units:
+#   MY_g_CH4_per_kg_DMI: grams of CH4 per kilogram of dry matter intake
+#
+feed_category,MY_g_CH4_per_kg_DMI,notes
+forage,23.3,"High-forage diets (>75% forage), DE ≤ 62% - IPCC Table 10.12 non-dairy cattle"
+byproduct,21.0,"Mixed rations (15-75% forage + byproducts/grain), DE 62-71% - IPCC Table 10.12 mixed rations"
+concentrate,13.6,"Concentrate/grain-based feeding (0-15% forage), DE ≥ 72% - IPCC Table 10.12 feedlot"

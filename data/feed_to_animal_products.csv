@@ -1,7 +1,11 @@
-# Mock data
-product,feed_type,efficiency,notes
-cattle meat,ruminant,0.18,Mock 5.5 t feed per tonne carcass weight
-pig meat,monogastric,0.33,Mock 3.0 t feed per tonne carcass weight
-chicken meat,monogastric,0.40,Mock 2.5 t feed per tonne dressed weight
-dairy,ruminant,0.85,Mock 1.2 t feed per tonne milk equivalent
-eggs,monogastric,0.45,Mock 2.2 t feed per tonne eggs
+# Feed requirements for animal products
+# Each row specifies feed input → animal product output conversion
+# Mock values - should be replaced with actual feed conversion ratios
+product,feed_category,efficiency,notes
+cattle meat,ruminant_forage,0.15,"Mock grass-fed beef: ~6.7 t DM forage per tonne carcass weight"
+cattle meat,ruminant_concentrate,0.20,"Mock grain-finished beef: ~5.0 t DM concentrate per tonne carcass weight"
+pig meat,monogastric_concentrate,0.33,"Mock 3.0 t feed per tonne carcass weight (grain-based)"
+chicken meat,monogastric_concentrate,0.40,"Mock 2.5 t feed per tonne dressed weight (grain-based)"
+dairy,ruminant_forage,0.70,"Mock grass-based dairy: ~1.4 t DM per tonne milk equivalent"
+dairy,ruminant_concentrate,0.90,"Mock concentrate-supplemented dairy: ~1.1 t DM per tonne milk equivalent"
+eggs,monogastric_concentrate,0.45,"Mock 2.2 t feed per tonne eggs (grain-based)"

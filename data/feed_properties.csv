@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: 2025 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC0-1.0
+#
+# Feed properties database for crops and food byproducts used as animal feed
+#
+# Feed categories:
+#   - forage: High-fiber forages (grassland, silage, hay-type crops)
+#   - concentrate: Energy/protein concentrates (grains, oilseeds, pulses)
+#   - byproduct: Processing byproducts (brans, meals, hulls)
+#
+# Units:
+#   - digestibility: fraction of feed converted to animal product (0-1)
+#   - ME_MJ_per_kg_DM: Metabolizable energy in MJ per kg dry matter
+#   - CP_pct_DM: Crude protein as percentage of dry matter
+#   - NDF_pct_DM: Neutral detergent fiber as percentage of dry matter
+#
+# Digestibility values are MOCK and should be replaced with actual feed conversion efficiencies
+# Nutritional values (ME, CP, NDF) are placeholders for future use
+#
+feed_item,source_type,feed_category,digestibility_ruminant,digestibility_monogastric,ME_MJ_per_kg_DM,CP_pct_DM,NDF_pct_DM,notes
+# --- Cereal grains (concentrate) ---
+wheat,crop,concentrate,0.80,0.80,13.0,12.0,12.0,Mock values for cereal grain
+dryland-rice,crop,concentrate,0.78,0.78,13.5,8.0,10.0,Mock values for polished rice
+wetland-rice,crop,concentrate,0.78,0.78,13.5,8.0,10.0,Mock values for polished rice
+maize,crop,concentrate,0.85,0.85,14.0,9.0,9.0,Mock values for grain maize
+sorghum,crop,concentrate,0.82,0.82,13.0,10.0,11.0,Mock values for sorghum grain
+buckwheat,crop,concentrate,0.79,0.79,12.5,11.0,14.0,Mock values for buckwheat grain
+foxtail-millet,crop,concentrate,0.80,0.80,13.0,11.0,13.0,Mock values for foxtail millet
+pearl-millet,crop,concentrate,0.80,0.80,13.0,11.0,13.0,Mock values for pearl millet
+barley,crop,concentrate,0.82,0.82,12.5,11.0,18.0,Mock values for hulled barley
+oat,crop,concentrate,0.80,0.80,11.5,12.0,28.0,Mock values for oat (high fiber for grain)
+rye,crop,concentrate,0.79,0.79,13.0,10.0,13.0,Mock values for rye grain
+# --- Protein crops (concentrate) ---
+soybean,crop,concentrate,0.90,0.90,14.0,38.0,10.0,Mock protein-rich concentrate
+dry-pea,crop,concentrate,0.83,0.83,12.5,23.0,15.0,Mock values for pulse
+chickpea,crop,concentrate,0.83,0.83,13.0,21.0,14.0,Mock values for pulse
+cowpea,crop,concentrate,0.83,0.83,12.5,24.0,14.0,Mock values for pulse
+gram,crop,concentrate,0.83,0.83,13.0,22.0,14.0,Mock values for pulse
+phaseolus-bean,crop,concentrate,0.83,0.83,12.5,23.0,15.0,Mock values for pulse
+pigeonpea,crop,concentrate,0.83,0.83,12.5,21.0,14.0,Mock values for pulse
+# --- Oilseeds (concentrate) ---
+sunflower,crop,concentrate,0.70,0.70,11.0,16.0,25.0,Mock value for oilseed meal fraction
+rapeseed,crop,concentrate,0.72,0.72,11.5,20.0,22.0,Mock value for oilseed meal fraction
+groundnut,crop,concentrate,0.78,0.78,13.0,26.0,18.0,Mock value for oilseed meal fraction
+sesame,crop,concentrate,0.74,0.74,13.5,23.0,20.0,Mock value for sesame oilseed meal
+# --- Roots and tubers (concentrate/byproduct) ---
+white-potato,crop,concentrate,0.65,0.65,12.5,9.0,5.0,Mock energy from root crops
+cassava,crop,concentrate,0.75,0.75,13.0,2.0,3.0,Mock starchy root feed conversion
+sweet-potato,crop,concentrate,0.72,0.72,12.5,5.0,7.0,Mock starchy root feed conversion
+yam,crop,concentrate,0.70,0.70,12.0,6.0,8.0,Mock starchy root feed conversion
+# --- Forage crops ---
+alfalfa,crop,forage,0.88,0.50,9.5,18.0,40.0,High-quality legume forage; lower for monogastrics
+biomass-sorghum,crop,forage,0.60,0.40,8.0,8.0,60.0,Lignocellulosic forage; limited monogastric use
+silage-maize,crop,forage,0.82,0.70,10.5,8.0,45.0,Whole-plant silage
+# --- Vegetable/fruit byproducts (byproduct) ---
+tomato,crop,byproduct,0.30,0.30,7.0,15.0,35.0,Processing byproduct suitability
+carrot,crop,byproduct,0.55,0.55,9.0,10.0,20.0,Vegetable byproduct feed use
+onion,crop,byproduct,0.40,0.40,8.0,9.0,15.0,Vegetable byproduct feed use
+cabbage,crop,byproduct,0.45,0.45,8.5,13.0,22.0,Vegetable byproduct feed use
+banana,crop,byproduct,0.50,0.50,9.0,5.0,18.0,Fruit byproduct feed use
+# --- Sugar crops (byproduct) ---
+sugarcane,crop,byproduct,0.35,0.35,7.5,3.0,48.0,Fodder cane / bagasse digestibility
+sugarbeet,crop,byproduct,0.38,0.38,8.0,10.0,40.0,Beet pulp digestibility
+# --- Cereal byproducts (byproduct) ---
+wheat bran,food,byproduct,0.85,0.75,10.0,16.0,42.0,Ruminants handle fiber better than monogastrics
+wheat germ,food,byproduct,0.90,0.92,13.0,28.0,15.0,High protein and fat content
+rice bran,food,byproduct,0.80,0.70,11.5,14.0,38.0,Moderate fiber content
+barley bran,food,byproduct,0.83,0.72,10.5,14.0,40.0,Similar to wheat bran
+oat bran,food,byproduct,0.82,0.73,10.0,17.0,45.0,High fiber content
+buckwheat hulls,food,byproduct,0.40,0.25,6.0,5.0,65.0,Low digestibility - mainly fiber
+# --- Oilseed meals (byproduct) ---
+sunflower meal,food,byproduct,0.85,0.88,11.0,32.0,28.0,Protein-rich meal after oil extraction
+rapeseed meal,food,byproduct,0.82,0.85,11.5,36.0,25.0,Protein-rich oilseed meal

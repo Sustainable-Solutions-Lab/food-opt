@@ -214,6 +214,40 @@ def _build_luc_lef_lookup(
 logger = logging.getLogger(__name__)
 
 
+def _calculate_ch4_per_product(
+    feed_pool: str, efficiency: float, my_lookup: dict[str, float]
+) -> float | None:
+    """Calculate CH4 emissions (tCH4/t product) for ruminant feed.
+
+    Parameters
+    ----------
+    feed_pool : str
+        Feed category name (e.g., "ruminant_forage", "monogastric_concentrate")
+    efficiency : float
+        Feed conversion efficiency (t product / t feed DM)
+    my_lookup : dict[str, float]
+        Methane yields by feed category (g CH4 / kg DMI)
+
+    Returns
+    -------
+    float | None
+        CH4 emissions in tCH4/t product, or None for non-ruminant feeds
+    """
+    if not feed_pool.startswith("ruminant_"):
+        return None
+
+    # Extract category (forage/concentrate/byproduct)
+    category = feed_pool.split("_", 1)[1]
+
+    # DMI = dry matter intake per tonne product
+    dmi = 1.0 / efficiency  # t DM / t product
+
+    # Convert methane yield from g CH4/kg DM to t CH4/t DM
+    my_t_per_t = my_lookup[category] / 1000.0
+
+    return dmi * my_t_per_t  # t CH4 / t product
+
+
 def add_carriers_and_buses(
     n: pypsa.Network,
     crop_list: list,
@@ -298,33 +332,39 @@ def add_carriers_and_buses(
         ):
             scale_meta["macronutrient_kcal_to_Mcal"] = KCAL_TO_MCAL
 
-    # Feed carriers per country (ruminant-wide and monogastric-only pools)
-    feed_types = ["ruminant", "monogastric"]
-    feed_buses = [f"feed_{ft}_{country}" for country in countries for ft in feed_types]
-    feed_carriers = [f"feed_{ft}" for country in countries for ft in feed_types]
+    # Feed carriers per country (6 pools: ruminant/monogastric × forage/concentrate/byproduct)
+    feed_categories = [
+        "ruminant_forage",
+        "ruminant_concentrate",
+        "ruminant_byproduct",
+        "monogastric_forage",
+        "monogastric_concentrate",
+        "monogastric_byproduct",
+    ]
+    feed_buses = [
+        f"feed_{fc}_{country}" for country in countries for fc in feed_categories
+    ]
+    feed_carriers = [f"feed_{fc}" for country in countries for fc in feed_categories]
     if feed_buses:
         n.add("Carrier", sorted(set(feed_carriers)), unit="t")
         n.add("Bus", feed_buses, carrier=feed_carriers)
 
-    # Primary resource carriers
-    if "water" not in n.carriers.index:
-        n.add("Carrier", "water", unit="km^3")
-    if "fertilizer" not in n.carriers.index:
-        n.add("Carrier", "fertilizer", unit="kg")
-    if "co2" not in n.carriers.index:
-        n.add("Carrier", "co2", unit="t")
-    if "ch4" not in n.carriers.index:
-        n.add("Carrier", "ch4", unit="t")
+    # Water carrier (buses added per region below)
+    n.add("Carrier", "water", unit="km^3")
 
-    # Primary resource buses
-    for carrier in ["fertilizer", "co2", "ch4"]:
-        if carrier not in n.buses.index:
-            n.add("Bus", carrier, carrier=carrier)
+    # Global emission and resource carriers with buses
+    for carrier, unit in [
+        ("fertilizer", "kg"),
+        ("co2", "tCO2"),
+        ("ch4", "tCH4"),
+        ("ghg", "tCO2e"),
+    ]:
+        n.add("Carrier", carrier, unit=unit)
+        n.add("Bus", carrier, carrier=carrier)
 
     for region in water_regions:
         bus_name = f"water_{region}"
-        if bus_name not in n.buses.index:
-            n.add("Bus", bus_name, carrier="water")
+        n.add("Bus", bus_name, carrier="water")
 
 
 def add_primary_resources(
@@ -633,7 +673,7 @@ def add_grassland_feed_links(
     merged["bus0"] = merged.apply(
         lambda r: f"land_{r['region']}_class{int(r['resource_class'])}_r", axis=1
     )
-    merged["bus1"] = merged["country"].apply(lambda c: f"feed_ruminant_{c}")
+    merged["bus1"] = merged["country"].apply(lambda c: f"feed_ruminant_forage_{c}")
 
     luc_emissions = (
         np.array(
@@ -649,7 +689,7 @@ def add_grassland_feed_links(
     )  # tCO2/ha/yr → tCO2/Mha/yr
 
     params = {
-        "carrier": ["feed_ruminant"] * len(merged),
+        "carrier": ["feed_ruminant_forage"] * len(merged),
         "bus0": merged["bus0"].tolist(),
         "bus1": merged["bus1"].tolist(),
         "efficiency": merged["yield"].to_numpy() * 1e6,  # t/ha → t/Mha
@@ -943,147 +983,82 @@ def add_food_conversion_links(
         )
 
 
-def add_crop_to_feed_links(
+def add_feed_supply_links(
     n: pypsa.Network,
+    feed_properties: pd.DataFrame,
     crop_list: list,
-    feed_conversion: pd.DataFrame,
-    countries: list,
-) -> None:
-    """Add links that turn crops into feed for ruminants and monogastrics."""
-
-    if feed_conversion.empty:
-        logger.info("No feed conversion data provided; skipping crop→feed links")
-        return
-
-    df = feed_conversion.copy()
-    if "feed_type" not in df.columns or "efficiency" not in df.columns:
-        raise ValueError(
-            "feed_conversion must contain feed_type and efficiency columns"
-        )
-
-    df["feed_type"] = df["feed_type"].str.strip().str.lower()
-    valid_types = {"ruminant", "monogastric"}
-    invalid_types = sorted(set(df["feed_type"]) - valid_types)
-    if invalid_types:
-        logger.warning(
-            "Ignoring unsupported feed types in feed_conversion: %s",
-            ", ".join(invalid_types),
-        )
-        df = df[df["feed_type"].isin(valid_types)]
-
-    for crop in crop_list:
-        crop_rows = df[df["crop"] == crop]
-        if crop_rows.empty:
-            logger.warning("No feed conversion data for crop '%s', skipping", crop)
-            continue
-
-        for _, row in crop_rows.iterrows():
-            efficiency = float(row["efficiency"])
-            if not np.isfinite(efficiency) or efficiency <= 0:
-                logger.warning(
-                    "Invalid feed efficiency %.3f for crop '%s' (%s), skipping",
-                    efficiency,
-                    crop,
-                    row["feed_type"],
-                )
-                continue
-
-            feed_suffix = (
-                "ruminant" if row["feed_type"] == "ruminant" else "monogastric"
-            )
-            names = [
-                f"convert_{crop}_to_{feed_suffix}_feed_{country}"
-                for country in countries
-            ]
-            bus0 = [f"crop_{crop}_{country}" for country in countries]
-            bus1 = [f"feed_{feed_suffix}_{country}" for country in countries]
-            n.add(
-                "Link",
-                names,
-                bus0=bus0,
-                bus1=bus1,
-                efficiency=[efficiency] * len(countries),
-                marginal_cost=[0.01] * len(countries),
-                p_nom_extendable=[True] * len(countries),
-            )
-
-
-def add_food_to_feed_links(
-    n: pypsa.Network,
     food_list: list,
     food_groups: pd.DataFrame,
-    food_feed_conversion: pd.DataFrame,
     countries: list,
 ) -> None:
-    """Add links that turn foods (especially byproducts) into feed for ruminants and monogastrics.
+    """Add links converting crops and foods into categorized feed pools.
 
-    This enables byproducts like bran and meal to be used as animal feed instead of
-    being consumed by humans.
+    Uses unified feed_properties database to route items to appropriate
+    feed pools based on animal type (ruminant/monogastric) and feed category
+    (forage/concentrate/byproduct).
     """
-    if food_feed_conversion.empty:
-        logger.info("No food feed conversion data provided; skipping food→feed links")
+    if feed_properties.empty:
+        logger.info("No feed properties data provided; skipping feed supply links")
         return
 
-    df = food_feed_conversion.copy()
-    required_cols = {"food", "feed_type", "efficiency"}
+    df = feed_properties.copy()
+    required_cols = {
+        "feed_item",
+        "source_type",
+        "feed_category",
+        "digestibility_ruminant",
+        "digestibility_monogastric",
+    }
     missing_cols = required_cols - set(df.columns)
     if missing_cols:
         raise ValueError(
-            f"food_feed_conversion must contain columns: {', '.join(sorted(missing_cols))}"
+            f"feed_properties must contain columns: {', '.join(sorted(missing_cols))}"
         )
 
-    df["feed_type"] = df["feed_type"].str.strip().str.lower()
-    df["food"] = df["food"].str.strip()
-    valid_types = {"ruminant", "monogastric"}
-    invalid_types = sorted(set(df["feed_type"]) - valid_types)
-    if invalid_types:
-        logger.warning(
-            "Ignoring unsupported feed types in food_feed_conversion: %s",
-            ", ".join(invalid_types),
-        )
-        df = df[df["feed_type"].isin(valid_types)]
+    df["feed_item"] = df["feed_item"].str.strip()
+    df["source_type"] = df["source_type"].str.strip().str.lower()
+    df["feed_category"] = df["feed_category"].str.strip().str.lower()
 
-    # Get byproduct foods
-    byproduct_foods = set(food_groups.loc[food_groups["group"] == "byproduct", "food"])
+    # Process each feed item
+    for _, row in df.iterrows():
+        item = row["feed_item"]
+        source_type = row["source_type"]
+        category = row["feed_category"]
 
-    for food in food_list:
-        food_rows = df[df["food"] == food]
-        if food_rows.empty:
-            if food in byproduct_foods:
-                logger.warning(
-                    "Byproduct food '%s' has no feed conversion data, skipping", food
-                )
+        # Skip if item not in configured lists
+        if source_type == "crop" and item not in crop_list:
+            continue
+        if source_type == "food" and item not in food_list:
             continue
 
-        for _, row in food_rows.iterrows():
-            efficiency = float(row["efficiency"])
-            if not np.isfinite(efficiency) or efficiency <= 0:
-                logger.warning(
-                    "Invalid feed efficiency %.3f for food '%s' (%s), skipping",
-                    efficiency,
-                    food,
-                    row["feed_type"],
-                )
-                continue
+        dig_ruminant = float(row["digestibility_ruminant"])
+        dig_monogastric = float(row["digestibility_monogastric"])
 
-            feed_suffix = (
-                "ruminant" if row["feed_type"] == "ruminant" else "monogastric"
-            )
-            clean_food_name = food.replace(" ", "_").replace("(", "").replace(")", "")
+        # Create links for both animal types
+        for animal_type, digestibility in [
+            ("ruminant", dig_ruminant),
+            ("monogastric", dig_monogastric),
+        ]:
+            feed_pool = f"{animal_type}_{category}"
+            bus_prefix = "crop" if source_type == "crop" else "food"
+            link_prefix = "convert" if source_type == "crop" else "convert_food"
+
             names = [
-                f"convert_food_{clean_food_name}_to_{feed_suffix}_feed_{country}"
+                f"{link_prefix}_{item}_to_{feed_pool}_feed_{country}"
                 for country in countries
             ]
-            bus0 = [f"food_{food}_{country}" for country in countries]
-            bus1 = [f"feed_{feed_suffix}_{country}" for country in countries]
+            bus0 = [f"{bus_prefix}_{item}_{country}" for country in countries]
+            bus1 = [f"feed_{feed_pool}_{country}" for country in countries]
+
             n.add(
                 "Link",
                 names,
                 bus0=bus0,
                 bus1=bus1,
-                efficiency=[efficiency] * len(countries),
-                marginal_cost=[0.01] * len(countries),
-                p_nom_extendable=[True] * len(countries),
+                carrier="convert_to_feed",
+                efficiency=digestibility,
+                marginal_cost=0.01,
+                p_nom_extendable=True,
             )
 
 
@@ -1091,72 +1066,65 @@ def add_feed_to_animal_product_links(
     n: pypsa.Network,
     animal_products: list,
     feed_requirements: pd.DataFrame,
+    enteric_methane_yields: pd.DataFrame,
     countries: list,
 ) -> None:
-    """Add links that convert feed pools into animal products."""
+    """Add links that convert feed pools into animal products with CH4 emissions.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The network to add links to
+    animal_products : list
+        List of animal product names
+    feed_requirements : pd.DataFrame
+        Feed requirements with columns: product, feed_category, efficiency
+    enteric_methane_yields : pd.DataFrame
+        Methane yields with columns: feed_category, MY_g_CH4_per_kg_DMI
+    countries : list
+        List of country codes
+    """
 
     if not animal_products:
         logger.info("No animal products configured; skipping feed→animal links")
         return
 
-    if feed_requirements.empty:
-        logger.warning("Animal products configured but feed requirement data is empty")
-        return
+    # Build methane yield lookup from feed category; "my" = "methane yield"
+    my_lookup = (
+        enteric_methane_yields.set_index("feed_category")["MY_g_CH4_per_kg_DMI"]
+        .astype(float)
+        .to_dict()
+    )
 
     df = feed_requirements.copy()
-    if "feed_type" not in df.columns or "efficiency" not in df.columns:
-        raise ValueError(
-            "feed_to_animal_products must contain feed_type and efficiency columns"
-        )
-
-    df["feed_type"] = df["feed_type"].str.strip().str.lower()
-    df["product"] = df["product"].str.strip()
     df = df[df["product"].isin(animal_products)]
-    if df.empty:
-        logger.warning(
-            "No feed requirement data for configured animal products: %s",
-            ", ".join(sorted(animal_products)),
-        )
-        return
-
-    valid_types = {"ruminant", "monogastric"}
-    invalid_types = sorted(set(df["feed_type"]) - valid_types)
-    if invalid_types:
-        logger.warning(
-            "Ignoring unsupported feed types in feed_to_animal_products: %s",
-            ", ".join(invalid_types),
-        )
-        df = df[df["feed_type"].isin(valid_types)]
-
     for _, row in df.iterrows():
         efficiency = float(row["efficiency"])
-        if not np.isfinite(efficiency) or efficiency <= 0:
-            logger.warning(
-                "Invalid feed efficiency %.3f for product '%s' (%s), skipping",
-                efficiency,
-                row["product"],
-                row["feed_type"],
-            )
-            continue
-
-        feed_suffix = "ruminant" if row["feed_type"] == "ruminant" else "monogastric"
+        feed_pool = row["feed_category"]
         product = row["product"]
-        clean_name = product.replace(" ", "_").replace("(", "").replace(")", "")
+
         names = [
-            f"produce_{clean_name}_from_{feed_suffix}_{country}"
-            for country in countries
+            f"produce_{product}_from_{feed_pool}_{country}" for country in countries
         ]
-        bus0 = [f"feed_{feed_suffix}_{country}" for country in countries]
+        bus0 = [f"feed_{feed_pool}_{country}" for country in countries]
         bus1 = [f"food_{product}_{country}" for country in countries]
-        n.add(
-            "Link",
-            names,
-            bus0=bus0,
-            bus1=bus1,
-            efficiency=[efficiency] * len(countries),
-            marginal_cost=[0.02] * len(countries),
-            p_nom_extendable=[True] * len(countries),
-        )
+
+        ch4_emissions = _calculate_ch4_per_product(feed_pool, efficiency, my_lookup)
+
+        link_params = {
+            "bus0": bus0,
+            "bus1": bus1,
+            "carrier": f"produce_{product}",
+            "efficiency": efficiency,
+            "marginal_cost": 0.0,
+            "p_nom_extendable": True,
+        }
+
+        if ch4_emissions is not None:
+            link_params["bus2"] = "ch4"
+            link_params["efficiency2"] = ch4_emissions
+
+        n.add("Link", names, **link_params)
 
 
 def add_food_group_buses_and_loads(
@@ -1725,14 +1693,14 @@ if __name__ == "__main__":
     # Read nutrition data
     nutrition = read_csv(snakemake.input.nutrition, index_col=["food", "nutrient"])
 
-    # Read feed conversion data (crop -> feed pools)
-    feed_conversion = read_csv(snakemake.input.feed_conversion)
+    # Read unified feed properties database
+    feed_properties = read_csv(snakemake.input.feed_properties)
 
     # Read feed requirements for animal products (feed pools -> foods)
     feed_to_products = read_csv(snakemake.input.feed_to_products)
 
-    # Read food-to-feed conversion data (foods, especially byproducts -> feed pools)
-    food_feed_conversion = read_csv(snakemake.input.food_feed_conversion)
+    # Read enteric methane yields for CH4 emissions from ruminants
+    enteric_methane_yields = read_csv(snakemake.input.enteric_methane_yields)
 
     # Read food loss & waste fractions per country and food group
     food_loss_waste = read_csv(snakemake.input.food_loss_waste)
@@ -2061,7 +2029,6 @@ if __name__ == "__main__":
             set(cfg_countries),
             luc_lef_lookup,
         )
-    add_crop_to_feed_links(n, crop_list, feed_conversion, cfg_countries)
     add_food_conversion_links(
         n,
         food_list,
@@ -2072,11 +2039,16 @@ if __name__ == "__main__":
         food_to_group,
         food_loss_waste,
     )
-    add_feed_to_animal_product_links(
-        n, animal_product_list, feed_to_products, cfg_countries
+    add_feed_supply_links(
+        n,
+        feed_properties,
+        crop_list,
+        food_list,
+        food_groups,
+        cfg_countries,
     )
-    add_food_to_feed_links(
-        n, food_list, food_groups, food_feed_conversion, cfg_countries
+    add_feed_to_animal_product_links(
+        n, animal_product_list, feed_to_products, enteric_methane_yields, cfg_countries
     )
     add_food_group_buses_and_loads(
         n,

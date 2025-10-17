@@ -20,6 +20,7 @@ primary:
 # --- section: emissions ---
 emissions:
   ghg_price: 200 # USD/tCO2-eq (emissions tracked in tonnes)
+  ch4_to_co2_factor: 27.2 # IPCC AR6 GWP100 (incl. climate-carbon feedback) for CH4
 
 # --- section: land use change ---
 luc:
