@@ -21,6 +21,7 @@ primary:
 emissions:
   ghg_price: 200 # USD/tCO2-eq (emissions tracked in tonnes)
 
+# --- section: land use change ---
 luc:
   horizon_years: 25
   managed_flux_mode: "zero"

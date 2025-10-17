@@ -191,7 +191,23 @@ Emissions Pricing
 .. literalinclude:: ../config/default.yaml
    :language: yaml
    :start-after: # --- section: emissions ---
+   :end-before: # --- section: land use change ---
+
+Land Use Change
+~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../config/default.yaml
+   :language: yaml
+   :start-after: # --- section: land use change ---
    :end-before: # --- section: crops ---
+
+Controls how land use change emissions and carbon sequestration are modeled over the planning horizon.
+
+**Parameters**:
+  * ``horizon_years``: Time horizon (years) for amortizing land use change emissions
+  * ``managed_flux_mode``: How to treat emissions from existing managed land (``"zero"`` assumes no net flux from current agricultural land)
+  * ``forest_fraction_threshold``: Minimum forest cover fraction (0-1) required for a grid cell to be eligible for regrowth sequestration when land is spared
+  * ``spared_land_agb_threshold_tc_per_ha``: Maximum above-ground biomass (tonnes C per hectare) for spared land to be eligible for regrowth sequestration
 
 Health Configuration
 ~~~~~~~~~~~~~~~~~~~~

@@ -9,6 +9,7 @@ for all documentation figures. It complements the matplotlib style sheet
 with domain-specific configuration.
 """
 
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -112,6 +113,13 @@ def get_crop_fallback_cmap(config: dict) -> str:
     return config.get("plotting", {}).get("fallback_cmaps", {}).get("crops", "Set3")
 
 
+class _FindfontFilter(logging.Filter):
+    """Filter out matplotlib's verbose findfont messages."""
+
+    def filter(self, record):
+        return not record.getMessage().startswith("findfont:")
+
+
 def apply_doc_style():
     """Apply documentation figure styling to matplotlib.
 
@@ -119,6 +127,10 @@ def apply_doc_style():
     programmatic styling that can't be set via mplstyle files.
     """
     import matplotlib.pyplot as plt
+
+    # Suppress only findfont messages while keeping other warnings
+    font_logger = logging.getLogger("matplotlib.font_manager")
+    font_logger.addFilter(_FindfontFilter())
 
     # Get path to style sheet (relative to this file)
     style_path = Path(__file__).parent / "doc_figures_style.mplstyle"
