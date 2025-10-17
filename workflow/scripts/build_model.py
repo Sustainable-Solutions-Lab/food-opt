@@ -375,25 +375,25 @@ def add_primary_resources(
     ch4_to_co2_factor: float,
 ) -> None:
     """Add primary resource components and emissions bookkeeping."""
-    for region, raw_limit in region_water_limits.items():
-        limit = float(raw_limit)
-        if limit <= 0:
-            continue
-        limit_km3 = limit * KM3_PER_M3
-        store_name = f"water_store_{region}"
-        bus_name = f"water_{region}"
-        n.add(
-            "Store",
-            store_name,
-            bus=bus_name,
-            carrier="water",
-            e_nom=limit_km3,
-            e_initial=limit_km3,
-            e_nom_extendable=False,
-            e_cyclic=False,
-            p_nom=limit_km3,
-            p_nom_extendable=False,
-        )
+    # Filter to positive water limits and build stores
+    df = region_water_limits[region_water_limits > 0].to_frame("limit_m3")
+    df["limit_km3"] = df["limit_m3"] * KM3_PER_M3
+    store_names = [f"water_store_{region}" for region in df.index]
+    bus_names = [f"water_{region}" for region in df.index]
+    limit_km3 = df["limit_km3"].tolist()
+
+    n.add(
+        "Store",
+        store_names,
+        bus=bus_names,
+        carrier="water",
+        e_nom=limit_km3,
+        e_initial=limit_km3,
+        e_nom_extendable=False,
+        e_cyclic=False,
+        p_nom=limit_km3,
+        p_nom_extendable=False,
+    )
 
     scale_meta = n.meta.setdefault("carrier_unit_scale", {})
     scale_meta["water_km3_per_m3"] = KM3_PER_M3
@@ -689,17 +689,17 @@ def add_grassland_feed_links(
     )  # tCO2/ha/yr → tCO2/Mha/yr
 
     params = {
-        "carrier": ["feed_ruminant_forage"] * len(merged),
+        "carrier": "feed_ruminant_forage",
         "bus0": merged["bus0"].tolist(),
         "bus1": merged["bus1"].tolist(),
         "efficiency": merged["yield"].to_numpy() * 1e6,  # t/ha → t/Mha
         "p_nom_max": merged["available_area"].to_numpy() / 1e6,  # ha → Mha
-        "p_nom_extendable": [True] * len(merged),
-        "marginal_cost": [0.0] * len(merged),
+        "p_nom_extendable": True,
+        "marginal_cost": 0.0,
     }
 
     if not np.allclose(luc_emissions, 0.0):
-        params["bus2"] = ["co2"] * len(merged)
+        params["bus2"] = "co2"
         params["efficiency2"] = luc_emissions
 
     n.add("Link", merged["name"].tolist(), **params)
@@ -730,65 +730,69 @@ def add_spared_land_links(
         logger.info("No LUC LEF entries available for spared land; skipping")
         return
 
-    entries: list[dict[str, object]] = []
-    filtered_zero_lef = 0
+    # Build DataFrame with LEF values
+    df = land_class_df.reset_index()
+    df["resource_class"] = df["resource_class"].astype(int)
+    df["lef"] = df.apply(
+        lambda r: luc_lef_lookup.get(
+            (r["region"], int(r["resource_class"]), r["water_supply"], "spared"), 0.0
+        ),
+        axis=1,
+    )
 
-    for (region, water_supply, resource_class), row in land_class_df.iterrows():
-        key = (region, int(resource_class), water_supply, "spared")
-        lef = float(luc_lef_lookup.get(key, 0.0))
-        if lef == 0.0:
-            filtered_zero_lef += 1
-            continue
+    # Filter to entries with positive LEF and area
+    filtered_count = (df["lef"] == 0.0).sum()
+    df = df[(df["lef"] != 0.0) & (df["area_ha"] > 0)].copy()
 
-        area_mha = float(row["area_ha"]) / 1e6
-        if area_mha <= 0:
-            continue
-        entries.append(
-            {
-                "name": f"spare_{region}_class{int(resource_class)}_{water_supply}",
-                "bus0": f"land_{region}_class{int(resource_class)}_{water_supply}",
-                "sink_bus": f"land_spared_{region}_class{int(resource_class)}_{water_supply}",
-                "lef": lef,
-                "p_nom_max": area_mha,
-            }
-        )
+    if filtered_count > 0:
+        logger.debug("Filtered %d spared land entries with zero LEF", filtered_count)
 
-    if filtered_zero_lef > 0:
-        logger.debug("Filtered %d spared land entries with zero LEF", filtered_zero_lef)
-
-    if not entries:
+    if df.empty:
         logger.info("No eligible spared land entries; skipping spared links")
         return
 
-    logger.info("Adding %d spared land links", len(entries))
+    # Build bus and link names
+    df["link_name"] = df.apply(
+        lambda r: f"spare_{r['region']}_class{r['resource_class']}_{r['water_supply']}",
+        axis=1,
+    )
+    df["bus0"] = df.apply(
+        lambda r: f"land_{r['region']}_class{r['resource_class']}_{r['water_supply']}",
+        axis=1,
+    )
+    df["sink_bus"] = df.apply(
+        lambda r: f"land_spared_{r['region']}_class{r['resource_class']}_{r['water_supply']}",
+        axis=1,
+    )
+    df["area_mha"] = df["area_ha"] / 1e6
 
+    # Add carrier and sink buses
     n.add("Carrier", "spared_land", unit="Mha")
+    n.add("Bus", df["sink_bus"].tolist(), carrier="spared_land")
 
-    for entry in entries:
-        sink_bus = str(entry["sink_bus"])
-        if sink_bus not in n.buses.index:
-            n.add("Bus", sink_bus, carrier="spared_land")
-        store_name = f"{sink_bus}_store"
-        if store_name not in n.stores.index:
-            n.add(
-                "Store",
-                store_name,
-                bus=sink_bus,
-                carrier="spared_land",
-                e_nom_extendable=True,
-            )
-        n.add(
-            "Link",
-            str(entry["name"]),
-            carrier="spared_land",
-            bus0=str(entry["bus0"]),
-            bus1=sink_bus,
-            efficiency=1.0,
-            bus2="co2",
-            efficiency2=float(entry["lef"]) * 1e6,  # tCO2/ha/yr → tCO2/Mha/yr
-            p_nom_extendable=True,
-            p_nom_max=float(entry["p_nom_max"]),
-        )
+    # Add stores for sink buses
+    store_names = [f"{bus}_store" for bus in df["sink_bus"]]
+    n.add(
+        "Store",
+        store_names,
+        bus=df["sink_bus"].tolist(),
+        carrier="spared_land",
+        e_nom_extendable=True,
+    )
+
+    # Add spared land links
+    n.add(
+        "Link",
+        df["link_name"].tolist(),
+        carrier="spared_land",
+        bus0=df["bus0"].tolist(),
+        bus1=df["sink_bus"].tolist(),
+        efficiency=1.0,
+        bus2="co2",
+        efficiency2=(df["lef"] * 1e6).to_numpy(),  # tCO2/ha/yr → tCO2/Mha/yr
+        p_nom_extendable=True,
+        p_nom_max=df["area_mha"].to_numpy(),
+    )
 
 
 def add_food_conversion_links(
@@ -894,8 +898,8 @@ def add_food_conversion_links(
         # Build parameters for multi-output link
         link_params = {
             "bus0": bus0,
-            "marginal_cost": [0.01] * len(normalized_countries),
-            "p_nom_extendable": [True] * len(normalized_countries),
+            "marginal_cost": 0.01,
+            "p_nom_extendable": True,
         }
 
         # Add each output food as a separate bus with its efficiency
@@ -1019,47 +1023,69 @@ def add_feed_supply_links(
     df["source_type"] = df["source_type"].str.strip().str.lower()
     df["feed_category"] = df["feed_category"].str.strip().str.lower()
 
-    # Process each feed item
-    for _, row in df.iterrows():
+    # Filter to items in configured lists
+    df = df[
+        ((df["source_type"] == "crop") & df["feed_item"].isin(crop_list))
+        | ((df["source_type"] == "food") & df["feed_item"].isin(food_list))
+    ]
+
+    if df.empty:
+        logger.info(
+            "No feed items match configured crops/foods; skipping feed supply links"
+        )
+        return
+
+    # Expand each feed item into two rows (ruminant and monogastric)
+    ruminant_df = df.copy()
+    ruminant_df["animal_type"] = "ruminant"
+    ruminant_df["digestibility"] = ruminant_df["digestibility_ruminant"].astype(float)
+
+    monogastric_df = df.copy()
+    monogastric_df["animal_type"] = "monogastric"
+    monogastric_df["digestibility"] = monogastric_df[
+        "digestibility_monogastric"
+    ].astype(float)
+
+    expanded = pd.concat([ruminant_df, monogastric_df], ignore_index=True)
+
+    # Build derived columns
+    expanded["feed_pool"] = expanded["animal_type"] + "_" + expanded["feed_category"]
+    expanded["bus_prefix"] = expanded["source_type"].map(
+        {"crop": "crop", "food": "food"}
+    )
+    expanded["link_prefix"] = expanded["source_type"].map(
+        {"crop": "convert", "food": "convert_food"}
+    )
+
+    # Build all link names and buses (one set per country)
+    all_names = []
+    all_bus0 = []
+    all_bus1 = []
+    all_efficiency = []
+
+    for _, row in expanded.iterrows():
         item = row["feed_item"]
-        source_type = row["source_type"]
-        category = row["feed_category"]
+        feed_pool = row["feed_pool"]
+        bus_prefix = row["bus_prefix"]
+        link_prefix = row["link_prefix"]
+        digestibility = row["digestibility"]
 
-        # Skip if item not in configured lists
-        if source_type == "crop" and item not in crop_list:
-            continue
-        if source_type == "food" and item not in food_list:
-            continue
+        for country in countries:
+            all_names.append(f"{link_prefix}_{item}_to_{feed_pool}_feed_{country}")
+            all_bus0.append(f"{bus_prefix}_{item}_{country}")
+            all_bus1.append(f"feed_{feed_pool}_{country}")
+            all_efficiency.append(digestibility)
 
-        dig_ruminant = float(row["digestibility_ruminant"])
-        dig_monogastric = float(row["digestibility_monogastric"])
-
-        # Create links for both animal types
-        for animal_type, digestibility in [
-            ("ruminant", dig_ruminant),
-            ("monogastric", dig_monogastric),
-        ]:
-            feed_pool = f"{animal_type}_{category}"
-            bus_prefix = "crop" if source_type == "crop" else "food"
-            link_prefix = "convert" if source_type == "crop" else "convert_food"
-
-            names = [
-                f"{link_prefix}_{item}_to_{feed_pool}_feed_{country}"
-                for country in countries
-            ]
-            bus0 = [f"{bus_prefix}_{item}_{country}" for country in countries]
-            bus1 = [f"feed_{feed_pool}_{country}" for country in countries]
-
-            n.add(
-                "Link",
-                names,
-                bus0=bus0,
-                bus1=bus1,
-                carrier="convert_to_feed",
-                efficiency=digestibility,
-                marginal_cost=0.01,
-                p_nom_extendable=True,
-            )
+    n.add(
+        "Link",
+        all_names,
+        bus0=all_bus0,
+        bus1=all_bus1,
+        carrier="convert_to_feed",
+        efficiency=all_efficiency,
+        marginal_cost=0.01,
+        p_nom_extendable=True,
+    )
 
 
 def add_feed_to_animal_product_links(
@@ -1098,33 +1124,68 @@ def add_feed_to_animal_product_links(
 
     df = feed_requirements.copy()
     df = df[df["product"].isin(animal_products)]
+
+    if df.empty:
+        return
+
+    # Calculate CH4 emissions for each row
+    df["efficiency"] = df["efficiency"].astype(float)
+    df["ch4_emissions"] = df.apply(
+        lambda r: _calculate_ch4_per_product(
+            r["feed_category"], r["efficiency"], my_lookup
+        ),
+        axis=1,
+    )
+
+    # Build all link names and buses (expand each row for all countries)
+    all_names = []
+    all_bus0 = []
+    all_bus1 = []
+    all_carrier = []
+    all_efficiency = []
+    all_ch4 = []
+
     for _, row in df.iterrows():
-        efficiency = float(row["efficiency"])
-        feed_pool = row["feed_category"]
-        product = row["product"]
+        for country in countries:
+            all_names.append(
+                f"produce_{row['product']}_from_{row['feed_category']}_{country}"
+            )
+            all_bus0.append(f"feed_{row['feed_category']}_{country}")
+            all_bus1.append(f"food_{row['product']}_{country}")
+            all_carrier.append(f"produce_{row['product']}")
+            all_efficiency.append(row["efficiency"])
+            all_ch4.append(row["ch4_emissions"])
 
-        names = [
-            f"produce_{product}_from_{feed_pool}_{country}" for country in countries
-        ]
-        bus0 = [f"feed_{feed_pool}_{country}" for country in countries]
-        bus1 = [f"food_{product}_{country}" for country in countries]
+    # Split into links with and without CH4 emissions
+    has_ch4 = [ch4 is not None for ch4 in all_ch4]
 
-        ch4_emissions = _calculate_ch4_per_product(feed_pool, efficiency, my_lookup)
+    if any(has_ch4):
+        ch4_indices = [i for i, has in enumerate(has_ch4) if has]
+        n.add(
+            "Link",
+            [all_names[i] for i in ch4_indices],
+            bus0=[all_bus0[i] for i in ch4_indices],
+            bus1=[all_bus1[i] for i in ch4_indices],
+            carrier=[all_carrier[i] for i in ch4_indices],
+            efficiency=[all_efficiency[i] for i in ch4_indices],
+            marginal_cost=0.0,
+            p_nom_extendable=True,
+            bus2="ch4",
+            efficiency2=[all_ch4[i] for i in ch4_indices],
+        )
 
-        link_params = {
-            "bus0": bus0,
-            "bus1": bus1,
-            "carrier": f"produce_{product}",
-            "efficiency": efficiency,
-            "marginal_cost": 0.0,
-            "p_nom_extendable": True,
-        }
-
-        if ch4_emissions is not None:
-            link_params["bus2"] = "ch4"
-            link_params["efficiency2"] = ch4_emissions
-
-        n.add("Link", names, **link_params)
+    if not all(has_ch4):
+        no_ch4_indices = [i for i, has in enumerate(has_ch4) if not has]
+        n.add(
+            "Link",
+            [all_names[i] for i in no_ch4_indices],
+            bus0=[all_bus0[i] for i in no_ch4_indices],
+            bus1=[all_bus1[i] for i in no_ch4_indices],
+            carrier=[all_carrier[i] for i in no_ch4_indices],
+            efficiency=[all_efficiency[i] for i in no_ch4_indices],
+            marginal_cost=0.0,
+            p_nom_extendable=True,
+        )
 
 
 def add_food_group_buses_and_loads(
@@ -1400,7 +1461,7 @@ def add_food_nutrition_links(
             )
             eff_lists.append([eff_val * factor] * len(countries))
 
-        params = {"bus0": bus0, "marginal_cost": [0.01] * len(countries)}
+        params = {"bus0": bus0, "marginal_cost": 0.01}
         for i, (buses, effs) in enumerate(zip(out_bus_lists, eff_lists), start=1):
             params[f"bus{i}"] = buses
             params["efficiency" if i == 1 else f"efficiency{i}"] = effs
@@ -1409,9 +1470,9 @@ def add_food_nutrition_links(
         if group_val is not None and pd.notna(group_val):
             idx = len(nutrients) + 1
             params[f"bus{idx}"] = [f"group_{group_val}_{c}" for c in countries]
-            params[f"efficiency{idx}"] = [TONNE_TO_MEGATONNE] * len(countries)
+            params[f"efficiency{idx}"] = TONNE_TO_MEGATONNE
 
-        n.add("Link", names, p_nom_extendable=[True] * len(countries), **params)
+        n.add("Link", names, p_nom_extendable=True, **params)
 
 
 def _resolve_trade_costs(
