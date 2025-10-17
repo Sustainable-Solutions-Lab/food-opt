@@ -332,8 +332,9 @@ def add_primary_resources(
     primary_config: dict,
     region_water_limits: pd.Series,
     co2_price: float,
+    ch4_to_co2_factor: float,
 ) -> None:
-    """Add stores for primary resources with their limits."""
+    """Add primary resource components and emissions bookkeeping."""
     for region, raw_limit in region_water_limits.items():
         limit = float(raw_limit)
         if limit <= 0:
@@ -358,43 +359,45 @@ def add_primary_resources(
     scale_meta["water_km3_per_m3"] = KM3_PER_M3
 
     # Fertilizer remains global (no regionalization yet)
-    if "fertilizer" not in n.stores.index:
-        n.add("Store", "fertilizer", bus="fertilizer", carrier="fertilizer")
-    if "fertilizer" not in n.generators.index:
-        n.add(
-            "Generator",
-            "fertilizer",
-            bus="fertilizer",
-            carrier="fertilizer",
-            p_nom_extendable=True,
-        )
+    n.add(
+        "Generator",
+        "fertilizer",
+        bus="fertilizer",
+        carrier="fertilizer",
+        p_nom_extendable=True,
+        p_nom_max=float(primary_config["fertilizer"]["limit"]),
+    )
 
-    # Add stores for emissions with costs to create objective
-    if "co2" not in n.stores.index:
-        n.add("Store", "co2", bus="co2", carrier="co2", e_nom_extendable=True)
-    if "ch4" not in n.stores.index:
-        n.add("Store", "ch4", bus="ch4", carrier="ch4", e_nom_extendable=True)
-
-    # Set resource limits from config for fertilizer store
-    try:
-        fertilizer_limit = float(primary_config["fertilizer"]["limit"])
-    except KeyError as exc:
-        missing = (
-            "primary.fertilizer"
-            if exc.args and exc.args[0] == "fertilizer"
-            else "primary.fertilizer.limit"
-        )
-        raise KeyError(
-            f"Configuration missing `{missing}`; define a fertilizer limit under `primary` in config.yaml."
-        ) from exc
-
-    n.stores.at["fertilizer", "e_nom_max"] = fertilizer_limit
-
-    # Track CO2 balance with extendable store charged at carbon price
-    n.stores.at["co2", "marginal_cost"] = co2_price
-    n.stores.at["co2", "e_nom_extendable"] = True
-    n.stores.at["co2", "p_nom_extendable"] = True
-    n.stores.at["co2", "e_nom_min"] = -np.inf
+    # Add GHG aggregation store and links from individual gases
+    n.add(
+        "Store",
+        "ghg",
+        bus="ghg",
+        carrier="ghg",
+        e_nom_extendable=True,
+        e_nom_min=-np.inf,
+        e_min_pu=-1.0,
+        marginal_cost_storage=co2_price,
+    )
+    n.add(
+        "Link",
+        "convert_co2_to_ghg",
+        bus0="co2",
+        bus1="ghg",
+        carrier="co2",
+        efficiency=1.0,
+        p_min_pu=-1.0,  # allow negative emissions flow
+        p_nom_extendable=True,
+    )
+    n.add(
+        "Link",
+        "convert_ch4_to_ghg",
+        bus0="ch4",
+        bus1="ghg",
+        carrier="ch4",
+        efficiency=ch4_to_co2_factor,
+        p_nom_extendable=True,
+    )
 
 
 def add_regional_crop_production_links(
@@ -719,33 +722,30 @@ def add_spared_land_links(
 
     logger.info("Adding %d spared land links", len(entries))
 
+    n.add("Carrier", "spared_land", unit="Mha")
+
     for entry in entries:
         sink_bus = str(entry["sink_bus"])
         if sink_bus not in n.buses.index:
-            n.add("Bus", sink_bus, carrier="land")
+            n.add("Bus", sink_bus, carrier="spared_land")
         store_name = f"{sink_bus}_store"
         if store_name not in n.stores.index:
-            p_max = float(entry["p_nom_max"])
             n.add(
                 "Store",
                 store_name,
                 bus=sink_bus,
-                carrier="land",
+                carrier="spared_land",
                 e_nom_extendable=True,
-                e_nom_max=p_max,
-                p_nom_extendable=True,
-                p_nom_max=p_max,
             )
         n.add(
             "Link",
             str(entry["name"]),
-            carrier="land",
+            carrier="spared_land",
             bus0=str(entry["bus0"]),
             bus1=sink_bus,
             efficiency=1.0,
             bus2="co2",
             efficiency2=float(entry["lef"]) * 1e6,  # tCO2/ha/yr → tCO2/Mha/yr
-            marginal_cost=0.0,
             p_nom_extendable=True,
             p_nom_max=float(entry["p_nom_max"]),
         )
@@ -1801,7 +1801,10 @@ if __name__ == "__main__":
     ).sort_index()
 
     luc_lef_lookup: dict[tuple[str, int, str, str], float] = {}
-    carbon_price = float(snakemake.params.emissions.get("ghg_price", 0.0))
+    carbon_price = float(snakemake.params.emissions["ghg_price"])
+    ch4_to_co2_factor = float(snakemake.params.emissions["ch4_to_co2_factor"])
+    if ch4_to_co2_factor <= 0.0:
+        raise ValueError("`emissions.ch4_to_co2_factor` must be positive.")
     try:
         luc_coefficients_path = snakemake.input.luc_carbon_coefficients
         luc_coeff_df = read_csv(luc_coefficients_path)
@@ -2021,6 +2024,7 @@ if __name__ == "__main__":
         snakemake.params.primary,
         positive_water_limits,
         carbon_price,
+        ch4_to_co2_factor,
     )
 
     # Add class-level land buses and generators (shared pools), replacing region-level caps

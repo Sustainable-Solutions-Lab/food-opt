@@ -133,86 +133,6 @@ def rescale_objective(
     return scale_factor
 
 
-def add_ghg_constraint(n: pypsa.Network, primary: dict) -> None:
-    """Add greenhouse gas constraint (combining CO2 and CH4 using GWP)."""
-    if "ghg" in primary:
-        logger.info("Adding greenhouse gas constraint...")
-        ghg_limit = float(primary["ghg"]["limit"])  # t CO2-eq
-
-        # Get the linopy model
-        m = n.model
-
-        # GWP values: CO2 = 1, CH4 = 25 (100-year GWP)
-        ghg_expression = None
-
-        # Add CO2 contribution if CO2 store exists
-        if "co2" in n.stores.index:
-            co2_store_idx = n.stores.index.get_loc("co2")
-            co2_term = (
-                m.variables["Store-e"].isel(name=co2_store_idx, snapshot=-1) * 1
-            )  # GWP = 1
-            ghg_expression = co2_term
-
-        # Add CH4 contribution if CH4 store exists
-        if "ch4" in n.stores.index:
-            ch4_store_idx = n.stores.index.get_loc("ch4")
-            ch4_term = (
-                m.variables["Store-e"].isel(name=ch4_store_idx, snapshot=-1) * 25
-            )  # GWP = 25
-            if ghg_expression is not None:
-                ghg_expression = ghg_expression + ch4_term
-            else:
-                ghg_expression = ch4_term
-
-        # Add constraint if we have any GHG emissions
-        if ghg_expression is not None:
-            m.add_constraints(ghg_expression <= ghg_limit, name="max_ghg_emissions")
-            logger.info("Total GHG limit: %.1f Gt CO2-eq", ghg_limit / 1e12)
-
-
-def add_ghg_objective(n: pypsa.Network, ghg_price: float) -> None:
-    """Add GHG emissions to the objective function.
-
-    Args:
-        ghg_price: Price per tonne of CO2-equivalent (USD/tCO2-eq)
-    """
-    logger.info("Adding GHG emissions to objective function...")
-
-    # Get the linopy model
-    m = n.model
-
-    # GWP values: CO2 = 1, CH4 = 25 (100-year GWP)
-    ghg_expression = None
-
-    # Add CO2 contribution if CO2 store exists (emissions in tonnes)
-    if "co2" in n.stores.index:
-        co2_store_idx = n.stores.index.get_loc("co2")
-        co2_term = (
-            m.variables["Store-e"].isel(name=co2_store_idx, snapshot=-1) * 1
-        )  # GWP = 1
-        ghg_expression = co2_term
-        logger.info("Added CO2 emissions to objective")
-
-    # Add CH4 contribution if CH4 store exists (emissions in tonnes)
-    if "ch4" in n.stores.index:
-        ch4_store_idx = n.stores.index.get_loc("ch4")
-        ch4_term = (
-            m.variables["Store-e"].isel(name=ch4_store_idx, snapshot=-1) * 25
-        )  # GWP = 25
-        if ghg_expression is not None:
-            ghg_expression = ghg_expression + ch4_term
-        else:
-            ghg_expression = ch4_term
-        logger.info("Added CH4 emissions to objective")
-
-    # Add GHG emissions to objective if we have any
-    if ghg_expression is not None:
-        # Add to objective (minimizing GHG emissions)
-        # ghg_price is USD/tCO2-eq, ghg_expression is in tCO2-eq, so units match
-        m.objective = m.objective + ghg_price * ghg_expression
-        logger.info("GHG weight in objective: %s USD/tCO2-eq", ghg_price)
-
-
 def sanitize_identifier(value: str) -> str:
     return (
         value.replace(" ", "_")
@@ -547,12 +467,6 @@ if __name__ == "__main__":
     logger.info("Creating linopy model...")
     n.optimize.create_model()
     logger.info("Linopy model created.")
-
-    # Add GHG constraint if specified
-    add_ghg_constraint(n, snakemake.params.primary)
-
-    # Add GHG emissions to objective function
-    add_ghg_objective(n, float(snakemake.params.ghg_price))
 
     solver_name = snakemake.params.solver
     solver_options = snakemake.params.solver_options or {}

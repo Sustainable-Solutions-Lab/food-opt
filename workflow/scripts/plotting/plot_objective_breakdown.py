@@ -27,9 +27,6 @@ from plot_health_impacts import (
 
 logger = logging.getLogger(__name__)
 
-# 100-year global warming potentials aligned with optimization objective
-GWP_FACTORS: dict[str, float] = {"co2": 1.0, "ch4": 25.0}
-
 
 def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Series:
     """Group assets into high-level categories for system cost aggregation."""
@@ -70,11 +67,7 @@ def compute_system_costs(n: pypsa.Network) -> pd.Series:
 
 
 def compute_ghg_cost_breakdown(n: pypsa.Network, ghg_price: float) -> dict[str, float]:
-    """Return objective contributions from priced greenhouse gases.
-
-    Uses final store energy levels as emissions balances and converts them to
-    CO2-equivalent costs using configured GWP factors.
-    """
+    """Return the objective contribution from the priced GHG store."""
 
     if len(n.snapshots) == 0:
         return {}
@@ -84,26 +77,23 @@ def compute_ghg_cost_breakdown(n: pypsa.Network, ghg_price: float) -> dict[str, 
         return {}
 
     store_levels = n.stores_t.e.loc[snapshot]
-    breakdown: dict[str, float] = {}
-    for carrier, gwp in GWP_FACTORS.items():
-        if carrier not in store_levels.index:
-            continue
-        level = float(store_levels[carrier])
-        if level == 0.0:
-            continue
-        contribution = ghg_price * gwp * level
-        label = f"GHG pricing ({carrier.upper()})"
-        breakdown[label] = contribution
-        logger.info(
-            "Computed %s contribution %.3e USD (level %.3e t, price %.2f USD/t, GWP %.1f)",
-            label,
-            contribution,
-            level,
-            ghg_price,
-            gwp,
-        )
+    if "ghg" not in store_levels.index:
+        return {}
 
-    return breakdown
+    level = float(store_levels["ghg"])
+    if level == 0.0:
+        return {}
+
+    contribution = ghg_price * level
+    label = "GHG pricing (CO₂-eq)"
+    logger.info(
+        "Computed %s contribution %.3e USD (level %.3e tCO2-eq, price %.2f USD/tCO2-eq)",
+        label,
+        contribution,
+        level,
+        ghg_price,
+    )
+    return {label: contribution}
 
 
 def choose_scale(values: Iterable[float]) -> tuple[float, str]:

@@ -40,6 +40,8 @@ def _extract_crop_production(
             continue
 
         bus1 = str(links_df.at[link, "bus1"]) if link in links_df.index else ""
+        if bus1.startswith("co2") or bus1.startswith("ch4"):
+            continue
         if not bus1.startswith("crop_"):
             continue
 
@@ -104,8 +106,13 @@ def _extract_crop_use(n: pypsa.Network) -> tuple[pd.Series, pd.Series]:
             continue
 
         crop_token, output = remainder.split("_to_", 1)
+        if crop_token in {"co2", "ch4"} or output.startswith("ghg"):
+            continue
         value = abs(float(flows_p0.get(link, 0.0)))
         if value <= 0.0:
+            continue
+
+        if output.startswith("co2") or output.startswith("ch4"):
             continue
 
         if output.startswith("ruminant_feed_") or output.startswith(
