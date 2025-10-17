@@ -18,19 +18,17 @@ NO_DATA = -9999.0
 
 
 def _load_target_grid(
-    resource_classes_path: str,
+    grid_path: str,
 ) -> tuple[Affine, CRS, tuple[int, int], dict[str, np.ndarray]]:
-    ds = xr.load_dataset(resource_classes_path)
+    ds = xr.load_dataset(grid_path)
     try:
         transform = Affine(*ds.attrs["transform"])
     except KeyError as exc:
-        raise ValueError(
-            "resource_classes.nc missing affine transform metadata"
-        ) from exc
+        raise ValueError("grid definition missing affine transform metadata") from exc
     try:
         crs = CRS.from_wkt(ds.attrs["crs_wkt"])
     except KeyError as exc:
-        raise ValueError("resource_classes.nc missing CRS metadata") from exc
+        raise ValueError("grid definition missing CRS metadata") from exc
 
     height = int(ds.attrs.get("height", ds.sizes["y"]))
     width = int(ds.attrs.get("width", ds.sizes["x"]))
@@ -49,7 +47,7 @@ def _load_target_grid(
 
 
 def main() -> None:
-    classes_path: str = snakemake.input.classes  # type: ignore[name-defined]
+    grid_path: str = snakemake.input.grid  # type: ignore[name-defined]
     regrowth_path: str = snakemake.input.regrowth_raw  # type: ignore[name-defined]
     output_path: str = snakemake.output.regrowth  # type: ignore[name-defined]
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -59,7 +57,7 @@ def main() -> None:
         target_crs,
         target_shape,
         coords,
-    ) = _load_target_grid(classes_path)
+    ) = _load_target_grid(grid_path)
 
     with rasterio.open(regrowth_path) as src:
         src_crs = src.crs

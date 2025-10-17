@@ -282,7 +282,7 @@ Cook-Patton & Griscom — Forest Carbon Accumulation Potential
 
 **Usage**: Estimating carbon sequestration potential from natural forest restoration and regrowth across all forest and savanna biomes
 
-**Workflow retrieval**: Automatic via the ``download_forest_carbon_accumulation_1km`` rule followed by ``resample_regrowth``. The native 1 km GeoTIFF (~610 MB) is downloaded with curl (stored as a temporary file), then resampled with an xarray/rasterio script using average aggregation onto the model's 1/12° resource grid. Final output: ``processing/{name}/luc/regrowth_resampled.nc`` (compressed NetCDF, ~12 MB per scenario). No registration or API key required.
+**Workflow retrieval**: Automatic via the ``download_forest_carbon_accumulation_1km`` rule followed by ``resample_regrowth``. The native 1 km GeoTIFF (~610 MB) is downloaded with curl (stored as a temporary file), then resampled with a rasterio-based script using average aggregation onto the model's 1/12° resource grid. Final output: ``processing/shared/luc/regrowth_resampled.nc`` (compressed NetCDF, ~12 MB shared across scenarios). No registration or API key required.
 
 Population Data
 ---------------

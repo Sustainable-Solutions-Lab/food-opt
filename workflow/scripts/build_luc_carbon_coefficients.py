@@ -163,7 +163,13 @@ def main() -> None:
 
     lef_crop = p_crop / horizon_years + regrowth
     lef_past = p_past / horizon_years + regrowth
-    lef_spared = -regrowth
+
+    # Spared land only provides negative emissions (through regrowth) if current
+    # above-ground biomass is below threshold (i.e., recently cleared or degraded land).
+    # Areas with high existing biomass (mature forest) do not exhibit additional
+    # regrowth sequestration and should not be credited.
+    agb_threshold: float = float(snakemake.params.agb_threshold)  # type: ignore[name-defined]
+    lef_spared = np.where(agb <= agb_threshold, -regrowth, 0.0)
 
     pulses_ds = xr.Dataset(
         {

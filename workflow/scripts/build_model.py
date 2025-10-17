@@ -211,30 +211,6 @@ def _build_luc_lef_lookup(
     return lookup
 
 
-def _build_luc_agb_lookup(
-    df: pd.DataFrame,
-) -> dict[tuple[str, int, str, str], float]:
-    """Return mean AGB (tC/ha) lookup keyed by (region, class, water, use)."""
-
-    if df.empty:
-        return {}
-
-    lookup: dict[tuple[str, int, str, str], float] = {}
-    for row in df.itertuples(index=False):
-        agb = getattr(row, "mean_agb_tc_per_ha", np.nan)
-        # Default to 0 if missing (conservative - allows sparing)
-        if not np.isfinite(agb):
-            agb = 0.0
-        key = (
-            str(row.region),
-            int(row.resource_class),
-            str(row.water),
-            str(row.use),
-        )
-        lookup[key] = float(agb)
-    return lookup
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -690,15 +666,11 @@ def add_spared_land_links(
     n: pypsa.Network,
     land_class_df: pd.DataFrame,
     luc_lef_lookup: Mapping[tuple[str, int, str, str], float],
-    luc_mean_agb: Mapping[tuple[str, int, str, str], float],
-    agb_threshold: float,
 ) -> None:
     """Add optional links to allocate spared land and credit CO2 sinks.
 
-    Only creates spared land links for regions/classes with current above-ground
-    biomass below the threshold. This ensures regrowth sequestration is only credited
-    where natural regeneration would actually occur (recently cleared or degraded land),
-    not on already-mature forest.
+    The AGB threshold filtering is now applied directly in the LEF calculation,
+    so this function simply uses the LEF values as provided.
 
     Parameters
     ----------
@@ -708,11 +680,7 @@ def add_spared_land_links(
         Land area by region/water_supply/resource_class.
     luc_lef_lookup : Mapping
         Land-use change emission factors (tCO2/ha/yr) by (region, class, water, use).
-    luc_mean_agb : Mapping
-        Mean above-ground biomass (tC/ha) by (region, class, water, use).
-    agb_threshold : float
-        Maximum AGB (tC/ha) for spared land eligibility. Areas with higher biomass
-        are assumed to be mature forest that would not exhibit regrowth sequestration.
+        The spared land LEFs already incorporate AGB threshold filtering.
     """
 
     if not luc_lef_lookup:
@@ -720,7 +688,6 @@ def add_spared_land_links(
         return
 
     entries: list[dict[str, object]] = []
-    filtered_high_agb = 0
     filtered_zero_lef = 0
 
     for (region, water_supply, resource_class), row in land_class_df.iterrows():
@@ -728,12 +695,6 @@ def add_spared_land_links(
         lef = float(luc_lef_lookup.get(key, 0.0))
         if lef == 0.0:
             filtered_zero_lef += 1
-            continue
-
-        # Filter by AGB threshold - only allow sparing on low-biomass areas
-        mean_agb = float(luc_mean_agb.get(key, 0.0))
-        if mean_agb > agb_threshold:
-            filtered_high_agb += 1
             continue
 
         area_mha = float(row["area_ha"]) / 1e6
@@ -746,31 +707,17 @@ def add_spared_land_links(
                 "sink_bus": f"land_spared_{region}_class{int(resource_class)}_{water_supply}",
                 "lef": lef,
                 "p_nom_max": area_mha,
-                "mean_agb": mean_agb,
             }
         )
 
-    if filtered_high_agb > 0:
-        logger.info(
-            "Filtered %d spared land entries with AGB > %.1f tC/ha (mature forest)",
-            filtered_high_agb,
-            agb_threshold,
-        )
     if filtered_zero_lef > 0:
         logger.debug("Filtered %d spared land entries with zero LEF", filtered_zero_lef)
 
     if not entries:
-        logger.info(
-            "No eligible spared land entries after AGB filtering (threshold=%.1f tC/ha); skipping spared links",
-            agb_threshold,
-        )
+        logger.info("No eligible spared land entries; skipping spared links")
         return
 
-    logger.info(
-        "Adding %d spared land links (AGB threshold=%.1f tC/ha)",
-        len(entries),
-        agb_threshold,
-    )
+    logger.info("Adding %d spared land links", len(entries))
 
     for entry in entries:
         sink_bus = str(entry["sink_bus"])
@@ -1854,21 +1801,15 @@ if __name__ == "__main__":
     ).sort_index()
 
     luc_lef_lookup: dict[tuple[str, int, str, str], float] = {}
-    luc_agb_lookup: dict[tuple[str, int, str, str], float] = {}
     carbon_price = float(snakemake.params.emissions.get("ghg_price", 0.0))
     try:
         luc_coefficients_path = snakemake.input.luc_carbon_coefficients
         luc_coeff_df = read_csv(luc_coefficients_path)
         if not luc_coeff_df.empty:
             luc_lef_lookup = _build_luc_lef_lookup(luc_coeff_df)
-            luc_agb_lookup = _build_luc_agb_lookup(luc_coeff_df)
             logger.info(
                 "Loaded LUC LEFs for %d (region, class, water, use) combinations",
                 len(luc_lef_lookup),
-            )
-            logger.info(
-                "Loaded mean AGB for %d (region, class, water, use) combinations",
-                len(luc_agb_lookup),
             )
         else:
             logger.warning(
@@ -2096,12 +2037,7 @@ if __name__ == "__main__":
         p_nom_extendable=[True] * len(bus_names),
         p_nom_max=(reg_limit * land_class_df["area_ha"] / 1e6).values,  # ha → Mha
     )
-    spared_land_agb_threshold = float(
-        snakemake.params.luc.get("spared_land_agb_threshold_tc_per_ha", 20.0)
-    )
-    add_spared_land_links(
-        n, land_class_df, luc_lef_lookup, luc_agb_lookup, spared_land_agb_threshold
-    )
+    add_spared_land_links(n, land_class_df, luc_lef_lookup)
     add_regional_crop_production_links(
         n,
         crop_list,

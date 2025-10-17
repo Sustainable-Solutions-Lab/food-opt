@@ -67,7 +67,7 @@ rule doc_fig_environment_luc_inputs:
         lc_masks=f"processing/{DOC_FIG_NAME}/luc/lc_masks.nc",
         agb=f"processing/{DOC_FIG_NAME}/luc/agb.nc",
         soc=f"processing/{DOC_FIG_NAME}/luc/soc.nc",
-        regrowth=f"processing/{DOC_FIG_NAME}/luc/regrowth_resampled.nc",
+        regrowth="processing/shared/luc/regrowth_resampled.nc",
         regions=f"processing/{DOC_FIG_NAME}/regions.geojson",
     output:
         svg="docs/_static/figures/environment_luc_inputs.svg",

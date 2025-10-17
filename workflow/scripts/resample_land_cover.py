@@ -7,83 +7,159 @@ SPDX-License-Identifier: GPL-3.0-or-later
 from pathlib import Path
 
 import numpy as np
+import rasterio
 import xarray as xr
 
 
 COARSEN_FACTOR = 30
-CHUNKS = {"lat": 900, "lon": 1800}
+ROW_CHUNK_SIZE = COARSEN_FACTOR * 30
+NODATA_VALUE = 0
 
 FOREST_CLASSES: tuple[int, ...] = (50, 60, 70, 80, 90, 160, 170, 100)
 GRASSLAND_CLASSES: tuple[int, ...] = (110, 130, 140, 150)
 CROPLAND_CLASSES: tuple[int, ...] = (10, 20, 30, 40)
 
 
-def _target_coords(resource_classes_path: str) -> tuple[xr.DataArray, xr.DataArray]:
-    ds = xr.load_dataset(resource_classes_path)
+def _target_coords(grid_path: str) -> tuple[xr.DataArray, xr.DataArray]:
+    ds = xr.load_dataset(grid_path)
     try:
         y = ds["y"].astype(np.float32)
         x = ds["x"].astype(np.float32)
     except KeyError as exc:
-        raise ValueError(
-            "resource_classes.nc must expose 'y' and 'x' coordinates"
-        ) from exc
+        raise ValueError("resolution grid must expose 'y' and 'x' coordinates") from exc
     return y, x
 
 
-def _open_land_cover(path: str) -> xr.DataArray:
-    ds = xr.open_dataset(path, chunks="auto")
-    data = ds["lccs_class"]
-    if "time" in data.dims:
-        data = data.isel(time=0, drop=True)
-    nodata = data.attrs.get("_FillValue")
-    if nodata is None:
-        nodata = data.encoding.get("_FillValue")
-    if nodata is None:
-        nodata = 0
-    return data.chunk(CHUNKS).where(data != nodata)
+def _build_lookup(classes: tuple[int, ...]) -> np.ndarray:
+    lookup = np.zeros(256, dtype=np.uint8)
+    for cls in classes:
+        lookup[cls] = 1
+    return lookup
 
 
-def _fraction(
-    lc: xr.DataArray,
-    classes: tuple[int, ...],
-) -> xr.DataArray:
-    valid = lc.notnull()
-    hits = xr.where(lc.isin(classes), 1.0, 0.0)
-    mask = xr.where(valid, hits, np.nan)
-    frac = mask.coarsen(
-        lat=COARSEN_FACTOR,
-        lon=COARSEN_FACTOR,
-        boundary="trim",
-    ).mean(skipna=True)
-    return frac.clip(0.0, 1.0).astype(np.float32)
+def _aggregate_fractions(path: str) -> dict[str, np.ndarray]:
+    land_cover_path = Path(path)
+    forest_lookup = _build_lookup(FOREST_CLASSES)
+    cropland_lookup = _build_lookup(CROPLAND_CLASSES)
+    grassland_lookup = _build_lookup(GRASSLAND_CLASSES)
+
+    with rasterio.open(land_cover_path) as src:
+        height = src.height
+        width = src.width
+        if height % COARSEN_FACTOR != 0 or width % COARSEN_FACTOR != 0:
+            raise ValueError(
+                "land cover grid size must be divisible by the coarsen factor"
+            )
+
+        agg_height = height // COARSEN_FACTOR
+        agg_width = width // COARSEN_FACTOR
+
+        valid_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
+        forest_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
+        cropland_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
+        grassland_counts = np.zeros((agg_height, agg_width), dtype=np.uint16)
+
+        row_chunk = ROW_CHUNK_SIZE
+        if row_chunk % COARSEN_FACTOR != 0:
+            raise ValueError("row chunk size must be divisible by the coarsen factor")
+
+        for row_start in range(0, height, row_chunk):
+            rows = min(row_chunk, height - row_start)
+            if rows % COARSEN_FACTOR != 0:
+                raise ValueError("row chunk must align with coarsen factor")
+
+            rows_coarse = rows // COARSEN_FACTOR
+            row_slice = slice(
+                row_start // COARSEN_FACTOR,
+                row_start // COARSEN_FACTOR + rows_coarse,
+            )
+
+            window = rasterio.windows.Window(
+                col_off=0,
+                row_off=row_start,
+                width=width,
+                height=rows,
+            )
+            block = src.read(1, window=window, out_dtype=np.uint8)
+            block = block.reshape(
+                rows_coarse, COARSEN_FACTOR, agg_width, COARSEN_FACTOR
+            )
+            block = block.transpose(0, 2, 1, 3)
+
+            valid_counts[row_slice] = np.count_nonzero(
+                block != NODATA_VALUE,
+                axis=(2, 3),
+            ).astype(np.uint16)
+
+            forest_counts[row_slice] = (
+                forest_lookup[block]
+                .reshape(
+                    rows_coarse,
+                    agg_width,
+                    -1,
+                )
+                .sum(axis=2, dtype=np.uint16)
+            )
+
+            cropland_counts[row_slice] = (
+                cropland_lookup[block]
+                .reshape(
+                    rows_coarse,
+                    agg_width,
+                    -1,
+                )
+                .sum(axis=2, dtype=np.uint16)
+            )
+
+            grassland_counts[row_slice] = (
+                grassland_lookup[block]
+                .reshape(
+                    rows_coarse,
+                    agg_width,
+                    -1,
+                )
+                .sum(axis=2, dtype=np.uint16)
+            )
+
+    valid_counts_f = valid_counts.astype(np.float32)
+    nonzero_mask = valid_counts != 0
+
+    fractions: dict[str, np.ndarray] = {}
+    for name, counts in (
+        ("forest_fraction", forest_counts),
+        ("cropland_fraction", cropland_counts),
+        ("grassland_fraction", grassland_counts),
+    ):
+        numerator = counts.astype(np.float32)
+        fraction = np.empty_like(valid_counts_f)
+        fraction.fill(np.nan)
+        np.divide(
+            numerator,
+            valid_counts_f,
+            out=fraction,
+            where=nonzero_mask,
+        )
+        fractions[name] = fraction.clip(0.0, 1.0).astype(np.float32)
+
+    return fractions
 
 
 def main() -> None:
-    classes_path: str = snakemake.input.classes  # type: ignore[name-defined]
+    grid_path: str = snakemake.input.grid  # type: ignore[name-defined]
     land_cover_path: str = snakemake.input.land_cover  # type: ignore[name-defined]
     output_path: str = snakemake.output.fractions  # type: ignore[name-defined]
 
-    y_coords, x_coords = _target_coords(classes_path)
-    land_cover = _open_land_cover(land_cover_path)
-
-    lat_size = land_cover.sizes.get("lat")
-    lon_size = land_cover.sizes.get("lon")
-    if lat_size is None or lon_size is None:
-        raise ValueError("land cover input must have 'lat' and 'lon' dimensions")
-    if lat_size % COARSEN_FACTOR != 0 or lon_size % COARSEN_FACTOR != 0:
-        raise ValueError("land cover grid size must be divisible by the coarsen factor")
-
-    forest_fraction = _fraction(land_cover, FOREST_CLASSES)
-    cropland_fraction = _fraction(land_cover, CROPLAND_CLASSES)
-    grassland_fraction = _fraction(land_cover, GRASSLAND_CLASSES)
+    y_coords, x_coords = _target_coords(grid_path)
+    fractions = _aggregate_fractions(land_cover_path)
 
     ds_out = xr.Dataset(
         {
-            "forest_fraction": forest_fraction.rename(lat="y", lon="x"),
-            "cropland_fraction": cropland_fraction.rename(lat="y", lon="x"),
-            "grassland_fraction": grassland_fraction.rename(lat="y", lon="x"),
-        }
-    ).assign_coords(y=y_coords, x=x_coords)
+            "forest_fraction": (("y", "x"), fractions["forest_fraction"]),
+            "cropland_fraction": (("y", "x"), fractions["cropland_fraction"]),
+            "grassland_fraction": (("y", "x"), fractions["grassland_fraction"]),
+        },
+        coords={"y": y_coords, "x": x_coords},
+    )
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     encoding = {

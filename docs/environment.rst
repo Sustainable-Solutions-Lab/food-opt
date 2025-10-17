@@ -115,10 +115,19 @@ Spared land filtering
 
 Regrowth sequestration rates from Cook-Patton et al. (2020) represent **young regenerating forest** (0-30 years) on previously cleared or degraded land. They do not apply to mature forests, which have already accumulated most of their carbon stock and exhibit near-zero net sequestration.
 
-To avoid incorrectly crediting sequestration on mature forest, the model filters spared-land links by **current above-ground biomass (AGB)**. Only regions/resource classes with mean AGB below a threshold (configurable via ``luc.spared_land_agb_threshold_tc_per_ha``, default 20 tC/ha) are eligible for spared-land sequestration credits. This ensures:
+To avoid incorrectly crediting sequestration on mature forest, the LEF calculation for spared land includes a conditional that sets the sequestration benefit to zero where **current above-ground biomass (AGB)** exceeds a configurable threshold (``luc.spared_land_agb_threshold_tc_per_ha``, default 20 tC/ha). Specifically:
 
-* Low-biomass areas (recently cleared or degraded land suitable for agriculture) can earn regrowth credits if left unused
-* High-biomass areas (mature tropical rainforest, boreal forest) do not receive spurious sequestration credits—their carbon value is already captured via high pulse emissions if converted
+.. math::
+
+   \mathrm{LEF}_{\mathrm{spared}} = \begin{cases}
+   -R & \text{if } \mathrm{AGB} \leq \text{threshold} \\
+   0 & \text{if } \mathrm{AGB} > \text{threshold}
+   \end{cases}
+
+This ensures:
+
+* Low-biomass areas (recently cleared or degraded land suitable for agriculture) receive negative LEFs (sequestration credits) if left unused
+* High-biomass areas (mature tropical rainforest, boreal forest) receive zero spared-land LEF—their carbon value is already captured via high pulse emissions if converted, but they are not credited for additional regrowth
 
 The threshold of 20 tC/ha is intermediate between typical agricultural land (0-10 tC/ha) and mature forest (50-200+ tC/ha). Areas above this threshold are assumed to represent established vegetation that would not exhibit the rapid early-successional regrowth rates quantified by Cook-Patton et al.
 
