@@ -21,7 +21,7 @@ The model tracks three major greenhouse gases using 100-year global warming pote
 * **CH₄** (GWP = 28): From enteric fermentation (ruminants), rice paddies, manure
 * **N₂O** (GWP = 265): From nitrogen fertilizer application, manure
 
-All emissions are aggregated to CO₂-equivalent (tCO₂-eq) for carbon pricing.
+All emissions are aggregated to CO₂-equivalent (internally tracked in MtCO₂-eq; the configured price still applies per tonne) for carbon pricing.
 
 Implementation notes (buses, stores, links)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -29,7 +29,7 @@ Implementation notes (buses, stores, links)
 The optimisation model represents environmental flows with three PyPSA components that are worth keeping in mind:
 
 * **Buses** act as balance sheets. Process components report raw emissions to the ``co2`` and ``ch4`` buses, while a dedicated ``ghg`` bus tracks the combined CO₂-equivalent balance.
-* **Links** move quantities between buses, applying efficiencies that encode global warming potentials. ``convert_co2_to_ghg`` has efficiency 1.0, and ``convert_ch4_to_ghg`` uses the configured ``emissions.ch4_to_co2_factor`` (27.2 by default). Every tonne of CH₄ therefore appears on the ``ghg`` bus weighted by its 100-year GWP.
+* **Links** move quantities between buses, applying efficiencies that encode global warming potentials. ``convert_co2_to_ghg`` has efficiency 1.0, and ``convert_ch4_to_ghg`` uses the configured ``emissions.ch4_to_co2_factor`` (27.2 by default). Every megatonne of CH₄ (after scaling from tonnes) therefore appears on the ``ghg`` bus weighted by its 100-year GWP.
 * **Stores** accumulate quantities over the horizon. The extendable ``ghg`` store sits on the combined bus and is priced at ``emissions.ghg_price``. Because neither the ``co2`` nor ``ch4`` buses have stores, their flows must pass through the conversion links before the objective is charged.
 
 With this structure the linear program keeps separate ledgers for each greenhouse gas while charging the objective using a single priced stock of CO₂-equivalent. Scenario files can tighten or relax climate policy simply by changing the configuration values—no code modifications are required.
@@ -113,7 +113,7 @@ The land-use change workflow consists of two scripts:
 1. ``prepare_luc_inputs.py`` aligns the raw rasters to the resource-class grid and stores intermediate masks and carbon pools under ``processing/{config}/luc/``.
 2. ``build_luc_carbon_coefficients.py`` derives pulse emissions, annual LEFs, and aggregates them to ``luc_carbon_coefficients.csv``.
 
-During model construction, ``build_model.py`` loads these coefficients, converts the LEFs to marginal CO₂ flows (tCO₂ per Mha-year), and attaches them to:
+During model construction, ``build_model.py`` loads these coefficients, converts the LEFs to marginal CO₂ flows (MtCO₂ per Mha-year), and attaches them to:
 
 * Crop production links (cropland LEFs)
 * Grazing links that supply ruminant feed (pasture LEFs)

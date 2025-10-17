@@ -27,6 +27,8 @@ from plot_health_impacts import (
 
 logger = logging.getLogger(__name__)
 
+TONNE_TO_MEGATONNE = 1e-6
+
 
 def objective_category(n: pypsa.Network, component: str, **_: object) -> pd.Series:
     """Group assets into high-level categories for system cost aggregation."""
@@ -80,17 +82,17 @@ def compute_ghg_cost_breakdown(n: pypsa.Network, ghg_price: float) -> dict[str, 
     if "ghg" not in store_levels.index:
         return {}
 
-    level = float(store_levels["ghg"])
-    if level == 0.0:
+    level_mt = float(store_levels["ghg"])
+    if level_mt == 0.0:
         return {}
 
-    contribution = ghg_price * level
+    contribution = ghg_price * level_mt / TONNE_TO_MEGATONNE
     label = "GHG pricing (CO₂-eq)"
     logger.info(
-        "Computed %s contribution %.3e USD (level %.3e tCO2-eq, price %.2f USD/tCO2-eq)",
+        "Computed %s contribution %.3e USD (level %.3e MtCO2-eq, price %.2f USD/tCO2-eq)",
         label,
         contribution,
-        level,
+        level_mt,
         ghg_price,
     )
     return {label: contribution}

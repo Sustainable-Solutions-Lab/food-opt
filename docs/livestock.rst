@@ -328,7 +328,7 @@ Manure storage and application releases:
 * **N₂O**: From nitrogen in manure (direct and indirect emissions)
 * **CH₄**: From anaerobic manure decomposition (especially in lagoons)
 
-These are incorporated into the production link efficiencies, priced at the configured ``emissions.ghg_price`` (USD/tCO₂-eq).
+These are incorporated into the production link efficiencies, priced at the configured ``emissions.ghg_price`` (USD/tCO₂-eq; flows are scaled to MtCO₂-eq internally).
 
 Configuration Parameters
 ------------------------

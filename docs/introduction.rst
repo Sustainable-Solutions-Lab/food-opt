@@ -144,7 +144,7 @@ The baseline configuration (``config/default.yaml``) provides a starting point. 
 * ``countries``: List of ISO 3166-1 alpha-3 country codes to include
 * ``aggregation.regions.target_count``: Number of optimization regions (trade-off between detail and solve time)
 * ``crops``: Which crops to include in the model
-* ``emissions.ghg_price``: Carbon price in USD/tCO2-eq
+* ``emissions.ghg_price``: Carbon price in USD/tCO2-eq (flows stored in MtCO2-eq internally)
 * ``macronutrients``: Minimum dietary requirements
 
 After editing the configuration, create a new named scenario by changing the ``name`` field at the top of the file, then run::

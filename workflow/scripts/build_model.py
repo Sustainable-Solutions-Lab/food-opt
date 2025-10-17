@@ -355,12 +355,17 @@ def add_carriers_and_buses(
     # Global emission and resource carriers with buses
     for carrier, unit in [
         ("fertilizer", "kg"),
-        ("co2", "tCO2"),
-        ("ch4", "tCH4"),
-        ("ghg", "tCO2e"),
+        ("co2", "MtCO2"),
+        ("ch4", "MtCH4"),
+        ("ghg", "MtCO2e"),
     ]:
         n.add("Carrier", carrier, unit=unit)
         n.add("Bus", carrier, carrier=carrier)
+
+    scale_meta = n.meta.setdefault("carrier_unit_scale", {})
+    scale_meta["co2_t_to_Mt"] = TONNE_TO_MEGATONNE
+    scale_meta["ch4_t_to_Mt"] = TONNE_TO_MEGATONNE
+    scale_meta["ghg_t_to_Mt"] = TONNE_TO_MEGATONNE
 
     for region in water_regions:
         bus_name = f"water_{region}"
@@ -398,6 +403,8 @@ def add_primary_resources(
     scale_meta = n.meta.setdefault("carrier_unit_scale", {})
     scale_meta["water_km3_per_m3"] = KM3_PER_M3
 
+    co2_price_per_mt = co2_price / TONNE_TO_MEGATONNE
+
     # Fertilizer remains global (no regionalization yet)
     n.add(
         "Generator",
@@ -417,7 +424,7 @@ def add_primary_resources(
         e_nom_extendable=True,
         e_nom_min=-np.inf,
         e_min_pu=-1.0,
-        marginal_cost_storage=co2_price,
+        marginal_cost_storage=co2_price_per_mt,
     )
     n.add(
         "Link",
@@ -592,13 +599,17 @@ def add_regional_crop_production_links(
             emission_outputs: dict[str, np.ndarray] = {}
 
             if ch4_emission > 0:
-                arr = (ch4_emission / df["yield"]).to_numpy(dtype=float)
+                arr = (ch4_emission / df["yield"]).to_numpy(
+                    dtype=float
+                ) * TONNE_TO_MEGATONNE
                 emission_outputs["ch4"] = emission_outputs.get(
                     "ch4", np.zeros(len(arr), dtype=float)
                 )
                 emission_outputs["ch4"] += arr
 
-            luc_emissions = luc_lefs * 1e6  # tCO2/ha/yr → tCO2/Mha/yr
+            luc_emissions = (
+                luc_lefs * 1e6 * TONNE_TO_MEGATONNE
+            )  # tCO2/ha/yr → MtCO2/Mha/yr
             if not np.allclose(luc_emissions, 0.0):
                 emission_outputs["co2"] = emission_outputs.get(
                     "co2", np.zeros(len(luc_emissions), dtype=float)
@@ -686,7 +697,8 @@ def add_grassland_feed_links(
             dtype=float,
         )
         * 1e6
-    )  # tCO2/ha/yr → tCO2/Mha/yr
+        * TONNE_TO_MEGATONNE
+    )  # tCO2/ha/yr → MtCO2/Mha/yr
 
     params = {
         "carrier": "feed_ruminant_forage",
@@ -789,7 +801,9 @@ def add_spared_land_links(
         bus1=df["sink_bus"].tolist(),
         efficiency=1.0,
         bus2="co2",
-        efficiency2=(df["lef"] * 1e6).to_numpy(),  # tCO2/ha/yr → tCO2/Mha/yr
+        efficiency2=(
+            df["lef"] * 1e6 * TONNE_TO_MEGATONNE
+        ).to_numpy(),  # tCO2/ha/yr → MtCO2/Mha/yr
         p_nom_extendable=True,
         p_nom_max=df["area_mha"].to_numpy(),
     )
@@ -1154,7 +1168,8 @@ def add_feed_to_animal_product_links(
             all_bus1.append(f"food_{row['product']}_{country}")
             all_carrier.append(f"produce_{row['product']}")
             all_efficiency.append(row["efficiency"])
-            all_ch4.append(row["ch4_emissions"])
+            ch4_val = row["ch4_emissions"]
+            all_ch4.append(None if ch4_val is None else ch4_val * TONNE_TO_MEGATONNE)
 
     # Split into links with and without CH4 emissions
     has_ch4 = [ch4 is not None for ch4 in all_ch4]
