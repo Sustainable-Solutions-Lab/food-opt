@@ -32,6 +32,16 @@ Any keys omitted in your custom file fall back to the defaults shown in the sect
 
 By default, results are saved under ``results/{name}/``, allowing multiple scenarios coming from different configuration files to coexist. This root (and roots for ``processing``, ``logs``, and ``benchmarks``) can be overridden via ``paths`` in the config.
 
+Numerical Conditioning
+~~~~~~~~~~~~~~~~~~~~~~
+
+The ``numerics`` block removes values that are below physical or numerical
+resolution before model construction. In particular,
+``numerics.min_water_capacity_mm3`` omits surface- and groundwater-supply
+bands below the configured capacity (``1e-6`` Mm3, or 1 m3, by default).
+This preserves material water availability while preventing roundoff-scale
+capacities from entering the optimization matrix.
+
 To build and solve the model based on the above example configuration, you would run the following::
 
   tools/smk -j4 --configfile config/my_scenario.yaml
@@ -265,12 +275,32 @@ Each parameter specifies a distribution instead of a value range:
              ch4: "{ch4_factor}"
          emissions:
            ghg_price: "{ghg_price}"
+         biodiversity:
+           cap:
+             enabled: "{guardrail_on}"
 
-Supported distributions are ``uniform`` (default; requires ``lower``, ``upper``), ``log_uniform`` (requires ``lower``, ``upper``; both positive), ``normal`` (requires ``mean``, ``std``), ``normal_ci`` (requires ``lower``, ``upper``; optional ``confidence``, ``bounds``), and ``lognormal`` (requires ``mu``, ``sigma``).
+Supported distributions are ``uniform`` (default), ``log_uniform``,
+``log_uniform_zero``, ``normal``, ``normal_ci``, ``lognormal``, and
+``bernoulli``. A Bernoulli parameter requires ``probability`` and substitutes a
+real boolean into a whole-value placeholder, making it suitable for sampled
+``enabled`` switches.
 
 The ``samples`` field sets the number of quasi-random samples (should be a power of 2). The ``slice_parameters`` field designates parameters for conditional analysis — these are included in the surrogate fit but can be fixed at specific values to study how sensitivity changes with policy choices. Surrogate method configuration (PCE, RF) lives in a separate ``sensitivity_analysis`` top-level section.
 
 See :doc:`sensitivity_analysis` for full methodology details, output file formats, and interpretation guidance.
+
+Reference-based barrier bounds
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Several solve-time guardrails can use the realized left-hand side from a named
+scenario instead of raw baseline metadata. Set ``reference_scenario`` on
+``production_value.floor``, ``food_energy.floor``, ``protein.floor``, or
+``production_concentration.cap``; for biodiversity use
+``max_conversion_mha: {reference_scenario: frozen}``. The reference solve
+writes ``barrier_reference.parquet`` with its per-country, per-crop, and global
+values. Snakemake and exported cluster manifests automatically solve the
+reference first. Reference-based floors and caps include only a directional
+numerical tolerance, so the reference solution itself remains feasible.
 
 Configuration sections
 ----------------------
@@ -404,8 +434,13 @@ Three penalty modes are available, selected via ``penalty_mode``:
 * **``hard``**: inequality bounds. Per-link production / feed use is
   bounded by :math:`(1 - \delta) \cdot \text{baseline}` to
   :math:`(1 + \delta) \cdot \text{baseline}` where :math:`\delta` is the
-  per-component ``max_relative_deviation``. Supported for land and feed
-  only.
+  per-component ``max_relative_deviation`` (land and feed also offer
+  ``scope: regional`` churn budgets). For diet, hard mode is always a
+  per-country churn budget: total absolute consumption deviation is
+  bounded by :math:`2 \delta` times the country's baseline consumption,
+  so :math:`\delta = 0` freezes the baseline diet and :math:`\delta = 1`
+  allows a complete reorganization (a full swap costs twice the diet's
+  mass in churn).
 * **``l1``** (default): linear absolute-value penalty per link. Each unit
   of deviation costs ``deviation_penalty.<component>.l1_cost`` bn USD
   (per Mha for land, per Mt DM for feed, per Mt for diet).
@@ -435,7 +470,9 @@ across components.
   calibrated central value without hard-coding absolute numbers.
 * ``deviation_penalty.land.crops.max_relative_deviation`` /
   ``land.grassland.max_relative_deviation`` /
-  ``feed.max_relative_deviation``: hard-mode bounds.
+  ``feed.max_relative_deviation`` / ``diet.max_relative_deviation``:
+  hard-mode bounds. ``diet.enable_slack`` allows exceeding the diet churn
+  budget at ``validation.slack_marginal_cost`` per Mt.
 
 **Behavior notes**:
 
@@ -454,6 +491,26 @@ The default calibration (cropland + grassland + feed) is regenerated
 with ``tools/calibrate stability`` and lands at
 ``data/curated/calibration/<source>/deviation_penalty.yaml`` (see
 :doc:`calibration`).
+
+Endpoint-normalized reallocation cap
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``reallocation_cap`` layers a hard reallocation budget on top of the
+unchanged absolute-L1 stability objective. It compares the current crop area,
+grassland area and animal feed use with a realized ``baseline_scenario`` and
+weights their absolute differences by the same resolved component L1
+coefficients. The allowed budget is ``fraction`` times the weighted distance
+between that baseline and a realized ``endpoint_scenario``. Consequently,
+``fraction: 0`` freezes the realized baseline production state and
+``fraction: 1`` admits the endpoint while retaining the endpoint's original
+objective. The references must use the same scenario-independent built model;
+the workflow extracts their production dispatch once into a compact parquet
+before solving capped scenarios.
+
+This cap requires ``deviation_penalty.penalty_mode: l1`` and
+``deviation_penalty.deviation_type: absolute``. It is intended for matched
+mechanism experiments where replacing L1 stability with hard baseline bands
+would change both the objective and the meaning of the endpoints.
 
 .. _growth-caps:
 

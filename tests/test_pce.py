@@ -10,6 +10,7 @@ import pytest
 from scipy.stats.qmc import Sobol
 
 from workflow.scenario_generators import (
+    _expand_generator,
     _generate_sensitivity_samples,
     _validate_distribution_spec,
     build_chaospy_distribution,
@@ -128,6 +129,31 @@ class TestDistributionParsing:
                 "x", {"distribution": "normal_ci", "lower": 0.7}
             )
 
+    def test_bernoulli(self):
+        spec = {"distribution": "bernoulli", "probability": 0.25}
+        dist = build_chaospy_distribution(spec)
+        np.testing.assert_array_equal(
+            dist.inv([0.0, 0.74, 0.76, 1.0]), [0.0, 0.0, 1.0, 1.0]
+        )
+
+    @pytest.mark.parametrize("probability,expected", [(0.0, 0.0), (1.0, 1.0)])
+    def test_degenerate_bernoulli(self, probability, expected):
+        dist = build_chaospy_distribution(
+            {"distribution": "bernoulli", "probability": probability}
+        )
+        np.testing.assert_array_equal(dist.inv([0.0, 0.5, 1.0]), expected)
+
+    @pytest.mark.parametrize("probability", [-0.1, 1.1])
+    def test_validate_bernoulli_probability(self, probability):
+        with pytest.raises(ValueError, match="probability in \\[0, 1\\]"):
+            _validate_distribution_spec(
+                "x", {"distribution": "bernoulli", "probability": probability}
+            )
+
+    def test_validate_bernoulli_missing_probability(self):
+        with pytest.raises(ValueError, match="requires 'probability'"):
+            _validate_distribution_spec("x", {"distribution": "bernoulli"})
+
 
 class TestSensitivitySampling:
     """Tests for the sensitivity sampling function."""
@@ -188,6 +214,26 @@ class TestSensitivitySampling:
         s1 = _generate_sensitivity_samples(spec)
         s2 = _generate_sensitivity_samples(spec)
         assert s1 == s2
+
+    def test_bernoulli_samples_are_balanced_booleans(self):
+        spec = {
+            "name": "test_{sample_id}",
+            "mode": "sensitivity",
+            "samples": 64,
+            "parameters": {
+                "barrier_on": {"distribution": "bernoulli", "probability": 0.5}
+            },
+            "template": {"barrier": {"enabled": "{barrier_on}"}},
+        }
+        samples = _generate_sensitivity_samples(spec)
+        values = [sample["barrier_on"] for sample in samples]
+        assert all(type(value) is bool for value in values)
+        assert values.count(True) == values.count(False) == 32
+
+        scenarios = _expand_generator(spec)
+        enabled = [scenario["barrier"]["enabled"] for scenario in scenarios.values()]
+        assert all(type(value) is bool for value in enabled)
+        assert enabled.count(True) == enabled.count(False) == 32
 
 
 class TestPCEFitting:

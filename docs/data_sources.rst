@@ -279,7 +279,7 @@ FAOSTAT Prices (PP)
 
 **Retrieval**: Bulk zip download via ``download_faostat_pp`` rule, converted to Parquet by ``extract_faostat_pp``. Output: ``data/downloads/faostat/PP.parquet``.
 
-**Usage**: Combined with QCL yields and a configurable ``non_endogenous_cost_share`` to produce per-(crop, country) crop production costs in ``prepare_faostat_crop_costs``. Prices are CPI-deflated to the configured base year before averaging. Crops without FAOSTAT price data use proxy mappings from ``data/curated/faostat_cost_proxies.yaml``. See :doc:`costs` for full methodology.
+**Usage**: Combined with QCL yields and a configurable ``non_endogenous_cost_share`` to produce per-(crop, country) crop production costs in ``prepare_faostat_crop_costs``. Prices are CPI-deflated to the configured base year before averaging. Crops without FAOSTAT price data use proxy mappings from ``data/curated/faostat_cost_proxies.yaml``. See :doc:`costs` for full methodology. The same domain also supplies producer prices for crops and animal products (mapped via ``data/curated/faostat_animal_price_item_map.csv``) in ``prepare_producer_prices``, used for the per-country production value accounting; see :doc:`production_value`.
 
 USDA Livestock Cost Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~

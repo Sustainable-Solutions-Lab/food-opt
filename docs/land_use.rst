@@ -369,9 +369,9 @@ multi-cropping links are added and the single-crop baselines reconciled.
 multi-cropping *links* (see :doc:`crop_production`) that let the optimizer
 allocate additional crop cycles on the same land within a single year. These
 carry an observed MIRCA-OS baseline and are treated like single-crop production
-in every anchoring context: the land deviation penalty, the crop growth cap,
-and validation-mode pinning (``use_actual_production`` fixes both carriers at
-their reconciled baselines). Because each ``n``-cycle multi link draws one
+in every anchoring context: the land deviation penalty, churn budgets, the
+crop growth cap, and validation-mode pinning (``use_actual_production`` fixes
+both carriers at their reconciled baselines). Because each ``n``-cycle multi link draws one
 hectare of physical land while its harvested cycles are removed from the
 single-crop baselines, the correction generators only absorb the *residual*
 extra-cycle area that is not attributed to any modelled combination (for

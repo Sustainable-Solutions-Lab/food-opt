@@ -6,6 +6,7 @@
 
 import numpy as np
 import pandas as pd
+import pypsa
 import pytest
 
 from workflow.scripts.build_model.utils import (
@@ -16,12 +17,58 @@ from workflow.scripts.build_model.utils import (
     _nutrient_kind,
     _nutrition_efficiency_factor,
     _per_capita_mass_to_mt_per_year,
+    clip_negligible_coefficients,
     merge_lef,
 )
 from workflow.scripts.constants import (
     FOOD_PORTION_TO_MASS_FRACTION,
     KCAL_PER_100G_TO_PJ_PER_MEGATONNE,
 )
+
+
+def test_numerics_clipping_covers_field_water_and_fixed_land_capacity():
+    """Remove roundoff-scale irrigation and land-capacity terms from the LP."""
+    n = pypsa.Network()
+    n.buses.add(
+        ["land:cropland:r1", "water_field:r1:p0", "crop:wheat:USA"],
+        carrier=["land_cropland", "water_field", "crop_wheat"],
+    )
+    n.links.add(
+        "produce:wheat_irrigated:r1",
+        bus0="land:cropland:r1",
+        bus1="crop:wheat:USA",
+        bus2="water_field:r1:p0",
+        carrier="crop_production",
+        efficiency=1.0,
+        efficiency2=-1e-12,
+        p_nom=1e-12,
+        p_nom_extendable=False,
+    )
+    n.generators.add(
+        "supply:land_existing_grassland_convertible:r1",
+        bus="land:cropland:r1",
+        carrier="land_existing_grassland_convertible",
+        p_nom=1e-12,
+        p_nom_extendable=False,
+    )
+
+    clip_negligible_coefficients(
+        n,
+        {
+            "min_link_area_mha": 1e-6,
+            "min_water_requirement_m3_per_ha": 0.1,
+            "min_co2_coefficient_tco2_per_ha": 0.001,
+            "min_cost_correction_bnusd": 1e-6,
+        },
+    )
+
+    assert n.links.static.at["produce:wheat_irrigated:r1", "efficiency2"] == 0.0
+    assert n.links.static.at["produce:wheat_irrigated:r1", "p_nom"] == 0.0
+    assert (
+        n.generators.static.at["supply:land_existing_grassland_convertible:r1", "p_nom"]
+        == 0.0
+    )
+
 
 # ---------------------------------------------------------------------------
 # Tests: _per_capita_mass_to_mt_per_year

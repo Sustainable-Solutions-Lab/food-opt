@@ -165,12 +165,19 @@ assumed independent).
 
    ``uniform`` (default), "``lower``, ``upper``", , "Flat distribution over [lower, upper]"
    ``log_uniform``, "``lower``, ``upper``", , "Log-uniform: uniform on log scale over [lower, upper] (both > 0)"
+   ``log_uniform_zero``, "``lower``, ``upper``, ``zero_fraction``", , "Point mass at zero plus a positive log-uniform tail"
    ``normal``, "``mean``, ``std``", ``bounds``, "Gaussian with given mean and standard deviation"
    ``normal_ci``, "``lower``, ``upper``", "``confidence``, ``bounds``", "Normal distribution where [lower, upper] defines a confidence interval"
    ``lognormal``, "``mu``, ``sigma``", , "Log-normal with log-scale mean and std"
+   ``bernoulli``, ``probability``, , "Boolean false/true with the given probability of true"
 
 When the ``distribution`` field is omitted, ``uniform`` is assumed (requiring
 only ``lower`` and ``upper``).
+
+``bernoulli`` samples are exact booleans in expanded scenario templates and
+numeric 0/1 features in the reconstructed surrogate design. This permits a
+whole-value placeholder such as ``enabled: "{guardrail_on}"`` without weakening
+configuration schema validation.
 
 The ``normal_ci`` distribution derives its mean as ``(lower + upper) / 2`` and
 its standard deviation from the confidence level (default: 0.9, i.e. 90% CI).

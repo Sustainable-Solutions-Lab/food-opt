@@ -82,8 +82,13 @@ Four tools implement the cluster workflow:
     ``tar+ssh`` (``--tar``, faster for many small files).
 
 ``tools/batch-solve``
-    Reads the manifest and submits a SLURM job array.  Each array element
-    runs a batch of scenarios in parallel using ``tools/cluster-solve``.
+    Reads the manifest and submits one SLURM job array per dependency wave.
+    Each array element runs a batch of scenarios in parallel using
+    ``tools/cluster-solve``.  Most manifests have a single wave; scenarios
+    that read other scenarios' analysis outputs (e.g. reference-relative
+    ``affordability.cost_cap`` specifications) are ordered into a later wave
+    by ``tools/export-solve-manifest`` and submitted with an ``afterok``
+    dependency on the wave before, so references are always solved first.
 
     Key options:
 

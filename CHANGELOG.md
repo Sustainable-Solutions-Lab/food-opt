@@ -17,6 +17,81 @@ introduce breaking changes to configuration and outputs.
 
 ### Added
 
+- `reallocation_cap` can now limit crop-area, grassland-area and animal-feed
+  reorganization to a fraction of the L1-weighted distance between two
+  realized scenario endpoints, while retaining the calibrated L1 objective.
+  This supports matched fixed-price experiments whose zero and one endpoints
+  reproduce an existing free optimization.
+- A solve-time cap on total net GHG emissions (`emissions.cap`), a new barrier
+  bounding the net CO2-equivalent accumulated on the `emission:ghg` store
+  (net of spared-land sequestration credits). `max_mtco2eq` is either an
+  absolute cap or a reference-relative mapping
+  `{relaxation, reference_scenario}` resolving to `cap = E_ref * (1 + relaxation)`
+  from the reference scenario's realized net emissions. In the barriers GSA it
+  is sampled as `ghg_on`: on uses `relaxation 0` to hold emissions no higher
+  than the frozen reference, while off omits the cap. Distinct from GHG pricing
+  (objective charge) and the biodiversity area cap (converted hectares
+  regardless of carbon).
+- The biodiversity conversion cap, production-concentration cap, and
+  production-value, food-energy and protein floors accept a solved reference
+  scenario. Upper bounds use that scenario's realized cap quantity and
+  per-country floors use its realized output, with a small directional solver
+  tolerance. Reference dependencies are ordered automatically in Snakemake
+  and cluster manifests.
+- `deviation_penalty.diet` now supports `penalty_mode: hard` as a per-country
+  churn budget on total food-consumption deviation from the baseline diet,
+  mirroring the land/feed churn budgets. `diet.max_relative_deviation` is a
+  0-1 dial (the budget is twice that fraction of a country's baseline
+  consumption, so 0 freezes the diet and 1 allows a complete reorganization);
+  `diet.enable_slack` prices budget overruns at
+  `validation.slack_marginal_cost`. The per-country budget duals are reported
+  in `barrier_constraints.parquet` alongside the other guardrails.
+- Two more solve-time guardrails for the barriers-to-water-relief study,
+  reported like the others in `barrier_constraints.parquet`: `protein.floor`
+  bounds each country's primal protein production at a fraction of baseline
+  (protein self-sufficiency, the diet-quality twin of the calorie floor);
+  `affordability.cost_cap` caps the food system's total marginal production
+  cost (bnUSD): production, processing, feed-conversion, trade and
+  groundwater-pumping links plus fertilizer and exogenous-feed generators;
+  it excludes the water/GHG store prices, diet slack, churn penalties,
+  one-off land-conversion investment costs, biomass export revenue and
+  degeneracy-breaking regularizers. The calorie and protein floors now
+  share a generic nutrient-floor module.
+- `affordability.cost_cap.max_cost_bnusd` accepts a reference-based form,
+  `{reference_scenario: <name>}`, resolving the cap from that scenario's
+  realized production cost so cap levels track the model instead of hand-copied
+  constants. A new `production_cost.parquet` analysis
+  output reports each scenario's realized production cost by carrier under
+  the cap's own definition; Snakemake solves the reference scenarios first
+  automatically, and on the cluster `tools/export-solve-manifest` orders the
+  manifest into dependency waves that `tools/batch-solve` submits as chained
+  SLURM arrays.
+- Two solve-time "guardrail" constraints for the barriers-to-water-relief
+  study, each scenario-overridable with its shadow price reported in the new
+  `barrier_constraints.parquet` analysis output (one row per active guardrail,
+  with bound and dual): `biodiversity.cap` caps total natural-land conversion
+  to agriculture (Mha, over `land_conversion` + `new_to_pasture` links), a
+  limit distinct from the land-use-change carbon it carries;
+  `production_concentration.cap` caps, per broadly-grown crop, the share of
+  global production any single country may hold (the linear max-share form).
+- Per-country food-energy accounting and optional floor constraint
+  (`food_energy.floor`, solve-time and scenario-overridable): primal
+  production of human-edible calories per country, bounded from below at a
+  fraction of baseline (a production-capacity notion of calorie
+  self-sufficiency). A new `food_energy.parquet` analysis output reports
+  production, floor shadow prices, gross/net calorie trade and consumption
+  per country.
+- Per-country agricultural production value accounting and optional floor
+  constraint (`production_value.floor`, solve-time and scenario-overridable):
+  every crop and animal product output is valued at fixed FAOSTAT producer
+  prices (gross production value convention), and the floor bounds each
+  country's value at a fraction of its baseline. A new
+  `production_value.parquet` analysis output reports realized vs baseline
+  value per (country, item) plus the floor shadow price. Producer prices are
+  prepared by the new `prepare_producer_prices` rule; solves gain an
+  unconditional `producer_prices.csv` input. See `docs/production_value.rst`
+  for definition and interpretation caveats.
+
 - Multiple cropping is now anchored to an observed baseline derived from
   MIRCA-OS v2 (new automated data source), using the available 2010, 2015, or
   2020 release nearest `baseline_year`. A fixed, documented sequence catalog
@@ -116,6 +191,40 @@ introduce breaking changes to configuration and outputs.
   Repeated configuration builds avoid decoding the same dense global NetCDF
   grids, substantially reducing calendar build time and peak memory without
   changing its output.
+- `default.yaml` no longer ships a default `sensitivity_analysis.outputs` set
+  (it is now empty); every GSA config declares its own surrogate targets and
+  matching `sobol.outputs`. Previously the default set deep-merged into every
+  config, so surrogates were fit on targets no one asked for -- including health
+  outputs (`yll`, ...) that read empty parquets when `health.enabled` is false,
+  which made a health-off GSA fit drop every scenario. The core emission/cost/
+  land targets are now declared explicitly in `gsa.yaml`, `gsa_fixed_diet.yaml`,
+  and `water_gsa_fixed_diet`/`water_gsa_flexible_diet`; health outputs live in
+  `gsa.yaml`. Any custom GSA config must now declare its own outputs.
+- The barriers GSA now samples each competing guardrail as an independent
+  on/off state: on enforces the realized frozen-system boundary and off omits
+  the constraint. A shared `barrier_reference.parquet` records per-country
+  food-energy, protein and production-value output, per-crop concentration,
+  and global land conversion from the frozen solve. This gives every barrier
+  the same feasible "no worse than today" witness despite baseline-calibration
+  slack in the physical model.
+  This replaces incomparable continuous relaxation endpoints (including an
+  affordability endpoint that became tighter because the relief system was
+  cheaper than the frozen system). Water price and reallocation flexibility
+  remain continuous slice axes. Sobol indices therefore measure barrier
+  presence under an explicit 50/50 Bernoulli prior.
+- The barriers GSA fixes fossil groundwater at a scarcity characterization
+  factor of 100 m3-world-eq per m3 depleted, replacing the provisional factor
+  of 30 used by the earlier design.
+- Solves with hard-mode deviation (churn) budgets and/or the production
+  concentration cap are substantially faster. The hard churn budgets (land,
+  feed, diet) now linearize each per-link absolute deviation with the same
+  non-negative equality split already used by the L1 penalties, and the
+  concentration cap carries each crop's global-production total in a dedicated
+  aggregate variable so the per-country cap rows stay sparse. Both are exactly
+  LP-equivalent (identical objective and duals); on a barriers-study solve with
+  all guardrails active the Gurobi barrier dropped from ~327 s to ~51 s and
+  post-presolve nonzeros from ~17.8M to ~2.4M.
+
 - Spatial preprocessing and model construction now reuse region/class cell
   mappings, bound raster cache memory, and vectorize repeated aggregation and
   crop-link operations. This substantially reduces the time and peak memory
@@ -269,7 +378,21 @@ introduce breaking changes to configuration and outputs.
   chain could never reach a fixed point, and `tools/calibrate --check`
   reported the feed step permanently stale. Feed-side artefacts move by
   0.1-0.2%.
-
+- The food-demand calibration now applies a `demand_headroom` margin (default
+  0.05) to shortage foods (raw multiplier < 1), setting their fixed demand
+  safely below achievable supply instead of exactly at it. This resolves the
+  apple root cause at source: apple is area-pinned to existing orchards
+  (`cropgrids_crops`, rainfed, no expansion) and its demand had been calibrated
+  to the exact production ceiling, so it perpetually ran a small deficit filled
+  by demand slack at the penalty price. Apple now clears without slack (market
+  price ~1.7 USD/kg instead of the ~500 USD/kg slack ceiling). Regenerate
+  `food_demand.csv` with `tools/calibrate food_demand`.
+- Food prices in `food_prices.parquet` are no longer corrupted when a food's
+  fixed-diet demand exceeds achievable production: such a food is supplied at
+  the margin by the demand-slack generator, whose penalty price (e.g. ~500
+  USD/kg for apple) trade-equalises across every consuming country and swamped
+  per-capita diet-cost aggregates. These rows now carry `is_slack_pinned=True`
+  and their price/cost columns are nulled so aggregates skip the artifact.
 - Fixed a GAEZ data artefact where a handful of cells carry a negative net
   irrigation requirement, which flipped those crop links into spurious water
   *producers*. Negative requirements are now clipped to zero.

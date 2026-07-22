@@ -103,6 +103,7 @@ Dietary constraints ensure that each country's population meets nutritional requ
    health
    environment
    costs
+   production_value
 
 .. toctree::
    :hidden:

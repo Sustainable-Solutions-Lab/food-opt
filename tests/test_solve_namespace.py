@@ -9,6 +9,8 @@ import pytest
 import yaml
 
 from workflow.scripts.solve_namespace import (
+    affordability_reference_inputs,
+    barrier_reference_inputs,
     validate_scenario_config_schemas,
     validate_scenario_overrides,
 )
@@ -84,3 +86,92 @@ class TestValidateScenarioConfigSchemas:
         defs = {f"gsa_{i}": {"emissions": {"ghg_price": float(i)}} for i in range(50)}
         validate_scenario_config_schemas(base_config, defs, ".")
         assert len(calls) == 1
+
+
+class TestAffordabilityReferenceInputs:
+    @staticmethod
+    def _base_config(cost_cap):
+        return {"affordability": {"cost_cap": cost_cap}}
+
+    def test_absolute_cap_needs_no_references(self):
+        cap = {"enabled": True, "max_cost_bnusd": 3300.0}
+        assert (
+            affordability_reference_inputs(cap, "s", self._base_config(cap), {}) == {}
+        )
+
+    def test_disabled_cap_needs_no_references(self):
+        spec = {"reference_scenario": "a"}
+        cap = {"enabled": False, "max_cost_bnusd": spec}
+        assert (
+            affordability_reference_inputs(cap, "s", self._base_config(cap), {}) == {}
+        )
+
+    def test_reference_cap_returns_reference_path(self):
+        spec = {"reference_scenario": "a"}
+        cap = {"enabled": True, "max_cost_bnusd": spec}
+        base = self._base_config({"enabled": False, "max_cost_bnusd": 1.0})
+        defs = {"a": {}}
+        inputs = affordability_reference_inputs(cap, "s", base, defs)
+        assert inputs == {
+            "cost_reference": "<results>/{name}/analysis/scen-a/production_cost.parquet"
+        }
+
+    def test_undefined_reference_scenario_fails(self):
+        spec = {"reference_scenario": "a"}
+        cap = {"enabled": True, "max_cost_bnusd": spec}
+        base = self._base_config({"enabled": False, "max_cost_bnusd": 1.0})
+        with pytest.raises(ValueError, match="not a defined scenario"):
+            affordability_reference_inputs(cap, "s", base, {})
+
+    def test_reference_based_reference_scenario_fails(self):
+        """Reference chains must not recurse: a reference scenario whose own
+        cap is reference-based is rejected at input-building time."""
+        spec = {"reference_scenario": "a"}
+        cap = {"enabled": True, "max_cost_bnusd": spec}
+        base = self._base_config({"enabled": False, "max_cost_bnusd": 1.0})
+        defs = {
+            "a": {
+                "affordability": {
+                    "cost_cap": {"enabled": True, "max_cost_bnusd": dict(spec)}
+                }
+            },
+        }
+        with pytest.raises(ValueError, match="itself uses a reference-based"):
+            affordability_reference_inputs(cap, "s", base, defs)
+
+
+class TestBarrierReferenceInputs:
+    @pytest.fixture
+    def base_config(self):
+        with open("config/default.yaml") as f:
+            return yaml.safe_load(f)
+
+    def test_shared_reference_returns_one_artifact(self, base_config):
+        defs = {"frozen": {}}
+        scenario = yaml.safe_load(yaml.safe_dump(base_config))
+        scenario["food_energy"]["floor"].update(
+            {"enabled": True, "reference_scenario": "frozen"}
+        )
+        scenario["biodiversity"]["cap"].update(
+            {
+                "enabled": True,
+                "max_conversion_mha": {"reference_scenario": "frozen"},
+            }
+        )
+        assert barrier_reference_inputs(scenario, "sample", base_config, defs) == {
+            "barrier_reference": (
+                "<results>/{name}/analysis/scen-frozen/barrier_reference.parquet"
+            )
+        }
+
+    def test_mixed_references_fail(self, base_config):
+        defs = {"frozen": {}, "other": {}}
+        scenario = yaml.safe_load(yaml.safe_dump(base_config))
+        scenario["food_energy"]["floor"].update(
+            {"enabled": True, "reference_scenario": "frozen"}
+        )
+        scenario["protein"]["floor"].update(
+            {"enabled": True, "reference_scenario": "other"}
+        )
+        with pytest.raises(ValueError, match="must share one reference"):
+            barrier_reference_inputs(scenario, "sample", base_config, defs)

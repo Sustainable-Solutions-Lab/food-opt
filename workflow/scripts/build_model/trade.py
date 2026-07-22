@@ -21,6 +21,8 @@ from .commodity_costs import non_tradable_items, trade_costs_per_km
 
 logger = logging.getLogger(__name__)
 
+DISTANCE_ROUNDOFF_TOLERANCE_KM = 1e-6
+
 
 def compute_trade_hubs(regions_gdf: gpd.GeoDataFrame, n_hubs: int) -> np.ndarray:
     """Run KMeans once and return cluster centers in EPSG:6933 coordinates.
@@ -125,6 +127,7 @@ def _add_trade_hubs_and_links(
     dch = ((country_coords[:, None, :] - centers[None, :, :]) ** 2).sum(axis=2) ** 0.5
     nearest_hub_idx = dch.argmin(axis=1)
     nearest_hub_dist_km = dch[np.arange(len(country_coords)), nearest_hub_idx] / 1000.0
+    nearest_hub_dist_km[nearest_hub_dist_km < DISTANCE_ROUNDOFF_TOLERANCE_KM] = 0.0
 
     country_index = gdf_countries.index.to_list()
     country_to_hub = pd.Series(nearest_hub_idx.astype(int), index=country_index)
@@ -227,6 +230,7 @@ def _add_trade_hubs_and_links(
             np.sqrt(((centers[:, None, :] - centers[None, :, :]) ** 2).sum(axis=2))
             / 1000.0
         )
+        hub_distances[hub_distances < DISTANCE_ROUNDOFF_TOLERANCE_KM] = 0.0
         ii, jj = np.where(~np.eye(n_hubs, dtype=bool))
 
         if len(ii) > 0:
