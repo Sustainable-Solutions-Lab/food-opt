@@ -1,0 +1,288 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Barriers-to-water-relief: the global (all-at-once) GSA
+# ------------------------------------------------------
+# Overlay on config/water_carbon_tradeoff_by_cap_fixed_diet.yaml (pass BOTH
+# to --configfile, this one last). Reuses that build.
+#
+# Where barriers_study.yaml sweeps one guardrail at a time, this config varies
+# every barrier SIMULTANEOUSLY over a space-filling Sobol design and fits a
+# surrogate, so the fitted 1st/total-order (and, via the PCE coefficients,
+# pairwise) Sobol indices expose how the barriers interact rather than only
+# their marginal effect.
+#
+# Binary guardrails (off/on)
+# --------------------------
+# Every sampled guardrail is either enforced at its frozen-reference boundary
+# or absent.
+# This gives all barriers the same counterfactual without inventing a numerical
+# "fully relaxed" cap. The reallocation band and water price remain continuous
+# slice axes.
+#
+# Why every barrier combination is feasible
+# -----------------------------------------
+# Because every enforced guardrail admits the realized frozen solution:
+#   - each self-sufficiency floor uses frozen output in that country;
+#   - the biodiversity cap equals frozen natural-land conversion;
+#   - each crop's concentration cap equals its frozen producer share;
+#   - the diet barrier freezes the baseline diet;
+#   - the affordability cap uses the FROZEN baseline cost;
+#   - the emissions cap uses the frozen scenario's net GHG.
+# The resulting frozen point is a common feasible witness across the entire
+# design. This realized anchor is necessary because the zero-churn production
+# constraints have explicit feasibility slack: raw baseline metadata is not
+# itself an exactly feasible model dispatch.
+#
+# Slice vs sampled axes
+# ---------------------
+# Mirroring water_gsa_fixed_diet, the two axes the paper turns on are SLICE
+# parameters (response axes evaluated through the surrogate):
+#   - water_price: the relief driver, 0 (unpriced) plus a log grid
+#                  1e-5..3.0 USD/m3-world-eq (point mass at 0 = current
+#                  scarcity, so the map bottom-left is the present-day system);
+#   - band:        the reallocation-feasibility (churn) relaxation, 0.0-1.0,
+#                  the land+feed hard deviation budget (0 = frozen production).
+# The eight competing guardrails are independent Bernoulli dimensions. Their
+# Sobol indices measure variance attributable to the presence or absence of a
+# barrier under an explicit 50/50 prior, including interactions.
+#
+# Reference / calibration scenarios (solved first, in dependency waves):
+#   - baseline:   consumer-value calibration anchor (enforce_baseline_diet,
+#                 piecewise off, prices off); feeds calibrate_food_utility_blocks.
+#                 Run that BEFORE exporting/submitting the samples.
+#   - frozen:     enforce_baseline_diet + production frozen (churn 0) + water
+#                 off; its production_cost.parquet and net_emissions.parquet
+#                 define the enforced affordability and emissions boundaries.
+
+name: "water_barriers_gsa"
+
+validation:
+  enforce_baseline_diet: false
+
+health:
+  enabled: false
+
+# Fossil groundwater lies outside AWARE's renewable-water characterization.
+# Use the validated conservative proxy: 100 m3-world-eq per m3 depleted.
+water_scarcity:
+  nonrenewable_cf: 100
+
+calibration:
+  accept_provenance_mismatch: true
+
+scenarios:
+  # Consumer-value calibration anchor (fixed diet, no piecewise, no prices).
+  # enforce_baseline_diet must be re-asserted here because this config flips the
+  # global default to false for the flexible-diet samples; the consumer-value
+  # extraction needs the baseline solved with the diet pinned.
+  baseline:
+    validation: {enforce_baseline_diet: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+
+  # Affordability and emissions anchor: frozen 2020 state (fixed diet + production
+  # pinned to baseline via a zero churn budget), water off, no guardrails. Its
+  # realized production cost is achievable at zero conversion, so pinning the
+  # affordability cap there keeps the frozen point feasible even when the
+  # biodiversity cap forbids conversion.
+  frozen:
+    validation: {enforce_baseline_diet: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    deviation_penalty:
+      penalty_mode: hard
+      land:
+        crops: {max_relative_deviation: 0.0, regional_denominator: suitable, enable_slack: true}
+        grassland: {max_relative_deviation: 0.0, regional_denominator: suitable, enable_slack: true}
+      feed: {max_relative_deviation: 0.0, enable_slack: true}
+
+  _generators:
+    - name: wbg_{sample_id}
+      mode: sensitivity
+      samples: 4096
+      slice_parameters: [band, water_price]
+      parameter_groups:
+        "Environment": [bio_on, ghg_on]
+        "Self-sufficiency": [cal_on, prot_on]
+        "Stability & livelihoods": [conc_on, value_on]
+        "Access & diet": [afford_on, diet_on]
+      parameters:
+        # --- slice axes (response surface) ---
+        # band 0 = frozen production (no reallocation): scarcity stays at its
+        # current, unpriced level regardless of price, anchoring the map's
+        # bottom edge at the present-day system.
+        band:
+          lower: 0.0
+          upper: 1.0
+        # water_price carries a point mass at exactly 0 (unpriced = current
+        # scarcity) plus a log-uniform tail on [1e-5, 3.0]; the relief onset
+        # is a knee near 1e-4..1e-3, so the log floor resolves it and the zero
+        # anchor pins the current-scarcity reference at the map's bottom-left.
+        water_price:
+          distribution: log_uniform_zero
+          lower: 0.00001
+          upper: 3.0
+          zero_fraction: 0.1
+        # --- competing guardrails (independent 50/50 on/off states) ---
+        bio_on: {distribution: bernoulli, probability: 0.5}
+        ghg_on: {distribution: bernoulli, probability: 0.5}
+        conc_on: {distribution: bernoulli, probability: 0.5}
+        cal_on: {distribution: bernoulli, probability: 0.5}
+        prot_on: {distribution: bernoulli, probability: 0.5}
+        value_on: {distribution: bernoulli, probability: 0.5}
+        afford_on: {distribution: bernoulli, probability: 0.5}
+        diet_on: {distribution: bernoulli, probability: 0.5}
+      template:
+        # Flexible diet reference (revealed-preference utility blocks + calorie
+        # intake held at baseline), as in barriers_study.yaml.
+# Diet barrier: on uses the model's native fixed-baseline-diet mode;
+        # off enables revealed-preference utility and dietary reallocation.
+        validation: {enforce_baseline_diet: "{diet_on}"}
+        food_utility_piecewise: {enabled: true}
+        macronutrients: {cal: {equal_to_baseline: true}}
+        water_scarcity: {pricing_enabled: true, price: "{water_price}"}
+        # Reallocation feasibility (churn) -- the `band` slice axis.
+        deviation_penalty:
+          penalty_mode: hard
+          land:
+            crops:
+              max_relative_deviation: "{band}"
+              regional_denominator: suitable
+              enable_slack: true
+            grassland:
+              max_relative_deviation: "{band}"
+              regional_denominator: suitable
+              enable_slack: true
+          feed:
+            max_relative_deviation: "{band}"
+            enable_slack: true
+          diet: {enabled: false}
+# Biodiversity: on admits no more conversion than frozen; off adds no cap.
+        biodiversity:
+          cap:
+            enabled: "{bio_on}"
+            max_conversion_mha: {reference_scenario: frozen}
+            relaxation: null
+        # Emissions: on holds net GHG no higher than the frozen baseline; off
+        # adds no cap.
+        emissions:
+          ghg_pricing_enabled: false
+          ghg_price: 0
+          cap:
+            enabled: "{ghg_on}"
+            max_mtco2eq:
+              relaxation: 0.0
+              reference_scenario: frozen
+# Concentration: on holds each crop at its frozen maximum producer share.
+        production_concentration:
+          cap:
+            enabled: "{conc_on}"
+            reference_scenario: frozen
+            relaxation: null
+            min_global_mt: 10
+            min_producing_countries: 10
+# Self-sufficiency: on holds every covered country at its frozen output.
+        food_energy:
+          floor: {enabled: "{cal_on}", reference_scenario: frozen}
+        protein:
+          floor: {enabled: "{prot_on}", reference_scenario: frozen}
+        production_value:
+          floor: {enabled: "{value_on}", reference_scenario: frozen}
+        # Affordability: on caps recurring production cost at the frozen 2020
+        # cost; off adds no cap.
+        affordability:
+          cost_cap:
+            enabled: "{afford_on}"
+            max_cost_bnusd: {reference_scenario: frozen}
+
+# Surrogate-based sensitivity analysis.
+sensitivity_analysis:
+  holdout_fraction: 0.15
+  threads: 6
+  # ReLU MLP is the primary surrogate: it preserves smooth response surfaces
+  # over the continuous band/price axes while consuming the guardrails only at
+  # their binary support. xgb is retained as a cross-check.
+  default_surrogate: mlp
+  discover_scenarios_on_disk: true
+  sobol:
+    outputs: [scarcity, withdrawn, production_cost, conversion, co2]
+  methods:
+    mlp:
+      method_options:
+        # Small net + seed-averaged ensemble for the 4096-sample design
+        # (10 inputs). Early stopping on a held-out 10% guards against overfit;
+        # the ensemble smooths non-monotone wiggle in the response surface.
+        hidden_layer_sizes: [128, 64]
+        ensemble_size: 5
+        activation: relu
+        alpha: 0.001
+    xgb:
+      method_options:
+        n_estimators: 5000
+        max_depth: 4
+        learning_rate: 0.02
+        subsample: 0.8
+        colsample_bytree: 0.8
+        min_child_weight: 5
+        early_stopping_rounds: 50
+  outputs:
+    scarcity:
+      source: water_metrics.parquet
+      reducer: column_sum
+      column: scarcity_mm3_eq
+      # Scarcity spans ~3 orders of magnitude across the design (skew ~9); fit
+      # and Sobol-decompose in log space so the surrogate resolves the bulk
+      # instead of chasing the heavy tail.
+      transform: log
+      label: Water scarcity (log)
+      units: "log Mm3 world-eq"
+    withdrawn:
+      source: water_metrics.parquet
+      reducer: column_sum
+      column: withdrawn_mm3
+      label: Irrigation withdrawn
+      units: "Mm3"
+    production_cost:
+      source: production_cost.parquet
+      reducer: column_sum
+      column: cost_bnusd
+      label: Production cost
+      units: "bnUSD"
+    conversion:
+      source: luc_breakdown.parquet
+      reducer: filter_sum
+      filter_col: category
+      filter_value: "Cropland expansion"
+      value_col: area_mha
+      label: Cropland expansion
+      units: "Mha"
+    co2:
+      source: net_emissions.parquet
+      reducer: filter_sum
+      filter_col: source
+      filter_value: "Land Use Change"
+      value_col: mtco2eq
+      label: LUC CO2
+      units: "MtCO2eq"
+
+plotting:
+  comparison_scenarios: "all"
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  options_gurobi:
+    LogToConsole: 0
+    OutputFlag: 1
+    Method: 2
+    # Barrier-only: the 5 GSA outputs are all primal aggregates, so the interior
+    # optimum suffices. Skips the crossover phase that stalls on the degenerate
+    # tight-guardrail corners (~2x faster, no crossover-timeout stragglers).
+    Crossover: 0
+  mem_mb: 4000
+  time_limit: 30
+  runtime: 6
+  inline_analysis: true

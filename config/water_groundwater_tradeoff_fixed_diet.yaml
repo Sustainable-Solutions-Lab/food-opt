@@ -1,0 +1,86 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Groundwater-depletion trade-offs with FIXED baseline diet
+# ---------------------------------------------------------
+# The core counterfactual for the refined water supply: starting from the ~2020
+# baseline food system (renewable water + a non-renewable groundwater band from
+# WaterGAP 2.2e), ratchet the allowed groundwater depletion down toward zero and
+# watch the food system reorganize on the PRODUCTION side (diet is pinned to the
+# 2020 baseline, so basin shifts and irrigated-vs-rainfed reallocation are the
+# only levers). See WATER_GROUNDWATER_DESIGN.md.
+#
+# water.supply.mode is structural (build-time), so it is set here at the base
+# config level; only the solve-time groundwater_depletion levers vary per
+# scenario:
+#   - "gwcap*": epsilon-constraint on mined volume (Mm3), baseline -> 0. Caps
+#               above the baseline draw are non-binding (equal the baseline), so
+#               the sweep starts at the baseline regardless of its exact value.
+#   - "gwp*"  : groundwater-depletion shadow price (USD per m3 mined), an
+#               alternative continuous lens on the same trade-off.
+# GHG pricing is held off throughout to isolate the groundwater response.
+
+name: "water_groundwater_tradeoff_fixed_diet"
+
+# Refined water supply with the non-renewable groundwater band (structural).
+water:
+  supply:
+    mode: "groundwater"
+
+# Fix diet to the 2020 baseline (production-side reorganization only).
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+solving:
+  solver: "gurobi"
+  mem_mb: 5000
+
+# Paper default production-stability regime: hard per-link relative bands with
+# expensive slack for feasibility.
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+
+scenarios:
+  default:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: false, price: 0, cap_mm3: null}
+
+  # --- groundwater-cap front (Mm3 mined), baseline -> 0 ---
+  gwcap100k:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: false, price: 0, cap_mm3: 100000}
+  gwcap50k:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: false, price: 0, cap_mm3: 50000}
+  gwcap20k:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: false, price: 0, cap_mm3: 20000}
+  gwcap10k:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: false, price: 0, cap_mm3: 10000}
+  gwcap5k:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: false, price: 0, cap_mm3: 5000}
+  gwoff:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: false, price: 0, cap_mm3: 0}
+
+  # --- groundwater-price front (USD per m3 mined), alternative lens ---
+  gwp01:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: true, price: 0.1, cap_mm3: null}
+  gwp03:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: true, price: 0.3, cap_mm3: null}
+  gwp1:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: true, price: 1.0, cap_mm3: null}

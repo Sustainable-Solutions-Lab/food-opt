@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Groundwater x region-resolution diagnostic (investigatory)
+# ----------------------------------------------------------
+# Tests whether the model's low baseline groundwater draw (36 km3 at 750
+# regions) is an artefact of spatial aggregation: at 750 global regions, water
+# is fungible within each (large) region, so abundant renewable water masks the
+# sub-regional scarcity that drives real groundwater mining. If finer regions
+# isolate the dry aquifer zones, their renewable band should bind and the
+# baseline groundwater draw should rise toward the ~155 km3 physical band.
+#
+# Same groundwater-mode + fixed-diet + hard-band regime as
+# water_groundwater_tradeoff_fixed_diet, but 1500 regions and only the baseline
+# (no cap) scenario -- we just need the baseline groundwater draw.
+
+name: "water_gw_resolution_test"
+
+water:
+  supply:
+    mode: "groundwater"
+
+aggregation:
+  regions:
+    target_count: 1500
+
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+solving:
+  solver: "gurobi"
+  mem_mb: 8000
+
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+
+scenarios:
+  default:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: false, price: 0, cap_mm3: null}

@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Water x carbon x food-security-floor overlay
+# --------------------------------------------
+# Overlay on config/water_carbon_tradeoff_by_cap_fixed_diet.yaml (pass BOTH to
+# --configfile, this one last). Reuses that config's build and results tree;
+# only the scenario set is swapped.
+#
+# The missing cell. The by-cap campaign prices water AND carbon but has no
+# food-security floors; the value/calorie floor overlay
+# (water_value_floor_scenarios.yaml) adds the floors but turns GHG pricing OFF.
+# Nobody has run all three objectives at once. This overlay does: it keeps GHG
+# priced while the per-country value and calorie floors are active, to answer
+#
+#   does water-scarcity relief stay near-free w.r.t. value/calories once carbon
+#   is also priced, or do water and carbon start competing for the same land
+#   under the floors?
+#
+# Water and carbon are both kept as PRICES (not epsilon-constraint caps). The
+# value/calorie floors are hard >= constraints; a hard water- or carbon-cap
+# crossed with hard floors would make the tight corners infeasible (failed
+# solves) rather than priced trade-offs. Prices never go infeasible -- they
+# stop relieving -- so the whole grid solves and the frontier shape is read
+# from realized scarcity/emissions and the floor duals. (A cap-based, dual-
+# yielding water axis is a natural follow-up, but needs per-cell feasibility
+# guards and is out of scope here.)
+#
+# Grid (fixed diet, central parameters, churn 1.0 = full reallocation, the
+# regime where relief is largest and floors bite hardest):
+#   ghg price (USD/tCO2e)        : {0, 61, 214}  -- off anchor + two exact
+#                                  by-cap-grid carbon prices (mid, high) so the
+#                                  no-floor cells cross-check the 256-run cube
+#   value floor fraction         : {0 (off), 0.95}
+#   calorie floor fraction       : {0 (off), 1.0}
+#   water price (USD/m3 world-eq): {0.003, 0.022, 0.155, 1.118, 3.0}
+# = 3 x 2 x 2 x 5 = 60 scenarios. The (value 0, calorie 0) corner is the pure
+# water x carbon slice at churn 1.0; the (0.95, 1.0) corner is the joint
+# floor. Every ghg>0 / floor-off cell coincides with a by-cap cube cell.
+#
+# Names are fixed-width (wcf{ghg:03d}v{vfloor:03d}e{efloor:03d}w{price:04d}) so
+# no name is a prefix of another. All swept keys are solve-time.
+
+scenarios:
+  _generators:
+    - name: wcf{ghg}v{vfloor}e{efloor}w{price}
+      mode: grid
+      parameters:
+        ghg: {values: [0, 61, 214], name_format: "lambda x: f'{int(x):03d}'"}
+        vfloor: {values: [0.0, 0.95], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        efloor: {values: [0.0, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {values: [0.003, 0.022, 0.155, 1.118, 3.0], name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        emissions: {ghg_pricing_enabled: true, ghg_price: "{ghg}"}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: 1.0, regional_denominator: suitable}
+            grassland: {max_relative_deviation: 1.0, regional_denominator: suitable}
+          feed: {max_relative_deviation: 1.0}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+        production_value: {floor: {enabled: true, fraction: "{vfloor}"}}
+        food_energy: {floor: {enabled: true, fraction: "{efloor}"}}

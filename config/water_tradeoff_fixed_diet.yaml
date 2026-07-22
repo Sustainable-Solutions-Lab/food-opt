@@ -1,0 +1,403 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Water / emissions / cost trade-offs with FIXED baseline diet
+# ------------------------------------------------------------
+# Fixed-diet counterpart of config/water_tradeoff_flexible_diet.yaml. Food
+# consumption is pinned to 2020 baseline values (validation.enforce_baseline_
+# diet=true), so the only levers the model can pull to cut water scarcity or
+# emissions are on the PRODUCTION side: where and how crops are grown,
+# irrigated-vs-rainfed reallocation, and basin shifts. Diet composition cannot
+# change. Since the diet is fixed, food utility is irrelevant (the piecewise
+# blocks stay disabled) and no baseline-calibration scenario is needed.
+#
+# Scenarios sweep the solve-time water-scarcity shadow price (USD per m3
+# world-equivalent) and the GHG price (USD per tCO2e):
+#   - "wp*"    : water-scarcity price sweep at zero GHG price (cost vs water).
+#   - "ghg*"   : GHG price sweep at zero water price (cost vs emissions).
+#   - "ghg*wp*": combined, to expose the emissions <-> water interaction.
+# Mirrors the swept grid of config/water_tradeoff_flexible_diet.yaml so the two
+# diet regimes are directly comparable in the analysis notebook.
+
+name: "water_tradeoff_fixed_diet"
+
+# Fix diet to the 2020 baseline.
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+# Paper default production-stability regime: hard per-link relative bands with
+# expensive slack for feasibility. This overrides config/default.yaml for all
+# water-tradeoff scenarios unless a scenario explicitly changes the band width
+# or disables deviation_penalty.
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+
+# Full default resolution (750 regions, 3 resource classes, 48 crops, 20 hubs):
+# water scarcity is basin-specific, so the trade-off fronts need the full
+# spatial detail rather than the reduced exploration grid.
+
+# NOTE: default.yaml prices GHG at 200 USD/tCO2e, so every scenario sets BOTH
+# the GHG and water levers explicitly to keep the experiment controlled.
+scenarios:
+  default:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+
+  # --- cost vs water-scarcity front (GHG off) ---
+  wp0003:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.0003}
+  wp001:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.001}
+  wp003:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.003}
+  wp01:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.01}
+  wp03:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+  wp1:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.1}
+  wp3:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+  # High-price tail: push towards eliminating irrigation entirely. Under a fixed
+  # diet the model may hit an irreducible floor (baseline production with no
+  # viable rainfed substitute), so withdrawn volume flattens rather than reaching
+  # zero.
+  wp10:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 1.0}
+  wp30:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 3.0}
+  wp100:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 10.0}
+  wp300:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 30.0}
+  wp1000:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 100.0}
+
+  # --- cost vs emissions front (water off) ---
+  ghg50:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 50}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  ghg100:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 100}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  ghg200:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  ghg400:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 400}
+    water_scarcity: {pricing_enabled: false, price: 0}
+
+  # --- emissions <-> water interaction (GHG fixed at 200, water swept) ---
+  ghg200wp003:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.003}
+  ghg200wp03:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+  ghg200wp3:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+
+  # === No-deviation-penalty replication ('nd' suffix) =================
+  # Same lever grid as above, but with the production-stability deviation
+  # penalties switched OFF (deviation_penalty.enabled=false). Production is
+  # then free to reallocate (subject only to the growth caps in `validation`)
+  # rather than being anchored near the inefficient 2020 pattern. This tests
+  # whether a genuine irrigation<->emissions trade-off emerges once today's
+  # patterns are no longer enforced.
+  defaultnd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  wp0003nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.0003}
+  wp001nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.001}
+  wp003nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.003}
+  wp01nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.01}
+  wp03nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+  wp1nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.1}
+  wp3nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+  wp10nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 1.0}
+  wp30nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 3.0}
+  wp100nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 10.0}
+  wp300nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 30.0}
+  wp1000nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 100.0}
+  ghg50nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 50}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  ghg100nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 100}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  ghg200nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  ghg400nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 400}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  ghg200wp003nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.003}
+  ghg200wp03nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+  ghg200wp3nd:
+    deviation_penalty: {enabled: false}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+
+  # === Production-flexibility axis ('flex*' scenarios) ================
+  # Hard per-link relative deviation bands. Each crop_production,
+  # grassland_production and animal-feed link is bounded to +/-X of its 2020
+  # baseline: (1-X)*base <= area <= (1+X)*base. Sweeping X is the
+  # production-flexibility axis from X=0 (frozen = today's pattern exactly) to
+  # the free end (the existing 'nd' scenarios, deviation penalty off). Land
+  # (cropland + grassland) and feed bands move together. enable_slack guards
+  # feasibility at tight bands. For each X we sweep the water-scarcity price to
+  # trace that level's emissions-vs-scarcity front; the near-baseline slope
+  # flips sign as X grows (the headline). Diet stays pinned (fixed-diet study).
+  #
+  # X=0: production fully pinned, so the water price cannot act -> a single
+  # frozen reference point (no water-price companions needed).
+  flex000:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.0, enable_slack: true}
+        grassland: {max_relative_deviation: 0.0, enable_slack: true}
+      feed: {max_relative_deviation: 0.0, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+
+  # X=0.05: baseline + water-price companions. These explicit names are the
+  # canonical 5% hard-band water-price sweep used by the paper figures. They
+  # duplicate the config-level 5% default band rather than relying on the old
+  # default/wp* names, whose solved files may predate the hard-band transition.
+  flex005:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.05, enable_slack: true}
+        grassland: {max_relative_deviation: 0.05, enable_slack: true}
+      feed: {max_relative_deviation: 0.05, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  flex005wp0003:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.0003}
+  flex005wp001:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.001}
+  flex005wp003:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.003}
+  flex005wp01:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.01}
+  flex005wp03:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.05, enable_slack: true}
+        grassland: {max_relative_deviation: 0.05, enable_slack: true}
+      feed: {max_relative_deviation: 0.05, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+  flex005wp1:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.1}
+  flex005wp3:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.05, enable_slack: true}
+        grassland: {max_relative_deviation: 0.05, enable_slack: true}
+      feed: {max_relative_deviation: 0.05, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+  flex005wp10:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 1.0}
+  flex005wp30:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 3.0}
+  flex005wp100:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 10.0}
+  flex005wp300:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 30.0}
+  flex005wp1000:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 100.0}
+
+  # X=0.20.
+  flex020:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.2, enable_slack: true}
+        grassland: {max_relative_deviation: 0.2, enable_slack: true}
+      feed: {max_relative_deviation: 0.2, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  flex020wp03:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.2, enable_slack: true}
+        grassland: {max_relative_deviation: 0.2, enable_slack: true}
+      feed: {max_relative_deviation: 0.2, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+  flex020wp3:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.2, enable_slack: true}
+        grassland: {max_relative_deviation: 0.2, enable_slack: true}
+      feed: {max_relative_deviation: 0.2, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+
+  # X=0.50.
+  flex050:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.5, enable_slack: true}
+        grassland: {max_relative_deviation: 0.5, enable_slack: true}
+      feed: {max_relative_deviation: 0.5, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  flex050wp03:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.5, enable_slack: true}
+        grassland: {max_relative_deviation: 0.5, enable_slack: true}
+      feed: {max_relative_deviation: 0.5, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+  flex050wp3:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.5, enable_slack: true}
+        grassland: {max_relative_deviation: 0.5, enable_slack: true}
+      feed: {max_relative_deviation: 0.5, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+
+  # X=1.00.
+  flex100:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 1.0, enable_slack: true}
+        grassland: {max_relative_deviation: 1.0, enable_slack: true}
+      feed: {max_relative_deviation: 1.0, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  flex100wp03:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 1.0, enable_slack: true}
+        grassland: {max_relative_deviation: 1.0, enable_slack: true}
+      feed: {max_relative_deviation: 1.0, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+  flex100wp3:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 1.0, enable_slack: true}
+        grassland: {max_relative_deviation: 1.0, enable_slack: true}
+      feed: {max_relative_deviation: 1.0, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+
+plotting:
+  comparison_scenarios: "all"
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 8
+  mem_mb: 12000
+  runtime: 30

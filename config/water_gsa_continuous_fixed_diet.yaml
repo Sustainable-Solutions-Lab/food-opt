@@ -1,0 +1,144 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Continuous-axis water-carbon GSA (fixed diet)
+# ---------------------------------------------
+# A single ensemble in which the production-flexibility axis AND the water-
+# scarcity price are CONTINUOUS Sobol dimensions alongside the uncertain
+# physical parameters -- replacing the earlier discrete designs (the failed
+# surrogate-of-levels water_gsa_fixed_diet and the two-point paired
+# water_gsa_paired_fixed_diet).
+#
+# Flexibility axis -- regional churn budget (hard mode, scope=regional):
+#   for each region, sum_i |area_i - baseline_i| <= churn * (suitable area).
+# With regional_denominator=suitable, churn=0 freezes production at the 2020
+# pattern and churn=1 lets the entire suitable land base of each region be
+# reshuffled, so the single axis churn in [0, 1] spans frozen -> free without a
+# separate "free" anchor. Sampled UNIFORMLY (not log): the axis is a fraction of
+# land, equally interesting across its range. (Starting at 0; how close to 0 we
+# can push before slack-relaxed infeasibility is a TODO.)
+#
+# The emissions response to pricing water is a ~1% difference of two ~6500
+# MtCO2e levels, so it cannot be recovered by differencing a surrogate of
+# levels. We keep the exact-difference trick: each draw is solved twice at
+# IDENTICAL physical parameters and churn budget --
+#   r0_i: water pricing OFF  (this draw's own unpriced reference)
+#   rp_i: water priced at the draw's sampled price p_i
+# dGHG_i = GHG(rp_i) - GHG(r0_i) is then EXACT per draw, and a surrogate fits
+# dGHG directly on (physical params, churn, price) -- a small but exact target.
+#
+# Both generators share an IDENTICAL `parameters` block (YAML anchor): the Sobol
+# design is seeded by parameter count + seed (not generator name), so sample i
+# has the same physical params, the same churn budget, AND the same drawn price
+# in both r0_i and rp_i. r0 ignores the drawn price (pricing disabled). The
+# pairing on (params, churn) is therefore exact.
+#
+# Slice axes (predict dGHG across these):
+#   churn:       uniform 0 - 1       -> deviation_penalty land.*.max_relative_deviation
+#   water_price: log-uniform 3e-4-3  -> water_scarcity.price (rp only)
+# Uncertain physical parameters (the carbon-side envelope): yields, CH4/N2O/LUC
+# emission factors, feed-conversion ratio, food loss & waste. (Sequestration-
+# rate split and irrigated/rainfed yield-gap hooks are a planned follow-up.)
+#
+# Structurally identical (build-time keys) to water_tradeoff_fixed_diet, so it
+# reuses that build. Solved off-Snakemake via the manifest workflow.
+
+name: "water_gsa_continuous_fixed_diet"
+
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+# Hard regional churn budget on ALL three components so they share one
+# flexibility geometry on the single churn axis: crops + grassland are a
+# per-region land (Mha) churn budget vs suitable area; feed is a per-country
+# feed-use (Mt DM) churn budget vs baseline feed use (no land-area "suitable"
+# analogue). Numeric l1_cost clears default.yaml's "calibrated" sentinel
+# (invalid under hard mode); base max_relative_deviation is a placeholder
+# overridden per draw by the sampled churn budget.
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops:
+      l1_cost: 0.0
+      max_relative_deviation: 0.2
+      enable_slack: true
+      scope: regional
+      regional_denominator: suitable
+    grassland:
+      l1_cost: 0.0
+      max_relative_deviation: 0.2
+      enable_slack: true
+      scope: regional
+      regional_denominator: suitable
+  feed:
+    l1_cost: 0.0
+    max_relative_deviation: 0.2
+    enable_slack: true
+    scope: regional
+    regional_denominator: baseline
+
+scenarios:
+  default: {}
+  _generators:
+    - name: r0_{sample_id}
+      mode: sensitivity
+      samples: &nsamp 8192
+      slice_parameters: [churn, water_price]
+      parameters: &physparams
+        yield_factor: {lower: 0.8, upper: 1.2, bounds: [0, null]}
+        ch4_factor:
+          {distribution: normal_ci, lower: 0.5, upper: 1.5, confidence: 0.9, bounds: [0, null]}
+        n2o_factor:
+          {distribution: normal_ci, lower: 0.3, upper: 1.7, confidence: 0.9, bounds: [0, null]}
+        luc_factor:
+          {distribution: normal_ci, lower: 0.3, upper: 1.7, confidence: 0.9, bounds: [0, null]}
+        flw_factor: {lower: 0.7, upper: 1.3, bounds: [0, null]}
+        fcr_factor: {lower: 0.8, upper: 1.2, bounds: [0, null]}
+        churn: {lower: 0.0, upper: 1.0}
+        water_price: {distribution: log_uniform, lower: 0.0003, upper: 30.0}
+      template:
+        sensitivity: &sens
+          crop_yields: {all: "{yield_factor}"}
+          emission_factors: {ch4: "{ch4_factor}", n2o: "{n2o_factor}", luc: "{luc_factor}"}
+          food_loss_waste: "{flw_factor}"
+          feed_conversion: "{fcr_factor}"
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: &budget
+          land:
+            crops: {max_relative_deviation: "{churn}"}
+            grassland: {max_relative_deviation: "{churn}"}
+          feed: {max_relative_deviation: "{churn}"}
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        water_scarcity: {pricing_enabled: false, price: 0}
+    - name: rp_{sample_id}
+      mode: sensitivity
+      samples: *nsamp
+      slice_parameters: [churn, water_price]
+      parameters: *physparams
+      template:
+        sensitivity: *sens
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: *budget
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        water_scarcity: {pricing_enabled: true, price: "{water_price}"}
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  # Pure LP: dedicated barrier (timed 2026-07-08 on central water models;
+  # sampled extremes untested -- revert to Method 3 + NumericFocus 2 if the
+  # barrier stalls, cf. the rationale in gsa.yaml).
+  options_gurobi:
+    LogToConsole: 0
+    OutputFlag: 1
+    Method: 2
+  mem_mb: 10000
+  time_limit: 30
+  runtime: 6
+  inline_analysis: true

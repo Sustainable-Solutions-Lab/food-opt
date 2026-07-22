@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Production-value floor scenarios for the water-scarcity trade-off
+# -----------------------------------------------------------------
+# Overlay on config/water_carbon_tradeoff_by_cap_fixed_diet.yaml (pass BOTH
+# to --configfile, this one last). Reuses that config's build and results
+# tree; only the scenario set is swapped, so the 256-scenario cluster
+# campaign is untouched. All swept keys are solve-time.
+#
+# Question: how much water-scarcity relief survives when each country must
+# retain a floor fraction of its baseline gross agricultural production
+# value (food sovereignty / sector protection)? GHG pricing is off to
+# isolate the water-value trade-off.
+#
+# Grid (fixed diet, central parameters):
+#   floor fraction        : {off (0), 0.85, 0.95, 1.0}
+#   churn (reallocation)  : {0.2, 1.0}
+#   water price (USD/m3
+#     world-eq, AWARE)    : {0.003, 0.022, 0.155, 1.118, 3.0}
+# = 4 x 2 x 5 = 40 scenarios, plus a uniform-price-basis arm at floor 0.95,
+# churn 1.0 (5 scenarios) to separate quantity-mix protection from
+# support-price protection.
+#
+# Names are fixed-width (pv{floor:03d}c{churn:03d}w{price_milli:04d}, with a
+# pvu prefix for the uniform-basis arm) so no name is a prefix of another.
+#
+# Two follow-up arms (both at churn 1.0): "pe" crosses the food-energy
+# (calorie-production) floor with the value floor; "cf" tests the
+# sensitivity of the headline to the fossil-groundwater scarcity weighting
+# water_scarcity.nonrenewable_cf.
+#
+# Dense arms "pvd" / "ped" (churn 1.0 only) resample the water price on a
+# 16-point log grid (0.003..3.0) for smooth frontier and cost-of-floor
+# curves: pvd = value floor {0, .85, .95, 1.0}; ped = value 95% crossed with
+# a calorie floor {.9, 1.0} (and calorie-only at value 0).
+
+scenarios:
+  _generators:
+    - name: pvd{floor}w{price}
+      mode: grid
+      parameters:
+        floor: {values: [0.0, 0.85, 0.95, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 16, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: 1.0, regional_denominator: suitable}
+            grassland: {max_relative_deviation: 1.0, regional_denominator: suitable}
+          feed: {max_relative_deviation: 1.0}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+        production_value: {floor: {enabled: true, fraction: "{floor}"}}
+    - name: ped{efloor}v{vfloor}w{price}
+      mode: grid
+      parameters:
+        efloor: {values: [0.9, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        vfloor: {values: [0.0, 0.95], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 16, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: 1.0, regional_denominator: suitable}
+            grassland: {max_relative_deviation: 1.0, regional_denominator: suitable}
+          feed: {max_relative_deviation: 1.0}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+        production_value: {floor: {enabled: true, fraction: "{vfloor}"}}
+        food_energy: {floor: {enabled: true, fraction: "{efloor}"}}
+    - name: pv{floor}c{churn}w{price}
+      mode: grid
+      parameters:
+        floor: {values: [0.0, 0.85, 0.95, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        churn: {values: [0.2, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {values: [0.003, 0.022, 0.155, 1.118, 3.0], name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+        production_value: {floor: {enabled: true, fraction: "{floor}"}}
+    # Joint value + calorie-production floors at full reallocation: does
+    # scarcity relief survive protecting BOTH the sector economically and
+    # the domestic calorie base? efloor is the food-energy floor fraction
+    # (0 = off), vfloor the production-value floor fraction (0 = off).
+    - name: pe{efloor}v{vfloor}w{price}
+      mode: grid
+      parameters:
+        efloor: {values: [0.9, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        vfloor: {values: [0.0, 0.95], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {values: [0.003, 0.022, 0.155, 1.118, 3.0], name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: 1.0, regional_denominator: suitable}
+            grassland: {max_relative_deviation: 1.0, regional_denominator: suitable}
+          feed: {max_relative_deviation: 1.0}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+        production_value: {floor: {enabled: true, fraction: "{vfloor}"}}
+        food_energy: {floor: {enabled: true, fraction: "{efloor}"}}
+    # Sensitivity of the headline to the fossil-groundwater scarcity
+    # weighting: nonrenewable_cf {300, 1000} vs the AWARE-cutoff default 100.
+    - name: cf{cf}v{vfloor}w{price}
+      mode: grid
+      parameters:
+        cf: {values: [10, 30, 300, 1000], name_format: "lambda x: f'{int(x):04d}'"}
+        vfloor: {values: [0.0, 0.95], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {values: [0.022, 0.155, 3.0], name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: 1.0, regional_denominator: suitable}
+            grassland: {max_relative_deviation: 1.0, regional_denominator: suitable}
+          feed: {max_relative_deviation: 1.0}
+        water_scarcity: {pricing_enabled: true, price: "{price}", nonrenewable_cf: "{cf}"}
+        production_value: {floor: {enabled: true, fraction: "{vfloor}"}}
+    - name: pvu{floor}c{churn}w{price}
+      mode: grid
+      parameters:
+        floor: {values: [0.95], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        churn: {values: [1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {values: [0.003, 0.022, 0.155, 1.118, 3.0], name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+        production_value: {floor: {enabled: true, fraction: "{floor}", price_basis: uniform}}

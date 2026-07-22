@@ -1,0 +1,101 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Scratch probe overlay for the water_barriers_gsa design extension.
+# Pass AFTER config/water_carbon_tradeoff_by_cap_fixed_diet.yaml and
+# config/water_barriers_gsa.yaml. Reuses the existing build + reference solves.
+#
+# Purpose: pin where scarcity plateaus to the current (unpriced) 39,668 km3 as
+# water_price -> 0, and confirm band=0 is a degenerate (frozen-production)
+# current-scarcity row, before committing to a full 4096-sample cluster rerun.
+#
+# Every dial is fixed at relaxation 0 (the "all guardrails at 2020 baseline"
+# corner, matching a Sobol draw with all rel dials = 0). Only band and
+# water_price vary. p-b0-* isolate the band=0 row; p-b10-* trace the price
+# onset at a small positive band.
+
+name: "water_barriers_gsa"
+
+scenarios:
+  probe-b0-p0:
+    &probe
+    validation: {enforce_baseline_diet: false}
+    food_utility_piecewise: {enabled: true}
+    macronutrients: {cal: {equal_to_baseline: true}}
+    emissions:
+      ghg_pricing_enabled: false
+      ghg_price: 0
+      cap:
+        enabled: true
+        max_mtco2eq: {relaxation: 0.0, reference_scenario: frozen}
+    water_scarcity: {pricing_enabled: true, price: 0.0}
+    deviation_penalty:
+      penalty_mode: hard
+      land:
+        crops: {max_relative_deviation: 0.0, regional_denominator: suitable, enable_slack: true}
+        grassland: {max_relative_deviation: 0.0, regional_denominator: suitable, enable_slack: true}
+      feed: {max_relative_deviation: 0.0, enable_slack: true}
+      diet: {enabled: true, max_relative_deviation: 0.0, enable_slack: true}
+    biodiversity: {cap: {enabled: true, max_conversion_mha: 110.0, relaxation: 0.0}}
+    production_concentration:
+      cap: {enabled: true, relaxation: 0.0, min_global_mt: 10, min_producing_countries: 10}
+    food_energy: {floor: {enabled: true, relaxation: 0.0}}
+    protein: {floor: {enabled: true, relaxation: 0.0}}
+    production_value: {floor: {enabled: true, relaxation: 0.0}}
+    affordability:
+      cost_cap:
+        enabled: true
+        max_cost_bnusd: {reference_scenario: frozen}
+
+  # band=0 row at a small positive price: expect ~ same as p-b0-p0 (frozen
+  # production cannot reallocate, so price is inert here).
+  probe-b0-p3:
+    <<: *probe
+    water_scarcity: {pricing_enabled: true, price: 0.001}
+
+  # price onset at band=0.1 (5%->10% flexibility triggers the AWARE-weighted
+  # relief). Trace how low the price must go for scarcity -> current.
+  probe-b10-p6:
+    <<: *probe
+    water_scarcity: {pricing_enabled: true, price: 0.000001}
+    deviation_penalty:
+      penalty_mode: hard
+      land:
+        crops: {max_relative_deviation: 0.1, regional_denominator: suitable, enable_slack: true}
+        grassland: {max_relative_deviation: 0.1, regional_denominator: suitable, enable_slack: true}
+      feed: {max_relative_deviation: 0.1, enable_slack: true}
+      diet: {enabled: true, max_relative_deviation: 0.0, enable_slack: true}
+
+  probe-b10-p5:
+    <<: *probe
+    water_scarcity: {pricing_enabled: true, price: 0.00001}
+    deviation_penalty:
+      penalty_mode: hard
+      land:
+        crops: {max_relative_deviation: 0.1, regional_denominator: suitable, enable_slack: true}
+        grassland: {max_relative_deviation: 0.1, regional_denominator: suitable, enable_slack: true}
+      feed: {max_relative_deviation: 0.1, enable_slack: true}
+      diet: {enabled: true, max_relative_deviation: 0.0, enable_slack: true}
+
+  probe-b10-p4:
+    <<: *probe
+    water_scarcity: {pricing_enabled: true, price: 0.0001}
+    deviation_penalty:
+      penalty_mode: hard
+      land:
+        crops: {max_relative_deviation: 0.1, regional_denominator: suitable, enable_slack: true}
+        grassland: {max_relative_deviation: 0.1, regional_denominator: suitable, enable_slack: true}
+      feed: {max_relative_deviation: 0.1, enable_slack: true}
+      diet: {enabled: true, max_relative_deviation: 0.0, enable_slack: true}
+
+  probe-b10-p3:
+    <<: *probe
+    water_scarcity: {pricing_enabled: true, price: 0.001}
+    deviation_penalty:
+      penalty_mode: hard
+      land:
+        crops: {max_relative_deviation: 0.1, regional_denominator: suitable, enable_slack: true}
+        grassland: {max_relative_deviation: 0.1, regional_denominator: suitable, enable_slack: true}
+      feed: {max_relative_deviation: 0.1, enable_slack: true}
+      diet: {enabled: true, max_relative_deviation: 0.0, enable_slack: true}

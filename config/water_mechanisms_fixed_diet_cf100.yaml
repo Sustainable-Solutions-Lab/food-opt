@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Fixed-diet water-price mechanism sweep. Each m3 of non-renewable groundwater
+# carries 100 m3-eq under water-scarcity pricing. The price range ends at a
+# policy-scale upper bound of 1 USD per m3 scarcity-equivalent.
+
+name: "water_barriers_gsa"
+
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+emissions:
+  ghg_pricing_enabled: false
+  ghg_price: 0
+
+water_scarcity:
+  nonrenewable_cf: 100
+
+scenarios:
+  wf00000:
+    water_scarcity: {pricing_enabled: false, price: 0}
+  _generators:
+    - name: wfw{price}
+      mode: grid
+      parameters:
+        price:
+          values: [0.0001, 0.0002, 0.0003, 0.0005, 0.0007, 0.001, 0.0015, 0.002, 0.003, 0.005, 0.007, 0.01, 0.015, 0.02, 0.03, 0.05, 0.07, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0]
+          name_format: "lambda x: f'{round(x * 10000):05d}'"
+      template:
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  options_gurobi: {LogToConsole: 0, OutputFlag: 1, Method: 2}
+  mem_mb: 4000
+  time_limit: 30
+  runtime: 6
+  inline_analysis: false

@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Fixed-price reallocation mechanism sweep
+# ----------------------------------------
+# Holds the water-scarcity price at 1 USD/m3-eq and progressively admits the
+# production reorganization used by the comparable free price-1 optimum.
+# The calibrated L1 objective remains active. For realized unpriced dispatch
+# x0 and free price-1 dispatch x1, each capped solve imposes
+#
+#   K(x, x0) <= fraction * K(x1, x0),
+#
+# where K is the absolute cropland, grassland and feed-use distance weighted
+# by the same resolved component coefficients as the calibrated L1 objective.
+# Thus fraction 0 freezes the feasible unpriced realization, while fraction 1
+# admits the existing price-1 optimum without changing its objective.
+
+name: "water_barriers_gsa"
+
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+emissions:
+  ghg_pricing_enabled: false
+  ghg_price: 0
+
+water_scarcity:
+  nonrenewable_cf: 100
+
+scenarios:
+  # Matched endpoint references, identical to the active free price sweep.
+  wf00000:
+    water_scarcity: {pricing_enabled: false, price: 0}
+  wfw10000:
+    water_scarcity: {pricing_enabled: true, price: 1.0}
+
+  _generators:
+    - name: wrw{fraction}
+      mode: grid
+      parameters:
+        fraction:
+          values: [0.0001, 0.0002, 0.0003, 0.0005, 0.0007, 0.001, 0.0015, 0.002, 0.003, 0.005, 0.007, 0.01, 0.015, 0.02, 0.03, 0.05, 0.07, 0.1, 0.2, 0.3, 0.5, 0.7]
+          name_format: "lambda x: f'{round(x * 10000):05d}'"
+      template:
+        water_scarcity: {pricing_enabled: true, price: 1.0}
+        reallocation_cap:
+          enabled: true
+          fraction: "{fraction}"
+          baseline_scenario: wf00000
+          endpoint_scenario: wfw10000
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  options_gurobi: {LogToConsole: 0, OutputFlag: 1, Method: 2}
+  mem_mb: 4000
+  time_limit: 30
+  runtime: 6
+  inline_analysis: false

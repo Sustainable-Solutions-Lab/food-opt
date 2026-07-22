@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Flexible-diet twins of the water-carbon-by-cap grid
+# ---------------------------------------------------
+# Overlay on config/water_carbon_tradeoff_by_cap_fixed_diet.yaml (pass BOTH
+# to --configfile / export-solve-manifest, this one last). Reuses that
+# config's build and results tree.
+#
+# Question: how much do the headline water-carbon trade-off surfaces change
+# when diets may re-optimise instead of being fixed at the 2020 baseline?
+# Diet setup mirrors water_joint_flexible_diet: consumption re-optimises via
+# calibrated piecewise diminishing-marginal-utility blocks (revealed consumer
+# preferences anchor the model toward current diets), with per-country
+# calorie intake held at baseline so only diet composition moves.
+#
+# Two arms repeat the base grid (8x8 log-log ghg x water price, 4
+# reallocation-cap levels):
+#   d{ghg}c{churn}w{price} -- flexible diet, no sovereignty floors
+#   b{ghg}c{churn}w{price} -- flexible diet + the near-baseline floors of
+#     config/water_carbon_floors_overlay.yaml (95% production value, 90%
+#     food-energy production per country)
+#
+# The `baseline` scenario is the consumer-value calibration anchor (diet
+# enforced, piecewise off, prices off): solve it and run
+# calibrate_food_utility_blocks BEFORE exporting/submitting the arms, e.g.
+#   tools/smk -e gurobi -j4 \
+#     --configfile config/water_carbon_tradeoff_by_cap_fixed_diet.yaml \
+#                  config/water_carbon_flexdiet_overlay.yaml -- \
+#     results/water_carbon_tradeoff_by_cap_fixed_diet/consumer_values/baseline/utility_blocks.csv
+
+scenarios:
+  # Calibration anchor for the piecewise food-utility blocks (dual values):
+  # diet enforced to baseline (base-config default), piecewise off, prices off.
+  baseline:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+
+  _generators:
+    - name: d{ghg}c{churn}w{price}
+      mode: grid
+      parameters:
+        ghg: {space: log, start: 5, stop: 400, num: 8, round: true, name_format: "lambda x: f'{int(x):03d}'"}
+        churn: {values: [0.05, 0.2, 0.5, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 8, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        validation: {enforce_baseline_diet: false}
+        food_utility_piecewise: {enabled: true}
+        macronutrients: {cal: {equal_to_baseline: true}}
+        emissions: {ghg_pricing_enabled: true, ghg_price: "{ghg}"}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+    - name: b{ghg}c{churn}w{price}
+      mode: grid
+      parameters:
+        ghg: {space: log, start: 5, stop: 400, num: 8, round: true, name_format: "lambda x: f'{int(x):03d}'"}
+        churn: {values: [0.05, 0.2, 0.5, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 8, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        validation: {enforce_baseline_diet: false}
+        food_utility_piecewise: {enabled: true}
+        macronutrients: {cal: {equal_to_baseline: true}}
+        emissions: {ghg_pricing_enabled: true, ghg_price: "{ghg}"}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+        production_value: {floor: {enabled: true, fraction: 0.95}}
+        food_energy: {floor: {enabled: true, fraction: 0.9}}

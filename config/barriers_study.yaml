@@ -1,0 +1,230 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Barriers-to-water-relief study: the one-at-a-time (hub-and-spoke) run
+# --------------------------------------------------------------------
+# Overlay on config/water_carbon_tradeoff_by_cap_fixed_diet.yaml (pass BOTH
+# to --configfile, this one last). Reuses that build. GHG off,
+# nonrenewable_cf 30 (from the base config).
+#
+# This is the marginal-effect companion to the all-at-once Sobol design in
+# water_barriers_gsa.yaml, and it shares that config's parameterization: the
+# reference is fully flexible (diets re-optimise via calibrated piecewise
+# consumer-value utility blocks with per-country calorie intake held at
+# baseline), every guardrail is a single 0-1 `relaxation` dial pointing the
+# same way -- 0 pins the axis at the 2020 baseline, 1 removes the barrier --
+# and the affordability cap anchors on the same `frozen` / `relief_ref`
+# reference scenarios.
+#
+# Hub-and-spoke design
+# --------------------
+# The `hub` is the centre of the GSA hypercube: every barrier at relaxation
+# 0.5. Each `spoke` moves one barrier off-centre across {0, 0.25, 0.75, 1.0}
+# while the other six stay at 0.5, so the arms are the axis-parallel transects
+# through that centroid. (0.5 itself is not re-solved per spoke; stitch the hub
+# point in at relaxation 0.5 when drawing each response curve.) The whole star
+# is evaluated at every water price -- a 4-point log grid (0.003..3.0
+# USD/m3-world-eq) is the second grid axis of every arm, including the hub.
+#
+# Barriers and their dials (all 0 = baseline, 1 = unconstrained):
+#   bio  biodiversity.cap.relaxation            (natural-land conversion)
+#   con  production_concentration.cap.relaxation (per-crop producer share)
+#   cal  food_energy.floor.relaxation            (calorie self-sufficiency)
+#   pro  protein.floor.relaxation                (protein self-sufficiency)
+#   val  production_value.floor.relaxation       (production value)
+#   aff  affordability.cost_cap ... relaxation   (total production cost)
+#   chn  deviation_penalty land+feed budget      (reallocation / churn)
+#   dit  deviation_penalty.diet budget           (dietary change)
+# Names are fixed-width `{prefix}r{relax}w{price}` so none is a prefix of
+# another.
+#
+# Reference / calibration scenarios (solved first, in dependency waves):
+#   baseline:   consumer-value calibration anchor (enforce_baseline_diet,
+#               piecewise off, prices off); run calibrate_food_utility_blocks
+#               on it BEFORE exporting/submitting the arms.
+#   frozen:     enforce_baseline_diet + production frozen (churn 0) + water
+#               off; its production_cost.parquet is the affordability cap's
+#               relaxation-0 (baseline) anchor.
+#   relief_ref: flexible diet + water price 3.0 + no guardrails; its cost is
+#               the affordability cap's relaxation-1 (loose) anchor.
+
+validation:
+  enforce_baseline_diet: false
+
+health:
+  enabled: false
+
+calibration:
+  accept_provenance_mismatch: true
+
+scenarios:
+  # Consumer-value calibration anchor (fixed diet, no piecewise, no prices).
+  # enforce_baseline_diet is re-asserted because this config flips the global
+  # default to false for the flexible-diet arms.
+  baseline:
+    validation: {enforce_baseline_diet: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+
+  # Affordability baseline (relaxation-0) anchor: frozen 2020 state (fixed diet
+  # + production pinned via a zero churn budget), water off, no guardrails. Its
+  # cost is achievable at zero conversion, so pinning the affordability cap
+  # there keeps the frozen point feasible even where a barrier forbids change.
+  frozen:
+    validation: {enforce_baseline_diet: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    deviation_penalty:
+      penalty_mode: hard
+      land:
+        crops: {max_relative_deviation: 0.0, regional_denominator: suitable, enable_slack: true}
+        grassland: {max_relative_deviation: 0.0, regional_denominator: suitable, enable_slack: true}
+      feed: {max_relative_deviation: 0.0, enable_slack: true}
+
+  # Affordability relief (relaxation-1) anchor: full flexibility + strong water
+  # price, no guardrails.
+  relief_ref:
+    validation: {enforce_baseline_diet: false}
+    food_utility_piecewise: {enabled: true}
+    macronutrients: {cal: {equal_to_baseline: true}}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    deviation_penalty:
+      land:
+        crops: {max_relative_deviation: 1.0, regional_denominator: suitable}
+        grassland: {max_relative_deviation: 1.0, regional_denominator: suitable}
+      feed: {max_relative_deviation: 1.0}
+    water_scarcity: {pricing_enabled: true, price: 3.0}
+
+  _generators:
+    # --- hub: every barrier at central relaxation 0.5 ---
+    # `&center` is the shared flexible-diet reference with all eight guardrails
+    # at 0.5; each spoke merges it and overrides one dial. The YAML merge is
+    # shallow (top-level keys), so the two deviation_penalty-nested barriers
+    # (churn, diet) repeat the whole block.
+    - name: hubw{price}
+      mode: grid
+      parameters:
+        price: {space: log, start: 0.003, stop: 3.0, num: 4, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template: &center
+        validation: {enforce_baseline_diet: false}
+        food_utility_piecewise: {enabled: true}
+        macronutrients: {cal: {equal_to_baseline: true}}
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+        biodiversity: {cap: {enabled: true, max_conversion_mha: 110.0, relaxation: 0.5}}
+        production_concentration:
+          cap: {enabled: true, relaxation: 0.5, min_global_mt: 10, min_producing_countries: 10}
+        food_energy: {floor: {enabled: true, relaxation: 0.5}}
+        protein: {floor: {enabled: true, relaxation: 0.5}}
+        production_value: {floor: {enabled: true, relaxation: 0.5}}
+        affordability:
+          cost_cap:
+            enabled: true
+            max_cost_bnusd: {relaxation: 0.5, relief_scenario: relief_ref, baseline_scenario: frozen}
+        deviation_penalty:
+          penalty_mode: hard
+          land:
+            crops: {max_relative_deviation: 0.5, regional_denominator: suitable, enable_slack: true}
+            grassland: {max_relative_deviation: 0.5, regional_denominator: suitable, enable_slack: true}
+          feed: {max_relative_deviation: 0.5, enable_slack: true}
+          diet: {enabled: true, max_relative_deviation: 0.5, enable_slack: true}
+
+    # --- biodiversity spoke: natural-land conversion cap ---
+    - name: bior{r}w{price}
+      mode: grid
+      parameters:
+        r: {values: [0.0, 0.25, 0.75, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 4, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        <<: *center
+        biodiversity: {cap: {enabled: true, max_conversion_mha: 110.0, relaxation: "{r}"}}
+
+    # --- concentration spoke: per-crop max producer share ---
+    - name: conr{r}w{price}
+      mode: grid
+      parameters:
+        r: {values: [0.0, 0.25, 0.75, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 4, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        <<: *center
+        production_concentration:
+          cap: {enabled: true, relaxation: "{r}", min_global_mt: 10, min_producing_countries: 10}
+
+    # --- calorie self-sufficiency floor spoke ---
+    - name: calr{r}w{price}
+      mode: grid
+      parameters:
+        r: {values: [0.0, 0.25, 0.75, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 4, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        <<: *center
+        food_energy: {floor: {enabled: true, relaxation: "{r}"}}
+
+    # --- protein self-sufficiency floor spoke ---
+    - name: pror{r}w{price}
+      mode: grid
+      parameters:
+        r: {values: [0.0, 0.25, 0.75, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 4, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        <<: *center
+        protein: {floor: {enabled: true, relaxation: "{r}"}}
+
+    # --- production value floor spoke ---
+    - name: valr{r}w{price}
+      mode: grid
+      parameters:
+        r: {values: [0.0, 0.25, 0.75, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 4, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        <<: *center
+        production_value: {floor: {enabled: true, relaxation: "{r}"}}
+
+    # --- affordability spoke: total production-cost cap ---
+    - name: affr{r}w{price}
+      mode: grid
+      parameters:
+        r: {values: [0.0, 0.25, 0.75, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 4, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        <<: *center
+        affordability:
+          cost_cap:
+            enabled: true
+            max_cost_bnusd: {relaxation: "{r}", relief_scenario: relief_ref, baseline_scenario: frozen}
+
+    # --- reallocation (churn) spoke: land+feed deviation budget ---
+    # deviation_penalty is replaced wholesale (shallow merge), so diet is
+    # repeated at its central 0.5.
+    - name: chnr{r}w{price}
+      mode: grid
+      parameters:
+        r: {values: [0.0, 0.25, 0.75, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 4, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        <<: *center
+        deviation_penalty:
+          penalty_mode: hard
+          land:
+            crops: {max_relative_deviation: "{r}", regional_denominator: suitable, enable_slack: true}
+            grassland: {max_relative_deviation: "{r}", regional_denominator: suitable, enable_slack: true}
+          feed: {max_relative_deviation: "{r}", enable_slack: true}
+          diet: {enabled: true, max_relative_deviation: 0.5, enable_slack: true}
+
+    # --- dietary change spoke: per-country diet churn budget ---
+    # deviation_penalty is replaced wholesale, so land+feed are repeated at 0.5.
+    - name: ditr{r}w{price}
+      mode: grid
+      parameters:
+        r: {values: [0.0, 0.25, 0.75, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 4, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        <<: *center
+        deviation_penalty:
+          penalty_mode: hard
+          land:
+            crops: {max_relative_deviation: 0.5, regional_denominator: suitable, enable_slack: true}
+            grassland: {max_relative_deviation: 0.5, regional_denominator: suitable, enable_slack: true}
+          feed: {max_relative_deviation: 0.5, enable_slack: true}
+          diet: {enabled: true, max_relative_deviation: "{r}", enable_slack: true}

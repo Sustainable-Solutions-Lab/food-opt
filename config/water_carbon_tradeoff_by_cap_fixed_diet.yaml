@@ -1,0 +1,98 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Water-scarcity vs carbon price trade-off, resolved at a few reallocation caps
+# ----------------------------------------------------------------------------
+# A focused version of config/water_joint_fixed_diet.yaml: a clean
+# (ghg_price x water_price) surface replicated at 4 levels of the production
+# reallocation cap (the per-region hard deviation band, "churn"). The question
+# is how the water<->carbon trade-off changes as the food system is allowed to
+# reallocate more of its production away from the 2020 baseline pattern.
+#
+# Cube (fixed diet, central physical parameters), both price axes evenly
+# LOG-spaced (num=8 each):
+#   churn (reallocation cap) : {0.05, 0.2, 0.5, 1.0}       -- 4 levels
+#   ghg price (USD/tCO2e)    : logspace(5, 400, 8), rounded to int
+#                              -> 5, 9, 17, 33, 61, 114, 214, 400
+#   water price (USD/m3 world-eq): logspace(0.003, 3.0, 8)
+#                              -> 0.003, 0.008, 0.022, 0.058, 0.155, 0.417,
+#                                 1.118, 3.0
+# = 4 x 8 x 8 = 256 scenarios (8x8 log-log price grid per cap level).
+#
+# Cap geometry is the paper default: regional scope with the SUITABLE-area
+# denominator for land, baseline denominator for feed.
+#
+# Log spacing cannot include zero, so there is no explicit pricing-OFF column;
+# the low ends (ghg=5, water=0.003) act as near-baseline anchors. Both prices
+# are enabled throughout.
+#
+# Scenario names are FIXED-WIDTH (j{ghg:03d}c{churn_pct:03d}w{price_milli:04d})
+# so no name is a prefix of another -- avoids the local Snakemake multi-target
+# wildcard-ambiguity bug.
+#
+# All three swept knobs (emissions pricing, water pricing, deviation caps) are
+# solve-time keys, so this reuses the existing fixed-diet build.
+
+name: "water_carbon_tradeoff_by_cap_fixed_diet"
+
+validation:
+  enforce_baseline_diet: true
+  # 500 seals the hard cap through wp=1; wp=3 retains a small leak at tight
+  # caps (disclose/diagnose). Matches water_joint_fixed_diet.yaml.
+  slack_marginal_cost: 500.
+
+health:
+  enabled: false
+
+water_scarcity:
+  # Weigh fossil-groundwater mining at CF 30 rather than the AWARE cutoff
+  # (100): mining is charged like fairly-scarce renewable water instead of
+  # like beyond-availability water.
+  nonrenewable_cf: 30
+
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: suitable}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: suitable}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: baseline}
+
+scenarios:
+  default: {}
+  _generators:
+    # Log-log price grid at each reallocation-cap level. Carbon uses round=true
+    # so ghg_price is an integer; water keeps full float precision in the
+    # template while the name encodes milli-USD per m3 world-eq (4 digits).
+    - name: j{ghg}c{churn}w{price}
+      mode: grid
+      parameters:
+        ghg: {space: log, start: 5, stop: 400, num: 8, round: true, name_format: "lambda x: f'{int(x):03d}'"}
+        churn: {values: [0.05, 0.2, 0.5, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 8, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        emissions: {ghg_pricing_enabled: true, ghg_price: "{ghg}"}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  # Pure LP (fixed diet, health off): barrier + crossover. Timed locally on
+  # scen j033c020w0058 + both extreme corners: Method 2 beats concurrent
+  # (Method 3) by ~25% at 2 threads, and dropping NumericFocus 2 is a further
+  # ~2x with identical objectives and clean convergence. MIP params dropped.
+  options_gurobi: {LogToConsole: 0, OutputFlag: 1, Method: 2}
+  # Sized from measured peak RSS on Sherlock (~3.1 GB/solve at 750 regions,
+  # fixed diet): 4000 leaves ~30% headroom. Element memory in batch-solve is
+  # parallel * mem_mb + 2000.
+  mem_mb: 4000
+  time_limit: 30
+  runtime: 6
+  inline_analysis: true

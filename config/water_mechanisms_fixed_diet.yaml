@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Water-scarcity mechanism diagnostic
+# -----------------------------------
+# A water-only price sweep around the 2020 baseline diet. Production remains
+# anchored by the calibrated L1 penalties from config/default.yaml; there are
+# no hard reallocation bands and no GHG price. Solved networks are retained so
+# link-level irrigation, land, processing, feed, animal and trade changes can
+# be traced without relying only on aggregate analysis tables.
+#
+# The experiment reuses the current scenario-independent build under
+# water_barriers_gsa. Its scenario names use a wm prefix, keeping these outputs
+# distinct from the barrier-study samples in the shared results directory.
+
+name: "water_barriers_gsa"
+
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+emissions:
+  ghg_pricing_enabled: false
+  ghg_price: 0
+
+scenarios:
+  wm00000:
+    water_scarcity: {pricing_enabled: false, price: 0}
+  _generators:
+    - name: wmw{price}
+      mode: grid
+      parameters:
+        price:
+          values: [0.0001, 0.0002, 0.0003, 0.0005, 0.0007, 0.001, 0.0015, 0.002, 0.003, 0.005, 0.007, 0.01, 0.015, 0.02, 0.03, 0.05, 0.07, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 2.0, 3.0]
+          name_format: "lambda x: f'{round(x * 10000):05d}'"
+      template:
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  options_gurobi: {LogToConsole: 0, OutputFlag: 1, Method: 2}
+  mem_mb: 4000
+  time_limit: 30
+  runtime: 6
+  inline_analysis: false

@@ -1,0 +1,461 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Water / emissions / cost trade-offs with FLEXIBLE diet
+# ------------------------------------------------------
+# Flexible-diet counterpart of config/water_tradeoff_fixed_diet.yaml. Food
+# consumption is free to re-optimise via the piecewise diminishing-marginal-
+# utility blocks, calibrated against the 2020 baseline. Consumer values (dual
+# variables) are taken from the enforced-baseline "baseline" solve, so at zero
+# externality pricing the optimum reproduces the baseline diet. Under water /
+# GHG pricing the model can cut impacts via BOTH production-side reallocation
+# (where/how crops are grown, irrigated-vs-rainfed, basin shifts) AND diet
+# composition shifts. Per-country calorie intake is held at baseline
+# (cal.equal_to_baseline), so only diet composition moves, not energy intake.
+#
+# Health is not valued (health.enabled=false), matching the flexible-diet
+# definition used elsewhere: the diet shifts purely in response to the priced
+# externalities and consumer preferences.
+#
+# Scenarios sweep the solve-time water-scarcity shadow price (USD per m3
+# world-equivalent) and the GHG price (USD per tCO2e):
+#   - "wp*"    : water-scarcity price sweep at zero GHG price (cost vs water).
+#   - "ghg*"   : GHG price sweep at zero water price (cost vs emissions).
+#   - "ghg*wp*": combined, to expose the emissions <-> water interaction.
+# Mirrors the swept grid of config/water_tradeoff_fixed_diet.yaml so the two
+# diet regimes are directly comparable in the analysis notebook.
+
+name: "water_tradeoff_flexible_diet"
+
+health:
+  enabled: false
+
+# Full default resolution (750 regions, 3 resource classes, 48 crops, 20 hubs):
+# water scarcity is basin-specific, so the trade-off fronts need the full
+# spatial detail rather than the reduced exploration grid.
+
+# Block-based diminishing marginal utility for food consumption (flexible diet).
+food_utility_piecewise:
+  enabled: true
+
+# Paper default production-stability regime: hard per-link relative bands with
+# expensive slack for feasibility. This overrides config/default.yaml for all
+# water-tradeoff scenarios unless a scenario explicitly changes the band width
+# or disables deviation_penalty.
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+
+# NOTE: default.yaml prices GHG at 200 USD/tCO2e, so every priced scenario sets
+# BOTH the GHG and water levers explicitly to keep the experiment controlled.
+# consumer_values.baseline_scenario defaults to "baseline" (see default.yaml).
+scenarios:
+  # Suppress the implicit "default" scenario inherited from default.yaml.
+  default: null
+
+  # Baseline scenario for calibrating the piecewise food-utility blocks
+  # (dual variables). Diet enforced to baseline, piecewise off, prices off.
+  baseline:
+    validation:
+      enforce_baseline_diet: true
+    food_utility_piecewise:
+      enabled: false
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+
+  # Zero-pricing optimum: with calibrated consumer values this reproduces the
+  # baseline diet. Reference point for every trade-off front.
+  reference:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+
+  # --- cost vs water-scarcity front (GHG off) ---
+  wp0003:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.0003}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp001:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.001}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp003:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.003}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp01:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.01}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp03:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp1:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.1}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp3:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  # High-price tail: push towards eliminating irrigation entirely. A flexible
+  # diet can shift consumption away from irrigation-dependent foods, so it may
+  # reach lower (or zero) irrigation than the fixed diet before infeasibility.
+  wp10:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 1.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp30:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 3.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp100:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 10.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp300:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 30.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp1000:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 100.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+
+  # --- cost vs emissions front (water off) ---
+  ghg50:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 50}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg100:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 100}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg200:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg400:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 400}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+
+  # --- emissions <-> water interaction (GHG fixed at 200, water swept) ---
+  ghg200wp003:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.003}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg200wp03:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg200wp3:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+    macronutrients: {cal: {equal_to_baseline: true}}
+
+  # === No-deviation-penalty replication ('nd' suffix) =================
+  # Same lever grid as above, but with the production-stability deviation
+  # penalties switched OFF (deviation_penalty.enabled=false). Production is
+  # then free to reallocate (subject only to the growth caps in `validation`)
+  # rather than being anchored near the inefficient 2020 pattern. This tests
+  # whether a genuine irrigation<->emissions trade-off emerges once today's
+  # patterns are no longer enforced.
+  # The flexible nd scenarios draw their consumer values from a
+  # dedicated `baselinend` calibration solve (also penalty-free), via
+  # consumer_values.baseline_scenario, so the revealed preferences are
+  # calibrated against efficient -- not anchored -- production.
+  baselinend:
+    deviation_penalty: {enabled: false}
+    validation: {enforce_baseline_diet: true}
+    food_utility_piecewise: {enabled: false}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+  referencend:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp0003nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.0003}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp001nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.001}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp003nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.003}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp01nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.01}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp03nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp1nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.1}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp3nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp10nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 1.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp30nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 3.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp100nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 10.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp300nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 30.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  wp1000nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 100.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg50nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 50}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg100nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 100}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg200nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg400nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 400}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg200wp003nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.003}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg200wp03nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  ghg200wp3nd:
+    deviation_penalty: {enabled: false}
+    consumer_values: {baseline_scenario: baselinend}
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+    macronutrients: {cal: {equal_to_baseline: true}}
+
+  # === Production-flexibility axis: hard per-link relative bands ========
+  # Explicit hard-band scenarios for Fig. 2 and for the 5% hard-band cost
+  # front. The 5% scenarios duplicate the config-level default band but avoid
+  # overloading the reference/wp* names when regenerating paper figures.
+  h000w0000:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.0, enable_slack: true}
+        grassland: {max_relative_deviation: 0.0, enable_slack: true}
+      feed: {max_relative_deviation: 0.0, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+
+  h005w0000:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.05, enable_slack: true}
+        grassland: {max_relative_deviation: 0.05, enable_slack: true}
+      feed: {max_relative_deviation: 0.05, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005wp0003:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.0003}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005wp001:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.001}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005wp003:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.003}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005wp01:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.01}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005wp03:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.03}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005wp1:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.1}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005w0300:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.05, enable_slack: true}
+        grassland: {max_relative_deviation: 0.05, enable_slack: true}
+      feed: {max_relative_deviation: 0.05, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005wp10:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 1.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005wp30:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 3.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005wp100:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 10.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005wp300:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 30.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h005wp1000:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 100.0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+
+  h020w0000:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.2, enable_slack: true}
+        grassland: {max_relative_deviation: 0.2, enable_slack: true}
+      feed: {max_relative_deviation: 0.2, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h020w0300:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.2, enable_slack: true}
+        grassland: {max_relative_deviation: 0.2, enable_slack: true}
+      feed: {max_relative_deviation: 0.2, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+    macronutrients: {cal: {equal_to_baseline: true}}
+
+  h050w0000:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.5, enable_slack: true}
+        grassland: {max_relative_deviation: 0.5, enable_slack: true}
+      feed: {max_relative_deviation: 0.5, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h050w0300:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 0.5, enable_slack: true}
+        grassland: {max_relative_deviation: 0.5, enable_slack: true}
+      feed: {max_relative_deviation: 0.5, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+    macronutrients: {cal: {equal_to_baseline: true}}
+
+  h100w0000:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 1.0, enable_slack: true}
+        grassland: {max_relative_deviation: 1.0, enable_slack: true}
+      feed: {max_relative_deviation: 1.0, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  h100w0300:
+    deviation_penalty:
+      penalty_mode: hard
+      deviation_type: relative
+      land:
+        crops: {max_relative_deviation: 1.0, enable_slack: true}
+        grassland: {max_relative_deviation: 1.0, enable_slack: true}
+      feed: {max_relative_deviation: 1.0, enable_slack: true}
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+    macronutrients: {cal: {equal_to_baseline: true}}
+
+plotting:
+  comparison_scenarios: "all"
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 8
+  mem_mb: 12000
+  runtime: 30

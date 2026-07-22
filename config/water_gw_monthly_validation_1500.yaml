@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Monthly-resolution groundwater validation at HIGH spatial resolution
+# --------------------------------------------------------------------
+# Identical to water_gw_monthly_validation but with 1500 model regions instead
+# of 750. Together the two runs separate the two resolution axes: monthly
+# temporal binding (both) and spatial aggregation (750 vs 1500). If the modelled
+# baseline groundwater draw is materially closer to the WaterGAP physical band
+# (~155.7 km3/yr) at 1500 regions, sub-provincial water scarcity was still being
+# masked by aggregation; if it barely moves, 750 regions already resolve the
+# scarcity that monthly binding needs and the extra spatial detail is
+# unnecessary for this purpose.
+
+name: "water_gw_monthly_validation_1500"
+
+water:
+  temporal_resolution: 12
+  supply:
+    mode: "groundwater"
+
+aggregation:
+  regions:
+    target_count: 1500
+
+# Fix diet to the 2020 baseline (production-side reorganization only).
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+solving:
+  solver: "gurobi"
+  mem_mb: 12000
+
+# Paper default production-stability regime: hard per-link relative bands with
+# expensive slack for feasibility.
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+
+scenarios:
+  default:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: false, price: 0, cap_mm3: null}

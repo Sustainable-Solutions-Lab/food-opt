@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Flexible-diet sanity check for the joint water+carbon pricing study
+# -------------------------------------------------------------------
+# Phase C3 of the water paper: does diet flexibility change the sign of the
+# carbon cost of water-scarcity relief? Four solves at the headline point
+# (regional churn cap 20% of suitable area, water price 0.3 USD/m3 world-eq)
+# paired against their own unpriced baselines, at carbon prices 0 and 200
+# USD/tCO2e. Fixed-width names f{ghg:03d}c{churn_pct:03d}w{price_milli:04d}
+# match the water_joint_fixed_diet scheme.
+#
+# Diet setup mirrors water_tradeoff_flexible_diet: consumption re-optimises
+# via calibrated piecewise diminishing-marginal-utility blocks (consumer
+# values from that config's "baseline" solve; clone its consumer_values/
+# directory alongside build/), per-country calorie intake held at baseline so
+# only diet composition moves. Cap geometry and slack_marginal_cost=500 match
+# the fixed-diet study config.
+#
+# Built FRESH (not cloned from water_tradeoff_flexible_diet): that config's
+# build predates current code (snakemake provenance flags it), and the joint
+# study's standing rule is to never mix results across code states. The full
+# chain (processing -> build -> baseline solve -> consumer-value calibration
+# -> priced solves) runs locally in about an hour.
+
+name: "water_joint_flexible_diet"
+
+validation:
+  slack_marginal_cost: 500.
+
+health:
+  enabled: false
+
+food_utility_piecewise:
+  enabled: true
+
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: suitable}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: suitable}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: baseline}
+
+scenarios:
+  default: null
+
+  # Calibration anchor for the piecewise food-utility blocks (dual variables):
+  # diet enforced to baseline, piecewise off, prices off.
+  baseline:
+    validation:
+      enforce_baseline_diet: true
+    food_utility_piecewise:
+      enabled: false
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+
+  f000c020w0000:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 0}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  f000c020w0300:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 0}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  f200c020w0000:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: false, price: 0}
+    macronutrients: {cal: {equal_to_baseline: true}}
+  f200c020w0300:
+    emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+    water_scarcity: {pricing_enabled: true, price: 0.3}
+    macronutrients: {cal: {equal_to_baseline: true}}
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  # Pure LP: dedicated barrier. Method 2 beats concurrent and NumericFocus 2
+  # costs ~2x for identical objectives; timed 2026-07-08 (flexible-diet solve
+  # f200c020w0300; see water_carbon_tradeoff_by_cap_fixed_diet.yaml).
+  options_gurobi:
+    LogToConsole: 0
+    OutputFlag: 1
+    Method: 2
+  mem_mb: 10000
+  time_limit: 30
+  runtime: 6
+  inline_analysis: true

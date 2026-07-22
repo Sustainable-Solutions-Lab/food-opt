@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# 2020 baseline validation with detailed water tracking
+# -----------------------------------------------------
+# Fixes crop and grassland production to observed 2020 harvested areas
+# (use_actual_production), enforces the 2020 baseline diet and GLEAM feed, and
+# runs the water supply at full fidelity (monthly resolution, groundwater mode)
+# so per-period surface availability binds against the observed irrigation
+# demand. All remaining degrees of freedom are absorbed by slack generators
+# (food, feed, land, water), so any nonzero slack localises a data imbalance:
+# food-balance gaps, feed conversion gaps, land overcommitment, or water
+# periods where the supply envelope cannot cover the fixed 2020 demand.
+
+name: "water_validation_2020"
+scenarios:
+  default: {}
+
+planning_horizon: 2020
+
+validation:
+  use_actual_yields: true
+  use_actual_production: true
+  enforce_baseline_diet: true
+  enforce_baseline_feed: true
+  disable_spared_cropland: true
+  disable_spared_grassland: true
+  slack_marginal_cost: 10
+
+water:
+  temporal_resolution: 12
+  supply:
+    mode: "groundwater"
+
+deviation_penalty:
+  enabled: false
+
+cost_calibration:
+  enabled: false
+
+food_demand_calibration:
+  enabled: false
+
+health:
+  enabled: false
+
+emissions:
+  ghg_pricing_enabled: false
+
+solving:
+  io_api: "direct"
+  solver: "gurobi"
+  threads: 2

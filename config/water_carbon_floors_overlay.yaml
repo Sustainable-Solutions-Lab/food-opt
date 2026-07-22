@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Floored twin of the water-carbon-by-cap grid
+# --------------------------------------------
+# Overlay on config/water_carbon_tradeoff_by_cap_fixed_diet.yaml (pass BOTH
+# to --configfile / export-solve-manifest, this one last). Reuses that
+# config's build and results tree; only the scenario set is swapped, so the
+# floored and unfloored runs coexist under distinct scenario names.
+#
+# Question: do the headline water-carbon trade-off surfaces survive
+# near-baseline sovereignty floors? Every scenario repeats the base grid
+# (8x8 log-log ghg x water price, 4 reallocation-cap levels) with each
+# country required to retain 95% of its baseline gross production value
+# (production_value.floor) and 90% of its baseline food-energy production
+# (food_energy.floor) -- the canonical near-baseline joint arm from
+# config/water_value_floor_scenarios.yaml.
+#
+# Names are fixed-width f{ghg:03d}c{churn_pct:03d}w{price_milli:04d};
+# the "f" prefix keeps them disjoint from the unfloored j* scenarios.
+
+scenarios:
+  _generators:
+    - name: f{ghg}c{churn}w{price}
+      mode: grid
+      parameters:
+        ghg: {space: log, start: 5, stop: 400, num: 8, round: true, name_format: "lambda x: f'{int(x):03d}'"}
+        churn: {values: [0.05, 0.2, 0.5, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {space: log, start: 0.003, stop: 3.0, num: 8, name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        emissions: {ghg_pricing_enabled: true, ghg_price: "{ghg}"}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+        production_value: {floor: {enabled: true, fraction: 0.95}}
+        food_energy: {floor: {enabled: true, fraction: 0.9}}

@@ -1,0 +1,117 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Paired water-carbon robustness ensemble (fixed diet)
+# ----------------------------------------------------
+# The surrogate-of-levels GSA (water_gsa_fixed_diet.yaml) cannot resolve the
+# emissions RESPONSE to water pricing, because that response is a ~1% difference
+# of two ~6000 MtCO2e levels and the surrogate's level error swamps it. This
+# config instead computes the response DIRECTLY and exactly per parameter draw,
+# by pairing an unpriced and a priced solve at the same physical parameters.
+#
+# Four sensitivity generators share an IDENTICAL `parameters` block (via a YAML
+# anchor), so -- because reconstruct_samples seeds the Sobol sequence by
+# parameter count + seed, not by generator name -- sample i has the same physical
+# parameters in all four:
+#   gt0_i: 5% hard-band reference, water pricing OFF
+#   gt3_i: 5% hard-band reference, water priced at 0.3 USD/m3-eq
+#   gf0_i: free reallocation,      water pricing OFF
+#   gf3_i: free reallocation,      water priced at 0.3
+# dGHG_band(i) = GHG(gt3_i) - GHG(gt0_i); dGHG_free(i) likewise. The figure
+# reports the distribution of these exact differences across the physical-
+# parameter envelope (yields, CH4/N2O/LUC factors, FCR, food loss/waste); the
+# reforestation cap is held at 1.0 (a lever, not epistemic uncertainty), matching
+# the deterministic runs. Solved off-Snakemake via the manifest workflow.
+
+name: "water_gsa_paired_fixed_diet"
+
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+scenarios:
+  default: {}
+  _generators:
+    - name: gt0_{sample_id}
+      mode: sensitivity
+      samples: &nsamp 1024
+      slice_parameters: []
+      parameters: &physparams
+        yield_factor: {lower: 0.8, upper: 1.2, bounds: [0, null]}
+        ch4_factor:
+          {distribution: normal_ci, lower: 0.5, upper: 1.5, confidence: 0.9, bounds: [0, null]}
+        n2o_factor:
+          {distribution: normal_ci, lower: 0.3, upper: 1.7, confidence: 0.9, bounds: [0, null]}
+        luc_factor:
+          {distribution: normal_ci, lower: 0.3, upper: 1.7, confidence: 0.9, bounds: [0, null]}
+        flw_factor: {lower: 0.7, upper: 1.3, bounds: [0, null]}
+        fcr_factor: {lower: 0.8, upper: 1.2, bounds: [0, null]}
+      template:
+        sensitivity: &sens
+          crop_yields: {all: "{yield_factor}"}
+          emission_factors: {ch4: "{ch4_factor}", n2o: "{n2o_factor}", luc: "{luc_factor}"}
+          food_loss_waste: "{flw_factor}"
+          feed_conversion: "{fcr_factor}"
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: &hardband_ref
+          penalty_mode: hard
+          deviation_type: relative
+          land:
+            crops: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+            grassland: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+          feed: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        water_scarcity: {pricing_enabled: false, price: 0}
+    - name: gt3_{sample_id}
+      mode: sensitivity
+      samples: *nsamp
+      slice_parameters: []
+      parameters: *physparams
+      template:
+        sensitivity: *sens
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: *hardband_ref
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        water_scarcity: {pricing_enabled: true, price: 0.3}
+    - name: gf0_{sample_id}
+      mode: sensitivity
+      samples: *nsamp
+      slice_parameters: []
+      parameters: *physparams
+      template:
+        sensitivity: *sens
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: &free_reallocation
+          enabled: false
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        water_scarcity: {pricing_enabled: false, price: 0}
+    - name: gf3_{sample_id}
+      mode: sensitivity
+      samples: *nsamp
+      slice_parameters: []
+      parameters: *physparams
+      template:
+        sensitivity: *sens
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: *free_reallocation
+        emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+        water_scarcity: {pricing_enabled: true, price: 0.3}
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  # Pure LP: dedicated barrier (timed 2026-07-08 on central water models;
+  # sampled extremes untested -- revert to Method 3 + NumericFocus 2 if the
+  # barrier stalls, cf. the rationale in gsa.yaml).
+  options_gurobi:
+    LogToConsole: 0
+    OutputFlag: 1
+    Method: 2
+  mem_mb: 10000
+  time_limit: 30
+  runtime: 6
+  inline_analysis: true

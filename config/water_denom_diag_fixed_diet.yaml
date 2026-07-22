@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Denominator diagnostic (fixed diet) -- suitable vs baseline churn budget
+# -----------------------------------------------------------------------
+# The continuous GSA (water_gsa_continuous_fixed_diet) uses a regional churn
+# budget with the SUITABLE-area denominator, and the emissions response is a
+# trade-off across most of the (churn x price) plane, driven by irrigated->
+# rainfed land replacement that the suitable denominator permits even at low
+# churn. This isolates the denominator's effect: a deterministic churn x price
+# grid at CENTRAL physical parameters, under BOTH the suitable and the baseline
+# (current cropland/grassland) denominators, paired unpriced/priced. Comparing
+# dGHG at matched realized reorganization answers whether the trade-off is
+# geometry-driven. Reuses the water_tradeoff_fixed_diet build.
+
+name: "water_denom_diag_fixed_diet"
+
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: suitable}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: suitable}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: baseline}
+
+scenarios:
+  default: {}
+  _generators:
+    - name: sr0-c{churn}
+      mode: grid
+      parameters:
+        churn: {values: [0.0, 0.03, 0.06, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0], name_format: "lambda x: str(x).replace('.', 'p')"}
+      template:
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: false, price: 0}
+    - name: srp-c{churn}-p{price}
+      mode: grid
+      parameters:
+        churn: {values: [0.0, 0.03, 0.06, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0], name_format: "lambda x: str(x).replace('.', 'p')"}
+        price: {values: [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0], name_format: "lambda x: str(x).replace('.', 'p')"}
+      template:
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+    - name: br0-c{churn}
+      mode: grid
+      parameters:
+        churn: {values: [0.0, 0.03, 0.06, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0], name_format: "lambda x: str(x).replace('.', 'p')"}
+      template:
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: baseline}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: baseline}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: false, price: 0}
+    - name: brp-c{churn}-p{price}
+      mode: grid
+      parameters:
+        churn: {values: [0.0, 0.03, 0.06, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0], name_format: "lambda x: str(x).replace('.', 'p')"}
+        price: {values: [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0], name_format: "lambda x: str(x).replace('.', 'p')"}
+      template:
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: baseline}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: baseline}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  # Pure LP: dedicated barrier. Method 2 beats concurrent and NumericFocus 2
+  # costs ~2x for identical objectives; timed 2026-07-08 incl. the capped
+  # reforestation arm (see water_carbon_tradeoff_by_cap_fixed_diet.yaml).
+  options_gurobi: {LogToConsole: 0, OutputFlag: 1, Method: 2}
+  mem_mb: 4000 # measured peak ~3.3 GB/solve (750 regions, fixed diet)
+  time_limit: 30
+  runtime: 6
+  inline_analysis: true

@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Per-link band diagnostic (fixed diet) -- the geometry cornerstone.
+# Mirrors water_denom_diag_fixed_diet but with PER-LINK hard relative bands
+# (scope=per_link: each crop/grassland/feed link pinned to (1 +/- band) * its own
+# 2020 baseline) instead of a regional churn budget. Deterministic band x price
+# grid at CENTRAL physical parameters, paired unpriced/priced. Compared at matched
+# realized reorganization against the regional results, this isolates the effect
+# of inertia GRANULARITY (per-link vs regional) on the water-carbon sign.
+# Reuses the water_tradeoff_fixed_diet build.
+
+name: "water_perlink_diag_fixed_diet"
+
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: per_link, regional_denominator: baseline}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: per_link, regional_denominator: baseline}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: per_link, regional_denominator: baseline}
+
+scenarios:
+  default: {}
+  _generators:
+    - name: lr0-c{band}
+      mode: grid
+      parameters:
+        band: {values: [0.0, 0.05, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0], name_format: "lambda x: str(x).replace('.', 'p')"}
+      template:
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{band}", scope: per_link}
+            grassland: {max_relative_deviation: "{band}", scope: per_link}
+          feed: {max_relative_deviation: "{band}", scope: per_link}
+        water_scarcity: {pricing_enabled: false, price: 0}
+    - name: lrp-c{band}-p{price}
+      mode: grid
+      parameters:
+        band: {values: [0.0, 0.05, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0], name_format: "lambda x: str(x).replace('.', 'p')"}
+        price: {values: [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0], name_format: "lambda x: str(x).replace('.', 'p')"}
+      template:
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{band}", scope: per_link}
+            grassland: {max_relative_deviation: "{band}", scope: per_link}
+          feed: {max_relative_deviation: "{band}", scope: per_link}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  # Pure LP: dedicated barrier. Method 2 beats concurrent and NumericFocus 2
+  # costs ~2x for identical objectives; timed 2026-07-08 incl. the capped
+  # reforestation arm (see water_carbon_tradeoff_by_cap_fixed_diet.yaml).
+  options_gurobi: {LogToConsole: 0, OutputFlag: 1, Method: 2}
+  mem_mb: 4000 # measured peak ~3.3 GB/solve (750 regions, fixed diet)
+  time_limit: 30
+  runtime: 6
+  inline_analysis: true

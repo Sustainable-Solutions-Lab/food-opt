@@ -1,0 +1,168 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Physical-parameter uncertainty ensemble for the joint water+carbon study
+# ------------------------------------------------------------------------
+# Phase C of the water paper: the uncertainty envelope around the central
+# (ghg_price x churn x water_price) cube of water_joint_fixed_diet. Three
+# FIXED carbon-price slices (0, 50, 200 USD/tCO2e -- the headline figure's
+# panels) rather than a continuous ghg dimension, so the per-slice surrogate
+# problem is identical to the June continuous GSA.
+#
+# Paired exact-difference design (as in water_gsa_continuous_fixed_diet):
+# each draw is solved twice at IDENTICAL physical parameters and churn budget,
+#   u{pc}r0_i: water pricing OFF (the draw's own unpriced reference)
+#   u{pc}rp_i: water priced at the draw's sampled price
+# so dGHG_i = GHG(rp_i) - GHG(r0_i) is exact per draw. All six generators
+# share one `parameters` anchor; the Sobol design is seeded by dimension
+# count + seed (not generator name), so draw i has identical physical
+# parameters, churn and drawn price across ALL slices and arms -- pairing
+# holds within a slice (dGHG) and across slices (effect of pc per draw).
+#
+# Differences from water_gsa_continuous_fixed_diet (June campaign):
+# - slack_marginal_cost 500 (slack-50 lets high water prices buy cap
+#   violations; see water_joint_fixed_diet.yaml).
+# - churn sampled LOG-uniformly on 0.005-1.0 (was uniform 0-1): Phase B
+#   showed the response structure lives at tight caps (the 1-10% grind
+#   zone); log sampling resolves it. 0.005 gives support below the
+#   tightest headline cap (1%).
+# - water_price log-uniform 3e-4-2.0 (was 3e-4-30): the headline range is
+#   wp <= 1 (slack-clean); 2.0 trains the surrogate with margin past the
+#   cut without wasting draws in the slack-leaking wp >> 1 corner. Check
+#   production_stability in objective_breakdown per draw regardless.
+# - Fixed-width scenario names (u + pc(3) + arm(2) + _ + id(4)).
+#
+# Note on sequestration: the luc factor scales land_conversion AND the
+# spare_land / spare_existing_grassland sequestration links together (both
+# derive from the same LEF data), so the foregone-sequestration channel
+# identified in Phase A is inside the sampled envelope, coupled to LUC.
+#
+# Structurally identical (build-time keys) to water_joint_fixed_diet; copy
+# its build/ (cp -a) into results/water_gsa_joint_fixed_diet/. Solved
+# off-Snakemake via the manifest workflow (Sherlock).
+
+name: "water_gsa_joint_fixed_diet"
+
+validation:
+  enforce_baseline_diet: true
+  slack_marginal_cost: 500.
+
+health:
+  enabled: false
+
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: suitable}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: suitable}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: baseline}
+
+scenarios:
+  default: {}
+  _generators:
+    # --- pc = 0 slice --------------------------------------------------
+    - name: u000r0_{sample_id:04d}
+      mode: sensitivity
+      samples: &nsamp 2048
+      slice_parameters: [churn, water_price]
+      parameters: &physparams
+        yield_factor: {lower: 0.8, upper: 1.2, bounds: [0, null]}
+        ch4_factor:
+          {distribution: normal_ci, lower: 0.5, upper: 1.5, confidence: 0.9, bounds: [0, null]}
+        n2o_factor:
+          {distribution: normal_ci, lower: 0.3, upper: 1.7, confidence: 0.9, bounds: [0, null]}
+        luc_factor:
+          {distribution: normal_ci, lower: 0.3, upper: 1.7, confidence: 0.9, bounds: [0, null]}
+        flw_factor: {lower: 0.7, upper: 1.3, bounds: [0, null]}
+        fcr_factor: {lower: 0.8, upper: 1.2, bounds: [0, null]}
+        churn: {distribution: log_uniform, lower: 0.005, upper: 1.0}
+        water_price: {distribution: log_uniform, lower: 0.0003, upper: 2.0}
+      template:
+        sensitivity: &sens
+          crop_yields: {all: "{yield_factor}"}
+          emission_factors: {ch4: "{ch4_factor}", n2o: "{n2o_factor}", luc: "{luc_factor}"}
+          food_loss_waste: "{flw_factor}"
+          feed_conversion: "{fcr_factor}"
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: &budget
+          land:
+            crops: {max_relative_deviation: "{churn}"}
+            grassland: {max_relative_deviation: "{churn}"}
+          feed: {max_relative_deviation: "{churn}"}
+        emissions: {ghg_pricing_enabled: true, ghg_price: 0}
+        water_scarcity: {pricing_enabled: false, price: 0}
+    - name: u000rp_{sample_id:04d}
+      mode: sensitivity
+      samples: *nsamp
+      slice_parameters: [churn, water_price]
+      parameters: *physparams
+      template:
+        sensitivity: *sens
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: *budget
+        emissions: {ghg_pricing_enabled: true, ghg_price: 0}
+        water_scarcity: {pricing_enabled: true, price: "{water_price}"}
+    # --- pc = 50 slice -------------------------------------------------
+    - name: u050r0_{sample_id:04d}
+      mode: sensitivity
+      samples: *nsamp
+      slice_parameters: [churn, water_price]
+      parameters: *physparams
+      template:
+        sensitivity: *sens
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: *budget
+        emissions: {ghg_pricing_enabled: true, ghg_price: 50}
+        water_scarcity: {pricing_enabled: false, price: 0}
+    - name: u050rp_{sample_id:04d}
+      mode: sensitivity
+      samples: *nsamp
+      slice_parameters: [churn, water_price]
+      parameters: *physparams
+      template:
+        sensitivity: *sens
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: *budget
+        emissions: {ghg_pricing_enabled: true, ghg_price: 50}
+        water_scarcity: {pricing_enabled: true, price: "{water_price}"}
+    # --- pc = 200 slice ------------------------------------------------
+    - name: u200r0_{sample_id:04d}
+      mode: sensitivity
+      samples: *nsamp
+      slice_parameters: [churn, water_price]
+      parameters: *physparams
+      template:
+        sensitivity: *sens
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: *budget
+        emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+        water_scarcity: {pricing_enabled: false, price: 0}
+    - name: u200rp_{sample_id:04d}
+      mode: sensitivity
+      samples: *nsamp
+      slice_parameters: [churn, water_price]
+      parameters: *physparams
+      template:
+        sensitivity: *sens
+        land: {reforestation_cap: {max_fraction: 1.0}}
+        deviation_penalty: *budget
+        emissions: {ghg_pricing_enabled: true, ghg_price: 200}
+        water_scarcity: {pricing_enabled: true, price: "{water_price}"}
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  # Pure LP: dedicated barrier (timed 2026-07-08 on central water models;
+  # sampled extremes untested -- revert to Method 3 + NumericFocus 2 if the
+  # barrier stalls, cf. the rationale in gsa.yaml).
+  options_gurobi:
+    LogToConsole: 0
+    OutputFlag: 1
+    Method: 2
+  mem_mb: 10000
+  time_limit: 30
+  runtime: 6
+  inline_analysis: true

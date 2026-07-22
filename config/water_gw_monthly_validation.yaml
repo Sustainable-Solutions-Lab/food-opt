@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Monthly-resolution groundwater validation (fixed baseline diet)
+# ---------------------------------------------------------------
+# Full production resolution (750 regions) with water.temporal_resolution: 12,
+# so surface availability binds against crop water demand month by month in the
+# LP. The baseline (fixed 2020 diet, ~baseline cropland, no groundwater cap or
+# price) should reproduce approximately the current groundwater depletion
+# endogenously; we validate the modelled mining against the WaterGAP 2.2e
+# physical band (~155.7 km3/yr across 722 regions) both globally and per region.
+#
+# Same structural regime as water_groundwater_tradeoff_fixed_diet, but monthly
+# temporal resolution and only the baseline scenario (that is all we need to
+# read off the endogenous baseline draw).
+
+name: "water_gw_monthly_validation"
+
+water:
+  temporal_resolution: 12
+  supply:
+    mode: "groundwater"
+
+# Fix diet to the 2020 baseline (production-side reorganization only).
+validation:
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+solving:
+  solver: "gurobi"
+  mem_mb: 8000
+
+# Paper default production-stability regime: hard per-link relative bands with
+# expensive slack for feasibility.
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.05, enable_slack: true}
+
+scenarios:
+  default:
+    emissions: {ghg_pricing_enabled: false, ghg_price: 0}
+    groundwater_depletion: {pricing_enabled: false, price: 0, cap_mm3: null}

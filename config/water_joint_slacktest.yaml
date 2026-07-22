@@ -1,0 +1,85 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Joint water + carbon pricing study (fixed diet)
+# -----------------------------------------------
+# Canonical config for the reframed water paper: the carbon cost of relieving
+# agricultural water scarcity, and how simultaneously pricing carbon (at
+# SCC-like levels) changes it. A deterministic (ghg_price x churn x
+# water_price) cube at central physical parameters, regional churn cap with
+# the SUITABLE-area denominator (the paper's default cap geometry), paired
+# unpriced/priced along the water-price axis at every (ghg, churn) cell.
+#
+# Probe cube (2026-07-01): ghg {0, 50, 200} x churn {0.03, 0.2, 1.0} x
+# water price {0 (baseline), 0.01, 0.1, 0.3, 1.0, 3.0} = 54 scenarios.
+# Scenario names are FIXED-WIDTH (all equal length: j{ghg:03d}c{churn_pct:03d}
+# w{price_milli:04d}) so no name is a prefix of another -- avoids the local
+# Snakemake multi-target wildcard-ambiguity bug.
+#
+# All three swept knobs (emissions pricing, water pricing, deviation caps)
+# are solve-time keys, so this reuses the existing fixed-diet build.
+
+name: "water_joint_slacktest"
+
+validation:
+  slack_marginal_cost: 500.
+  enforce_baseline_diet: true
+
+health:
+  enabled: false
+
+deviation_penalty:
+  penalty_mode: hard
+  deviation_type: relative
+  land:
+    crops: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: suitable}
+    grassland: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: suitable}
+  feed: {l1_cost: 0.0, max_relative_deviation: 0.2, enable_slack: true, scope: regional, regional_denominator: baseline}
+
+scenarios:
+  default: {}
+  _generators:
+    # Baselines: water pricing off at each (ghg, churn) cell. The water-price
+    # field is the literal "w0000" so all names share one fixed-width scheme.
+    - name: j{ghg}c{churn}w0000
+      mode: grid
+      parameters:
+        ghg: {values: [0, 50, 200], name_format: "lambda x: f'{int(x):03d}'"}
+        churn: {values: [0.03, 0.2, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+      template:
+        emissions: {ghg_pricing_enabled: true, ghg_price: "{ghg}"}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: false, price: 0}
+    # Water-priced arm: price encoded in milli-USD per m3 world-eq (4 digits).
+    - name: j{ghg}c{churn}w{price}
+      mode: grid
+      parameters:
+        ghg: {values: [0, 50, 200], name_format: "lambda x: f'{int(x):03d}'"}
+        churn: {values: [0.03, 0.2, 1.0], name_format: "lambda x: f'{round(x * 100):03d}'"}
+        price: {values: [0.01, 0.1, 0.3, 1.0, 3.0], name_format: "lambda x: f'{round(x * 1000):04d}'"}
+      template:
+        emissions: {ghg_pricing_enabled: true, ghg_price: "{ghg}"}
+        deviation_penalty:
+          land:
+            crops: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+            grassland: {max_relative_deviation: "{churn}", regional_denominator: suitable}
+          feed: {max_relative_deviation: "{churn}"}
+        water_scarcity: {pricing_enabled: true, price: "{price}"}
+
+solving:
+  solver: "gurobi"
+  io_api: "direct"
+  threads: 2
+  # Pure LP: dedicated barrier. Method 2 beats concurrent and NumericFocus 2
+  # costs ~2x for identical objectives; timed 2026-07-08 incl. the capped
+  # reforestation arm (see water_carbon_tradeoff_by_cap_fixed_diet.yaml).
+  options_gurobi: {LogToConsole: 0, OutputFlag: 1, Method: 2}
+  mem_mb: 4000 # measured peak ~3.3 GB/solve (750 regions, fixed diet)
+  time_limit: 30
+  runtime: 6
+  inline_analysis: true
