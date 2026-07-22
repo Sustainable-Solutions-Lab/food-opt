@@ -55,11 +55,18 @@ required:
   - costs
   - animal_costs
   - crop_costs
+  - production_value
+  - food_energy
+  - biodiversity
+  - production_concentration
+  - protein
+  - affordability
   - cost_calibration
   - exogenous_feed_calibration
   - food_loss_waste_calibration
   - food_demand_calibration
   - deviation_penalty
+  - reallocation_cap
   - solving
   - remote_solve
   - plotting
@@ -172,6 +179,7 @@ properties:
       - min_grassland_yield_t_per_ha
       - min_link_area_mha
       - min_water_requirement_m3_per_ha
+      - min_water_capacity_mm3
       - min_co2_coefficient_tco2_per_ha
       - min_cost_correction_bnusd
     additionalProperties: false
@@ -607,6 +615,7 @@ properties:
       - rice
       - fertilizer
       - residues
+      - cap
     additionalProperties: false
     properties:
       ghg_pricing_enabled:
@@ -691,6 +700,31 @@ properties:
             type: number
             minimum: 0
             description: "kg N2O-N per kg residue N incorporated into soil"
+      cap:
+        type: object
+        required: [enabled, max_mtco2eq]
+        additionalProperties: false
+        properties:
+          enabled:
+            type: boolean
+            description: "Cap total net GHG emissions of the food system"
+          max_mtco2eq:
+            description: "Absolute cap (MtCO2eq), or a reference-relative specification resolved from a previously solved scenario"
+            oneOf:
+              - type: number
+                minimum: 0
+              - type: object
+                required: [relaxation, reference_scenario]
+                additionalProperties: false
+                properties:
+                  relaxation:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                    description: "0-1 dial: cap = E_ref * (1 + relaxation), so 0 pins at the reference emissions and 1 allows 2x"
+                  reference_scenario:
+                    type: string
+                    description: "Scenario whose realized net emissions anchor the cap"
 
   luc:
     type: object
@@ -1782,6 +1816,211 @@ properties:
             type: integer
             description: "FAOSTAT QCL element code for yield (hg/ha); 5412 for crops"
 
+  production_value:
+    type: object
+    required: [exclude_crops, outlier_cap_quantile, faostat, floor]
+    additionalProperties: false
+    properties:
+      exclude_crops:
+        type: array
+        items:
+          type: string
+        description: "Crops excluded from value accounting (unmarketed fodder intermediates)"
+      outlier_cap_quantile:
+        oneOf:
+          - type: "null"
+          - type: number
+            exclusiveMinimum: 0.5
+            maximum: 1.0
+        description: "Upper winsorization quantile on producer prices. Null disables the cap."
+      faostat:
+        type: object
+        required: [price_element_code]
+        additionalProperties: false
+        properties:
+          price_element_code:
+            type: integer
+            description: "FAOSTAT element code for producer price (USD/tonne)"
+      floor:
+        type: object
+        required: [enabled, fraction, relaxation, reference_scenario, price_basis, min_baseline_bnusd]
+        additionalProperties: false
+        properties:
+          enabled:
+            type: boolean
+            description: "Add per-country lower bounds on gross production value"
+          fraction:
+            type: number
+            minimum: 0
+            description: "Fraction of baseline production value each country must retain"
+          relaxation:
+            type: ["number", "null"]
+            minimum: 0
+            maximum: 1
+            description: "0-1 dial overriding fraction as 1 - relaxation (0 = pinned at baseline, 1 = floor off); null = use fraction"
+          reference_scenario:
+            type: [string, "null"]
+            description: "Use realized per-country values from this scenario; overrides fraction and relaxation"
+          price_basis:
+            type: string
+            enum: [observed, uniform]
+            description: "Producer price basis for the value coefficients"
+          min_baseline_bnusd:
+            type: number
+            minimum: 0
+            description: "Exempt countries with baseline value below this threshold (bnUSD)"
+
+  food_energy:
+    type: object
+    required: [floor]
+    additionalProperties: false
+    properties:
+      floor:
+        type: object
+        required: [enabled, fraction, relaxation, reference_scenario, min_baseline_tkcal]
+        additionalProperties: false
+        properties:
+          enabled:
+            type: boolean
+            description: "Add per-country lower bounds on primal food-energy production"
+          fraction:
+            type: number
+            minimum: 0
+            description: "Fraction of baseline food-energy production each country must retain"
+          relaxation:
+            type: ["number", "null"]
+            minimum: 0
+            maximum: 1
+            description: "0-1 dial overriding fraction as 1 - relaxation (0 = pinned at baseline, 1 = floor off); null = use fraction"
+          reference_scenario:
+            type: [string, "null"]
+            description: "Use realized per-country values from this scenario; overrides fraction and relaxation"
+          min_baseline_tkcal:
+            type: number
+            minimum: 0
+            description: "Exempt countries with baseline production below this threshold (Tkcal)"
+
+  biodiversity:
+    type: object
+    required: [cap]
+    additionalProperties: false
+    properties:
+      cap:
+        type: object
+        required: [enabled, max_conversion_mha, relaxation]
+        additionalProperties: false
+        properties:
+          enabled:
+            type: boolean
+            description: "Cap total natural-land conversion to agriculture"
+          max_conversion_mha:
+            oneOf:
+              - type: number
+                minimum: 0
+              - type: object
+                required: [reference_scenario]
+                additionalProperties: false
+                properties:
+                  reference_scenario:
+                    type: string
+            description: "Absolute conversion cap (Mha) or realized conversion from a reference scenario"
+          relaxation:
+            type: ["number", "null"]
+            minimum: 0
+            maximum: 1
+            description: "0-1 dial scaling the cap to relaxation * max_conversion_mha (0 = no conversion, 1 = loose anchor); null = absolute cap"
+
+  production_concentration:
+    type: object
+    required: [cap]
+    additionalProperties: false
+    properties:
+      cap:
+        type: object
+        required: [enabled, max_share, relaxation, reference_scenario, min_global_mt, min_producing_countries]
+        additionalProperties: false
+        properties:
+          enabled:
+            type: boolean
+            description: "Cap each crop's per-country share of global production"
+          max_share:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: "Maximum share of global production of a crop any country may hold"
+          relaxation:
+            type: ["number", "null"]
+            minimum: 0
+            maximum: 1
+            description: "0-1 dial self-anchoring each crop's cap on its baseline concentration (0 = pinned at baseline, 1 = uncapped); null = apply max_share to all crops"
+          reference_scenario:
+            type: [string, "null"]
+            description: "Use realized per-crop maximum producer shares from this scenario; overrides max_share and relaxation"
+          min_global_mt:
+            type: number
+            minimum: 0
+            description: "Exempt crops with global baseline production below this (Mt)"
+          min_producing_countries:
+            type: integer
+            minimum: 1
+            description: "Skip crops grown in fewer than this many countries"
+
+  protein:
+    type: object
+    required: [floor]
+    additionalProperties: false
+    properties:
+      floor:
+        type: object
+        required: [enabled, fraction, relaxation, reference_scenario, min_baseline_mt]
+        additionalProperties: false
+        properties:
+          enabled:
+            type: boolean
+            description: "Add per-country lower bounds on primal protein production"
+          fraction:
+            type: number
+            minimum: 0
+            description: "Fraction of baseline protein production each country must retain"
+          relaxation:
+            type: ["number", "null"]
+            minimum: 0
+            maximum: 1
+            description: "0-1 dial overriding fraction as 1 - relaxation (0 = pinned at baseline, 1 = floor off); null = use fraction"
+          reference_scenario:
+            type: [string, "null"]
+            description: "Use realized per-country values from this scenario; overrides fraction and relaxation"
+          min_baseline_mt:
+            type: number
+            minimum: 0
+            description: "Exempt countries with baseline protein production below this (Mt)"
+
+  affordability:
+    type: object
+    required: [cost_cap]
+    additionalProperties: false
+    properties:
+      cost_cap:
+        type: object
+        required: [enabled, max_cost_bnusd]
+        additionalProperties: false
+        properties:
+          enabled:
+            type: boolean
+            description: "Cap total marginal production cost of the food system"
+          max_cost_bnusd:
+            description: "Absolute cap (bnUSD), or a cap read from a previously solved reference scenario"
+            oneOf:
+              - type: number
+                minimum: 0
+              - type: object
+                required: [reference_scenario]
+                additionalProperties: false
+                properties:
+                  reference_scenario:
+                    type: string
+                    description: "Scenario whose realized production cost defines the cap"
+
   cost_calibration:
     type: object
     required: [enabled, generate, scenario, crop_correction_csv, multi_crop_correction_csv, grassland_correction_csv, animal_correction_csv]
@@ -1855,7 +2094,7 @@ properties:
 
   food_demand_calibration:
     type: object
-    required: [enabled, generate, calibration_file, min_multiplier, max_multiplier, scenario]
+    required: [enabled, generate, calibration_file, min_multiplier, max_multiplier, demand_headroom, scenario]
     additionalProperties: false
     description: "Per-food global multiplier on baseline-diet target_mt applied uniformly across countries at solve time, derived from per-food slack on an uncalibrated validation solve."
     properties:
@@ -1876,6 +2115,11 @@ properties:
         type: number
         exclusiveMinimum: 0
         description: "Upper bound; raw multipliers above this are clipped (and logged)"
+      demand_headroom:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: "Extra fractional margin on shortage foods (raw multiplier < 1) so demand sits below achievable supply"
       scenario:
         type: string
         description: "Scenario name whose solved model is used to generate calibration"
@@ -1892,7 +2136,7 @@ properties:
       penalty_mode:
         type: string
         enum: ["hard", "quadratic", "l1"]
-        description: "hard = inequality bounds (land + feed only), quadratic = 0.5 * c * dev^2, l1 = c * |dev|"
+        description: "hard = inequality bounds / churn budgets, quadratic = 0.5 * c * dev^2, l1 = c * |dev|"
       deviation_type:
         type: string
         enum: ["absolute", "relative"]
@@ -1911,7 +2155,7 @@ properties:
             description: "Apply deviation penalty to crop + grassland production area (Mha)."
           crops:
             type: object
-            required: [enabled, l1_cost, l1_cost_factor, max_relative_deviation, enable_slack, min_baseline]
+            required: [enabled, l1_cost, l1_cost_factor, max_relative_deviation, enable_slack, min_baseline, scope, regional_denominator]
             additionalProperties: false
             properties:
               enabled: {type: boolean}
@@ -1934,9 +2178,17 @@ properties:
               min_baseline:
                 type: number
                 exclusiveMinimum: 0
+              scope:
+                type: string
+                enum: ["per_link", "regional"]
+                description: "hard mode only. per_link = per-crop +/-band; regional = per-region total churn budget."
+              regional_denominator:
+                type: string
+                enum: ["baseline", "suitable"]
+                description: "scope=regional only. Denominator for the regional churn budget: baseline area or suitable (land-generator capacity) area."
           grassland:
             type: object
-            required: [enabled, l1_cost, l1_cost_factor, max_relative_deviation, enable_slack, min_baseline]
+            required: [enabled, l1_cost, l1_cost_factor, max_relative_deviation, enable_slack, min_baseline, scope, regional_denominator]
             additionalProperties: false
             properties:
               enabled: {type: boolean}
@@ -1959,6 +2211,14 @@ properties:
               min_baseline:
                 type: number
                 exclusiveMinimum: 0
+              scope:
+                type: string
+                enum: ["per_link", "regional"]
+                description: "hard mode only. per_link = per-grassland +/-band; regional = per-region total churn budget."
+              regional_denominator:
+                type: string
+                enum: ["baseline", "suitable"]
+                description: "scope=regional only. Denominator for the regional churn budget: baseline area or suitable (grazeable) area."
           land_conversion:
             type: object
             required: [enabled]
@@ -1969,7 +2229,7 @@ properties:
                 description: "Penalise land-use transitions (conversion, pasture routing, sparing) from zero baseline."
       feed:
         type: object
-        required: [enabled, l1_cost, l1_cost_factor, max_relative_deviation, enable_slack, min_baseline]
+        required: [enabled, l1_cost, l1_cost_factor, max_relative_deviation, enable_slack, min_baseline, scope, regional_denominator]
         additionalProperties: false
         properties:
           enabled:
@@ -1994,9 +2254,17 @@ properties:
           min_baseline:
             type: number
             exclusiveMinimum: 0
+          scope:
+            type: string
+            enum: ["per_link", "regional"]
+            description: "hard mode only. per_link = per-animal-link +/-band; regional = per-country total feed-use churn budget."
+          regional_denominator:
+            type: string
+            enum: ["baseline"]
+            description: "scope=regional only. Feed churn budget denominator; only baseline feed use (Mt DM) is meaningful for feed (no land-area 'suitable' analogue)."
       diet:
         type: object
-        required: [enabled, l1_cost, l1_cost_factor, min_baseline]
+        required: [enabled, l1_cost, l1_cost_factor, max_relative_deviation, enable_slack, min_baseline]
         additionalProperties: false
         properties:
           enabled:
@@ -2012,6 +2280,12 @@ properties:
           l1_cost_factor:
             type: number
             minimum: 0
+          max_relative_deviation:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: "hard mode only. Fraction of a full per-country diet reorganization allowed; the churn budget is 2 * this * country baseline consumption (Mt), so 0 freezes the diet and 1 is fully flexible."
+          enable_slack: {type: boolean}
           min_baseline:
             type: number
             exclusiveMinimum: 0
@@ -2080,6 +2354,24 @@ properties:
               diet:
                 type: number
                 exclusiveMinimum: 0
+
+  reallocation_cap:
+    type: object
+    required: [enabled, fraction, baseline_scenario, endpoint_scenario]
+    additionalProperties: false
+    description: "Endpoint-normalized cap on L1-weighted production reallocation."
+    properties:
+      enabled:
+        type: boolean
+      fraction:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: "Allowed fraction of the endpoint's L1-weighted distance from the realized baseline."
+      baseline_scenario:
+        type: [string, "null"]
+      endpoint_scenario:
+        type: [string, "null"]
 
   solving:
     type: object
@@ -2214,8 +2506,8 @@ properties:
     properties:
       outputs:
         type: object
-        description: "Surrogate targets extracted from each scenario.  Each entry is scalar (one float per scenario), vector (a dict[str, float] expanded to one column per element), or field (a high-dimensional spatial dict PCA-compressed at fit time).  See workflow/scripts/analysis/sensitivity_common.py for available reducers."
-        minProperties: 1
+        description: "Surrogate targets extracted from each scenario.  Each entry is scalar (one float per scenario), vector (a dict[str, float] expanded to one column per element), or field (a high-dimensional spatial dict PCA-compressed at fit time).  See workflow/scripts/analysis/sensitivity_common.py for available reducers.  Empty in default.yaml: each GSA config declares its own targets so nothing is fit by accidental inheritance."
+        minProperties: 0
         additionalProperties:
           type: object
           required: [source, reducer, label, units]
@@ -2229,6 +2521,10 @@ properties:
               type: integer
               minimum: 1
               description: "Required for kind: field.  Number of PCA components (scores) the surrogate predicts; the dense field is reconstructed from these."
+            transform:
+              type: string
+              enum: [log]
+              description: "Optional target transform applied after reduction (scalar outputs only).  The surrogate fits and Sobol-decomposes the transformed quantity; 'log' suits strictly-positive outputs spanning several orders of magnitude."
             source:
               type: string
               description: "Parquet filename under analysis/scen-<scenario>/"
@@ -2264,9 +2560,9 @@ properties:
         properties:
           outputs:
             type: array
-            minItems: 1
+            minItems: 0
             items: {type: string}
-            description: "Allowlist of OutputSpec names whose Sobol indices are computed and plotted.  Vector specs may be listed but bring per-element fan-out across MC samples and plot rules."
+            description: "Allowlist of OutputSpec names whose Sobol indices are computed and plotted.  Vector specs may be listed but bring per-element fan-out across MC samples and plot rules.  Empty in default.yaml; set per GSA config."
           grid_resolution:
             type: integer
             minimum: 2

@@ -31,6 +31,11 @@
 
 name: "gsa"
 
+# The published results use the GDD-IA survey-based baseline diet (the
+# calibration artefact set consumed here was fit against it).
+diet:
+  source: gdd_ia
+
 health:
   enabled: true
 
@@ -168,6 +173,43 @@ sensitivity_analysis:
         early_stopping_rounds: 50
   # Deep-merged with default.yaml's outputs.
   outputs:
+    # Core emission / cost / land targets (declared here rather than inherited
+    # from default.yaml, which no longer ships a default output set).
+    total_cost:
+      source: objective_breakdown.parquet
+      reducer: row_sum
+      label: Total Cost
+      units: bn USD
+    co2:
+      source: net_emissions.parquet
+      reducer: filter_sum
+      filter_col: gas
+      filter_value: co2
+      value_col: mtco2eq
+      label: "CO₂ Emissions"
+      units: "MtCO₂eq"
+    ch4:
+      source: net_emissions.parquet
+      reducer: filter_sum
+      filter_col: gas
+      filter_value: ch4
+      value_col: mtco2eq
+      label: "CH₄ Emissions"
+      units: "MtCO₂eq"
+    n2o:
+      source: net_emissions.parquet
+      reducer: filter_sum
+      filter_col: gas
+      filter_value: n2o
+      value_col: mtco2eq
+      label: "N₂O Emissions"
+      units: "MtCO₂eq"
+    land_use:
+      source: land_use.parquet
+      reducer: column_sum
+      column: area_mha
+      label: Land Use
+      units: Mha
     # Reforestation carbon credit: net CO2 from spare_land + spare_existing_
     # grassland sequestration (negative). The most direct surrogate target for
     # the reforestation-cap parameter.
@@ -179,6 +221,31 @@ sensitivity_analysis:
       value_col: mtco2eq
       label: Carbon sequestration
       units: "MtCO\u2082eq"
+    # Health burden outputs. Declared here rather than in default.yaml because
+    # they read health_totals/health_attribution, which are empty unless
+    # health.enabled is true (as it is for this config).
+    yll:
+      source: health_totals.parquet
+      reducer: column_sum
+      column: yll_myll
+      label: Years of Life Lost
+      units: million YLL
+    yll_by_cause:
+      kind: vector
+      source: health_attribution.parquet
+      reducer: pivot_column
+      key_col: cause
+      value_col: yll_myll
+      label: YLL by disease cause
+      units: million YLL
+    yll_by_food_group:
+      kind: vector
+      source: health_attribution.parquet
+      reducer: pivot_column
+      key_col: food_group
+      value_col: yll_myll
+      label: YLL by dietary risk factor
+      units: million YLL
     # Per-objective-breakdown category, so figures can recover producer cost
     # separately from internalised YLL/GHG terms and consumer values.
     objective_breakdown:

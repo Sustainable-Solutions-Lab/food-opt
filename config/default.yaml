@@ -140,7 +140,7 @@ validation:
 # absolute numbers (e.g. gsa.yaml's lower/higher regimes).
 deviation_penalty:
   enabled: true
-  penalty_mode: "l1"  # "hard" | "l1" | "quadratic" (hard supported for land + feed only)
+  penalty_mode: "l1"  # "hard" | "l1" | "quadratic"
   deviation_type: "absolute"  # "absolute" or "relative"
   quadratic_cost: 1.0  # Shared coefficient for quadratic mode (bn USD per deviation^2)
   land:
@@ -155,6 +155,19 @@ deviation_penalty:
       max_relative_deviation: 0.2  # +/-20% (hard mode only)
       enable_slack: false
       min_baseline: 0.000001  # Mha denominator floor for relative mode
+      # scope (hard mode only): "per_link" pins each crop's area in each
+      # region to (1 +/- max_relative_deviation) * its own baseline_area_mha
+      # (a crop absent at baseline in a region is thus forbidden there);
+      # "regional" instead bounds total area churn summed over all crops in
+      # a region -- sum_i |area_i - baseline_i| <= max_relative_deviation *
+      # D_region -- letting the crop mix reallocate freely (including into
+      # crops absent at baseline) within that budget.
+      scope: "per_link"  # "per_link" | "regional"
+      # regional_denominator (scope=regional only): D_region is either the
+      # regional baseline area (sum of baseline_area_mha over the region's
+      # crop links) or the regional suitable area (summed land-supply
+      # generator capacities: existing cropland p_nom + new-land p_nom_max).
+      regional_denominator: "baseline"  # "baseline" | "suitable"
     grassland:
       # Anchored like cropland. Required because land_conversion (below) is
       # disabled: without either, the zero-price optimum sheds ~20% of pasture.
@@ -164,6 +177,12 @@ deviation_penalty:
       max_relative_deviation: 0.2
       enable_slack: false
       min_baseline: 0.000001
+      # See crops.scope. For grassland the "suitable" denominator is the
+      # regional grazeable area (existing convertible + marginal grassland
+      # generator p_nom), which differs from cropland's: it includes marginal
+      # rangeland that can be grazed but not cropped.
+      scope: "per_link"  # "per_link" | "regional"
+      regional_denominator: "baseline"  # "baseline" | "suitable"
     land_conversion:
       # Do NOT penalise land-use transitions. The land_conversion carriers
       # include spare_land / spare_existing_grassland, so penalising them taxes
@@ -183,6 +202,15 @@ deviation_penalty:
     max_relative_deviation: 0.2
     enable_slack: false
     min_baseline: 0.00001  # Mt DM denominator floor for relative mode
+    # scope (hard mode only): "per_link" pins each animal link's feed use to
+    # (1 +/- max_relative_deviation) * its own baseline; "regional" instead
+    # bounds total feed-use churn per country -- sum_i |feed_i - baseline_i| <=
+    # max_relative_deviation * (country baseline feed use) -- mirroring the land
+    # churn budget so crops, grassland and feed share one flexibility geometry.
+    scope: "per_link"  # "per_link" | "regional"
+    # regional_denominator (scope=regional only): only "baseline" (country
+    # baseline feed use, Mt DM) is meaningful; feed has no "suitable" analogue.
+    regional_denominator: "baseline"
   diet:
     # Per-(food, country) penalty on food_consumption link dispatch toward
     # the observed baseline diet. Off by default; complements land+feed
@@ -192,6 +220,12 @@ deviation_penalty:
     enabled: false
     l1_cost: 0.0  # bn USD per Mt deviation; numeric or "calibrated"
     l1_cost_factor: 1.0
+    # Hard mode: per-country churn budget on total absolute consumption
+    # deviation, sized as 2 * max_relative_deviation * baseline consumption
+    # (a full swap of the diet costs twice its mass in churn), so 0 freezes
+    # the baseline diet and 1 allows a complete reorganization.
+    max_relative_deviation: 0.2
+    enable_slack: false  # hard mode: per-country slack at validation.slack_marginal_cost
     min_baseline: 0.000001  # Mt floor for relative-mode denominator
   calibration:
     # Iterative Broyden calibration of the L1 coefficients listed under
@@ -213,6 +247,16 @@ deviation_penalty:
       grassland: 0.1
       feed: 0.03
       diet: 3.0
+
+# Optional endpoint-normalized cap on production reallocation. The cap retains
+# the configured L1 stability objective but limits the L1-weighted distance
+# from a realized baseline scenario to a fraction of the distance used by a
+# realized endpoint scenario. Both references must use the same built model.
+reallocation_cap:
+  enabled: false
+  fraction: 1.0
+  baseline_scenario: null
+  endpoint_scenario: null
 
 # --- section: food_incentives ---
 food_incentives:
@@ -404,6 +448,22 @@ emissions:
     frac_leach: 0.24 # Fraction of applied/deposited N lost through leaching and runoff in wet climates (FracLEACH-(H))
   residues:
     incorporation_n2o_factor: 0.010 # kg N2O-N per kg residue N incorporated into soil (IPCC 2019 Refinement, Table 11.1 aggregated default)
+  # Emissions guardrail: a solve-time cap on total net GHG (MtCO2eq) accumulated
+  # on the emission:ghg store, net of spared-land sequestration credits.
+  # Distinct from GHG pricing (which charges emissions in the objective) and
+  # from the biodiversity area cap (which bounds converted hectares regardless
+  # of carbon). Solve-time overridable (emissions.cap.* in scenarios).
+  cap:
+    enabled: false
+    # Either an absolute cap (MtCO2eq), or a mapping
+    #   {relaxation: r, reference_scenario: <name>}
+    # resolving the cap from a previously solved reference scenario's realized
+    # net emissions E_ref (read from its net_emissions.parquet analysis output):
+    #   cap = E_ref * (1 + r)
+    # so relaxation 0 pins the cap at the reference emissions (non-increasing:
+    # the reference state is exactly feasible) and relaxation 1 allows twice the
+    # reference. The reference scenario must itself use an absolute cap or none.
+    max_mtco2eq: 1000000.0
 
 # --- section: land use change ---
 luc:
@@ -838,6 +898,12 @@ food_demand_calibration:
   # rather than being silently absorbed.
   min_multiplier: 0.5
   max_multiplier: 2.0
+  # Extra margin applied to shortage foods (raw multiplier < 1) so their fixed
+  # demand is set safely below achievable supply rather than exactly at it.
+  # Prevents a capacity-limited food (e.g. area-pinned apple) from pinning its
+  # demand to the production ceiling, where any drift reopens demand slack whose
+  # penalty price surfaces as a spurious food price.
+  demand_headroom: 0.05
   scenario: "uncalibrated"
 
 # --- section: food_groups ---
@@ -1881,6 +1947,161 @@ crop_costs:
     price_element_code: 5532  # Producer Price (USD/tonne)
     yield_element_code: 5412  # Yield (kg/ha)
 
+# --- section: production_value ---
+# Per-country gross agricultural production value: every crop and animal
+# product output valued at fixed FAOSTAT producer prices (grassland is an
+# unmarketed intermediate and is not valued; feed crops are deliberately
+# double-counted alongside animal products, following the FAOSTAT gross
+# production value convention). Value coefficients are stamped on production
+# links at every solve for analysis; the optional floor constraint bounds
+# each country's value from below. See docs/production_value.rst for
+# interpretation caveats (support prices, calibration-correction steering,
+# feed-import escape hatch).
+production_value:
+  # Fodder crops are unmarketed feed intermediates priced only by grain
+  # proxies; valuing them lets large endogenous fodder expansion masquerade
+  # as production value (and satisfy the floor). Excluded, matching the
+  # FAOSTAT GPV convention. Their value surfaces via animal products.
+  exclude_crops: [alfalfa, silage-maize, biomass-sorghum]
+  # Upper winsorization quantile on producer prices (greenhouse / data
+  # quality outliers); null disables.
+  outlier_cap_quantile: 0.90
+  faostat:
+    price_element_code: 5532  # Producer Price (USD/tonne)
+  # Solve-time per-country floor: value >= fraction * baseline value.
+  # Solve-time overridable (production_value.floor.* in scenarios).
+  floor:
+    enabled: false
+    # Fraction of baseline production value each country must retain.
+    # Feasible at <= 1.0 whenever the baseline itself is feasible.
+    fraction: 0.9
+    # Optional 0-1 dial: when set it overrides fraction as 1 - relaxation, so
+    # relaxation 0 pins value at baseline and 1 removes the floor. null = use
+    # fraction. Matches the biodiversity/concentration caps' relaxation dial.
+    relaxation: null
+    # Optional realized per-country floor from a solved reference scenario.
+    # When set, overrides fraction and relaxation.
+    reference_scenario: null
+    # observed: per-country FAOSTAT producer prices (includes support-price
+    # distortions); uniform: single world price per commodity (isolates the
+    # quantity-mix effect from cross-country price differences).
+    price_basis: observed
+    # Countries with baseline value below this (bnUSD) are exempt from the
+    # floor (avoids degenerate micro-constraints).
+    min_baseline_bnusd: 0.01
+
+# --- section: food_energy ---
+# Per-country primal production of human-edible food energy: crop outputs at
+# their best-food-use energy density (crops with no food pathway carry zero)
+# plus animal products at their own energy. The optional floor is the
+# calorie-side twin of the production value floor: a production-capacity
+# notion of calorie self-sufficiency that, with fixed diets, caps how much
+# more import-dependent any country can become. Energy coefficients are
+# stamped at every solve; net calorie imports are reported ex post in the
+# food_energy analysis output.
+food_energy:
+  # Solve-time overridable (food_energy.floor.* in scenarios).
+  floor:
+    enabled: false
+    # Fraction of baseline food-energy production each country must retain.
+    fraction: 0.9
+    # Optional 0-1 dial overriding fraction as 1 - relaxation (0 = baseline,
+    # 1 = floor off); null = use fraction.
+    relaxation: null
+    reference_scenario: null
+    # Countries producing less than this at baseline are exempt
+    # (Tkcal = 1e12 kcal, ~1.2M person-years of intake).
+    min_baseline_tkcal: 1.0
+
+# --- section: biodiversity ---
+# Biodiversity guardrail: a solve-time cap on the total area of natural land
+# converted to agriculture (cropland via land_conversion links + pasture via
+# new_to_pasture links, in Mha). Distinct from GHG pricing, which charges the
+# land-use-change CO2 on the same links: an area cap also protects biodiverse
+# but low-carbon systems (savanna, steppe, drylands). The dual is the marginal
+# cost of protecting one more Mha of natural land.
+biodiversity:
+  # Solve-time overridable (biodiversity.cap.* in scenarios).
+  cap:
+    enabled: false
+    # Maximum total natural-land conversion to agriculture (Mha), or
+    # {reference_scenario: <name>} to use that scenario's realized conversion.
+    # Unlike the
+    # production floors, baseline dispatch is not automatically feasible: a cap
+    # below the baseline conversion level forces reallocation even at zero
+    # water price, which is intentional (the guardrail bites).
+    max_conversion_mha: 1000.0
+    # Optional 0-1 relaxation dial. null uses max_conversion_mha as an absolute
+    # cap; a number instead makes max_conversion_mha the loose (relaxation 1)
+    # anchor and scales the cap to relaxation * anchor, so relaxation 0 forbids
+    # all new conversion. See resolve_conversion_cap.
+    relaxation: null
+
+# --- section: production_concentration ---
+# Stability guardrail: a solve-time per-crop cap on production concentration.
+# For each broadly-grown crop, no single country may hold more than max_share
+# of global production (the linear max-share form; the Herfindahl is
+# quadratic). The dual per (crop, country) is the marginal cost of forcing that
+# crop's production to spread -- the cost of resilience.
+production_concentration:
+  # Solve-time overridable (production_concentration.cap.* in scenarios).
+  cap:
+    enabled: false
+    # Maximum share of global production of a crop any one country may hold.
+    max_share: 1.0
+    # Optional 0-1 relaxation dial. null applies max_share to every crop; a
+    # number instead self-anchors each crop's cap on its baseline
+    # concentration b: cap = b + relaxation * (1 - b), so relaxation 0 pins
+    # each crop at its baseline concentration (always feasible) and relaxation
+    # 1 leaves crops uncapped. max_share is ignored in this mode.
+    relaxation: null
+    # Optional per-crop maximum producer shares from a solved scenario.
+    # When set, overrides max_share and relaxation.
+    reference_scenario: null
+    # Crops with global baseline production below this (Mt) are exempt.
+    min_global_mt: 10.0
+    # Crops grown in fewer than this many countries are skipped: too
+    # concentrated by geography to satisfy a share cap (would be infeasible
+    # rather than informative).
+    min_producing_countries: 10
+
+# --- section: protein ---
+# Per-country primal protein production, the diet-quality twin of the calorie
+# floor: crop outputs at their best-food-use protein density plus animal
+# products at their own protein content. The optional floor is a
+# production-capacity notion of protein self-sufficiency. Coefficients are
+# stamped at every solve.
+protein:
+  # Solve-time overridable (protein.floor.* in scenarios).
+  floor:
+    enabled: false
+    # Fraction of baseline protein production each country must retain.
+    fraction: 0.9
+    # Optional 0-1 dial overriding fraction as 1 - relaxation (0 = baseline,
+    # 1 = floor off); null = use fraction.
+    relaxation: null
+    reference_scenario: null
+    # Countries producing less than this at baseline are exempt (Mt protein).
+    min_baseline_mt: 0.01
+
+# --- section: affordability ---
+# Affordability guardrail: a solve-time cap on the total marginal production
+# cost of the food system (bnUSD), summed over the production-cost links and
+# generators (see workflow/scripts/solve_model/affordability.py for the
+# carrier whitelist and what it deliberately excludes: externality prices,
+# slack, churn penalties, land-conversion investment and regularizers).
+# The dual is the marginal value of relaxing the cost cap.
+affordability:
+  # Solve-time overridable (affordability.cost_cap.* in scenarios).
+  cost_cap:
+    enabled: false
+    # Either an absolute cap (bnUSD), or
+    #   {reference_scenario: <name>}
+    # to cap cost at a previously solved scenario's realized production cost
+    # (read from production_cost.parquet). The reference scenario must itself
+    # use an absolute cap or none.
+    max_cost_bnusd: 100000.0
+
 # --- section: cost_calibration ---
 # Unified cost calibration corrections extracted from production stability duals.
 # Covers crops, grassland, and animals. When enabled, additive cost corrections
@@ -1969,7 +2190,11 @@ sensitivity_analysis:
   # because the per-element fan-out across MC samples and plot rules
   # blows up for ~80 individual foods.
   sobol:
-    outputs: [total_cost, co2, ch4, n2o, land_use, yll]
+    # No default outputs: every GSA config declares its own surrogate targets
+    # (and the matching sobol.outputs) so nothing is fit by accident. Outputs
+    # here would deep-merge into every config, some referencing parquets a given
+    # scenario never writes (e.g. health outputs when health is disabled).
+    outputs: []
     grid_resolution: 15
     n_mc_global: 16384
     n_mc_conditional: 2048
@@ -2024,80 +2249,8 @@ sensitivity_analysis:
   # Order here defines the display order in Sobol plots.  Vector
   # outputs are fit by the multi-output methods (xgb/rf/mlp) only; pce
   # hard-fails at fit time.
-  outputs:
-    total_cost:
-      source: objective_breakdown.parquet
-      reducer: row_sum
-      label: Total Cost
-      units: bn USD
-    co2:
-      source: net_emissions.parquet
-      reducer: filter_sum
-      filter_col: gas
-      filter_value: co2
-      value_col: mtco2eq
-      label: "CO\u2082 Emissions"
-      units: "MtCO\u2082eq"
-    ch4:
-      source: net_emissions.parquet
-      reducer: filter_sum
-      filter_col: gas
-      filter_value: ch4
-      value_col: mtco2eq
-      label: "CH\u2084 Emissions"
-      units: "MtCO\u2082eq"
-    n2o:
-      source: net_emissions.parquet
-      reducer: filter_sum
-      filter_col: gas
-      filter_value: n2o
-      value_col: mtco2eq
-      label: "N\u2082O Emissions"
-      units: "MtCO\u2082eq"
-    land_use:
-      source: land_use.parquet
-      reducer: column_sum
-      column: area_mha
-      label: Land Use
-      units: Mha
-    yll:
-      source: health_totals.parquet
-      reducer: column_sum
-      column: yll_myll
-      label: Years of Life Lost
-      units: million YLL
-    foods:
-      kind: vector
-      source: food_consumption.parquet
-      reducer: pivot_column
-      key_col: food
-      value_col: consumption_mt
-      label: Food consumption (global)
-      units: Mt
-    feed_categories:
-      kind: vector
-      source: feed_by_category.parquet
-      reducer: pivot_column
-      key_col: category
-      value_col: mt_dm
-      label: Feed by category (global)
-      units: Mt DM
-    yll_by_cause:
-      kind: vector
-      source: health_attribution.parquet
-      reducer: pivot_column
-      key_col: cause
-      value_col: yll_myll
-      label: YLL by disease cause
-      units: million YLL
-    yll_by_food_group:
-      kind: vector
-      source: health_attribution.parquet
-      reducer: pivot_column
-      key_col: food_group
-      value_col: yll_myll
-      label: YLL by dietary risk factor
-      units: million YLL
+  # Declared per GSA config, not here -- see the sobol.outputs comment above.
+  outputs: {}
 
 # --- section: plotting ---
 plotting:

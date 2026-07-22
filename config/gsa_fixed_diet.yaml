@@ -116,6 +116,46 @@ sensitivity_analysis:
   # GSA solves run outside Snakemake on the cluster (tools/batch-solve);
   # see config/default.yaml for the full rationale.
   discover_scenarios_on_disk: true
+  # Core emission / cost / land targets (default.yaml ships no default set).
+  # The carbon-dial docs overlay adds sequestration + spatial fields on top.
+  sobol:
+    outputs: [total_cost, co2, ch4, n2o, land_use]
+  outputs:
+    total_cost:
+      source: objective_breakdown.parquet
+      reducer: row_sum
+      label: Total Cost
+      units: bn USD
+    co2:
+      source: net_emissions.parquet
+      reducer: filter_sum
+      filter_col: gas
+      filter_value: co2
+      value_col: mtco2eq
+      label: "CO₂ Emissions"
+      units: "MtCO₂eq"
+    ch4:
+      source: net_emissions.parquet
+      reducer: filter_sum
+      filter_col: gas
+      filter_value: ch4
+      value_col: mtco2eq
+      label: "CH₄ Emissions"
+      units: "MtCO₂eq"
+    n2o:
+      source: net_emissions.parquet
+      reducer: filter_sum
+      filter_col: gas
+      filter_value: n2o
+      value_col: mtco2eq
+      label: "N₂O Emissions"
+      units: "MtCO₂eq"
+    land_use:
+      source: land_use.parquet
+      reducer: column_sum
+      column: area_mha
+      label: Land Use
+      units: Mha
 
 # Fix consumption to the baseline diet and keep the calibrated L1
 # production-stability regime used in gsa.yaml.
@@ -123,6 +163,9 @@ validation:
   enforce_baseline_diet: true
 
 diet:
+  # The published results use the GDD-IA survey-based baseline diet (the
+  # gbd-anchored calibration artefact set was fit against it).
+  source: gdd_ia
   # Anchor to GBD so the fixed baseline diet matches the health-enabled
   # gsa.yaml diet (with health off, the sentinel would resolve to false).
   anchor_groups_to_gbd: true
