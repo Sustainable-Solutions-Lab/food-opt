@@ -25,9 +25,10 @@ name: "water_groundwater_tradeoff_fixed_diet"
 
 # Refined water supply with the non-renewable groundwater band (structural).
 water:
+  temporal_resolution: 4
   supply:
-    mode: "groundwater"
-
+    scarcity_tiers: true
+    groundwater: true
 # Fix diet to the 2020 baseline (production-side reorganization only).
 validation:
   enforce_baseline_diet: true
@@ -84,3 +85,12 @@ scenarios:
   gwp1:
     emissions: {ghg_pricing_enabled: false, ghg_price: 0}
     groundwater_depletion: {pricing_enabled: true, price: 1.0, cap_mm3: null}
+
+# The water paper uses the FBS-derived baseline diet and its own calibration
+# artefact set (fit against the FBS diet; regenerate with
+# `tools/calibrate --base <this config>` after structural changes).
+diet:
+  source: fbs
+
+calibration:
+  source: fbs-water

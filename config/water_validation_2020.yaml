@@ -31,8 +31,8 @@ validation:
 water:
   temporal_resolution: 12
   supply:
-    mode: "groundwater"
-
+    scarcity_tiers: true
+    groundwater: true
 deviation_penalty:
   enabled: false
 
@@ -52,3 +52,12 @@ solving:
   io_api: "direct"
   solver: "gurobi"
   threads: 2
+
+# The water paper uses the FBS-derived baseline diet and its own calibration
+# artefact set (fit against the FBS diet; regenerate with
+# `tools/calibrate --base <this config>` after structural changes).
+diet:
+  source: fbs
+
+calibration:
+  source: fbs-water

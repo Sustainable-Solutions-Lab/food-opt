@@ -166,3 +166,20 @@ solving:
   time_limit: 30
   runtime: 6
   inline_analysis: true
+
+# Main's defaults run water at annual resolution with collapsed scarcity
+# tiers; water studies need seasonal binding and the AWARE scarcity signal.
+water:
+  temporal_resolution: 4
+  supply:
+    scarcity_tiers: true
+    groundwater: true
+
+# The water paper uses the FBS-derived baseline diet and its own calibration
+# artefact set (fit against the FBS diet; regenerate with
+# `tools/calibrate --base <this config>` after structural changes).
+diet:
+  source: fbs
+
+calibration:
+  source: fbs-water

@@ -18,8 +18,8 @@ name: "water_gw_monthly_validation_1500"
 water:
   temporal_resolution: 12
   supply:
-    mode: "groundwater"
-
+    scarcity_tiers: true
+    groundwater: true
 aggregation:
   regions:
     target_count: 1500
@@ -49,3 +49,12 @@ scenarios:
   default:
     emissions: {ghg_pricing_enabled: false, ghg_price: 0}
     groundwater_depletion: {pricing_enabled: false, price: 0, cap_mm3: null}
+
+# The water paper uses the FBS-derived baseline diet and its own calibration
+# artefact set (fit against the FBS diet; regenerate with
+# `tools/calibrate --base <this config>` after structural changes).
+diet:
+  source: fbs
+
+calibration:
+  source: fbs-water
