@@ -301,3 +301,6 @@ water:
 # `tools/calibrate --base <this config>` after structural changes).
 diet:
   source: fbs
+
+food_demand_calibration:
+  demand_headroom: 0.05

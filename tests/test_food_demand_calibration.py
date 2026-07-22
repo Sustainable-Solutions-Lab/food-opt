@@ -56,7 +56,9 @@ def _build_network(
 
 def test_zero_slack_gives_unity_multiplier():
     n = _build_network(consumption=1.0)
-    cal = compute_calibration(n, min_multiplier=0.5, max_multiplier=2.0)
+    cal = compute_calibration(
+        n, min_multiplier=0.5, max_multiplier=2.0, demand_headroom=0.0
+    )
     np.testing.assert_allclose(cal.loc["x", "multiplier"], 1.0)
 
 
@@ -79,12 +81,16 @@ def test_multiplier_uses_subtractive_form(consumption, pos, neg, expected):
     multiplier rescales the baseline target to that supply.
     """
     n = _build_network(consumption=consumption, pos_slack=pos, neg_slack=neg)
-    cal = compute_calibration(n, min_multiplier=0.0, max_multiplier=10.0)
+    cal = compute_calibration(
+        n, min_multiplier=0.0, max_multiplier=10.0, demand_headroom=0.0
+    )
     np.testing.assert_allclose(cal.loc["x", "multiplier"], expected)
 
 
 def test_multiplier_clipping():
     """Extreme shortages get clipped at min_multiplier."""
     n = _build_network(consumption=1.0, pos_slack=0.9)  # raw = 0.1
-    cal = compute_calibration(n, min_multiplier=0.5, max_multiplier=2.0)
+    cal = compute_calibration(
+        n, min_multiplier=0.5, max_multiplier=2.0, demand_headroom=0.0
+    )
     np.testing.assert_allclose(cal.loc["x", "multiplier"], 0.5)

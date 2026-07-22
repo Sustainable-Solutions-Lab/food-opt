@@ -885,6 +885,7 @@ structural_config:
   fodder_decomposition.yield_corrections.enabled: true
   fodder_decomposition.yield_corrections.eurostat_moisture: 0.65
   fodder_decomposition.yield_corrections.floor: 0.2
+  food_demand_calibration.demand_headroom: 0.0
   food_demand_calibration.max_multiplier: 2.0
   food_demand_calibration.min_multiplier: 0.5
   food_groups.included:

@@ -242,5 +242,8 @@ water:
 diet:
   source: fbs
 
+food_demand_calibration:
+  demand_headroom: 0.05
+
 calibration:
   source: fbs-water

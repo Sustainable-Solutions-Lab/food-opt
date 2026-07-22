@@ -902,8 +902,9 @@ food_demand_calibration:
   # demand is set safely below achievable supply rather than exactly at it.
   # Prevents a capacity-limited food (e.g. area-pinned apple) from pinning its
   # demand to the production ceiling, where any drift reopens demand slack whose
-  # penalty price surfaces as a spurious food price.
-  demand_headroom: 0.05
+  # penalty price surfaces as a spurious food price. 0 reproduces the exact
+  # calibrated supply level; the tracked default artefact sets are fit at 0.
+  demand_headroom: 0.0
   scenario: "uncalibrated"
 
 # --- section: food_groups ---
