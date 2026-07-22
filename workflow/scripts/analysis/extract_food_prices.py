@@ -35,11 +35,20 @@ def extract_food_prices(n: pypsa.Network) -> pd.DataFrame:
     n : pypsa.Network
         Solved network with marginal prices computed.
 
+    A food bus whose marginal price is set by an active positive food-slack
+    generator (unmet fixed-diet demand priced at ``slack_marginal_cost``) does
+    not carry a meaningful market price -- the whole trade-linked flow of that
+    food equalises to the slack penalty (e.g. apple at ~500 USD/kg when its
+    baseline demand exceeds achievable production). Such rows are marked
+    ``is_slack_pinned`` and their price/cost columns are set to NaN so they are
+    excluded from diet-cost aggregates rather than corrupting them.
+
     Returns
     -------
     pd.DataFrame
         Columns: food, food_group, country, price_usd_per_kg,
-        consumption_mt, cost_bnusd, cost_usd_per_person_per_day.
+        consumption_mt, cost_bnusd, cost_usd_per_person_per_day,
+        is_slack_pinned.
     """
     columns = [
         "food",
@@ -49,6 +58,7 @@ def extract_food_prices(n: pypsa.Network) -> pd.DataFrame:
         "consumption_mt",
         "cost_bnusd",
         "cost_usd_per_person_per_day",
+        "is_slack_pinned",
     ]
 
     links = n.links.static
@@ -86,6 +96,34 @@ def extract_food_prices(n: pypsa.Network) -> pd.DataFrame:
         (df["cost_bnusd"] * 1e9) / (pop.to_numpy() * DAYS_PER_YEAR),
         0.0,
     )
+
+    # Flag foods whose price is set by an active positive slack generator
+    # (unmet fixed-diet demand priced at slack_marginal_cost). The slack
+    # generator dispatches on only a few source buses, but trade equalises its
+    # penalty price across every bus of that food, so flag a (food, country)
+    # row when its food slacks *somewhere* and its price sits at the slack
+    # ceiling. Null those rows' price/cost so aggregates skip the artifact.
+    gens = n.generators.static
+    slack_gens = gens[gens["carrier"] == "slack_positive_food"]
+    df["is_slack_pinned"] = False
+    if not slack_gens.empty and "p" in n.generators.dynamic:
+        gp = n.generators.dynamic.p.loc[snapshot].reindex(slack_gens.index).fillna(0.0)
+        active_buses = slack_gens.loc[gp.to_numpy() > 1e-6, "bus"]
+        bus_to_food = n.buses.static["food"]
+        active_foods = set(bus_to_food.reindex(active_buses).dropna())
+        slack_cost = float(slack_gens["marginal_cost"].max())
+        df["is_slack_pinned"] = df["food"].isin(active_foods) & (
+            df["price_usd_per_kg"] >= 0.5 * slack_cost
+        )
+    pinned = df["is_slack_pinned"].to_numpy()
+    for col in ("price_usd_per_kg", "cost_bnusd", "cost_usd_per_person_per_day"):
+        df.loc[pinned, col] = np.nan
+    if pinned.any():
+        logger.info(
+            "Food prices: %d (food, country) rows slack-pinned (nulled): %s",
+            int(pinned.sum()),
+            ", ".join(sorted(df.loc[pinned, "food"].unique())[:8]),
+        )
     df = df.drop(columns="bus0")
 
     # If duplicates exist across (food, food_group, country), the price
@@ -107,6 +145,7 @@ def extract_food_prices(n: pypsa.Network) -> pd.DataFrame:
             "consumption_mt": "sum",
             "cost_bnusd": "sum",
             "cost_usd_per_person_per_day": "sum",
+            "is_slack_pinned": "max",
         }
     )
 

@@ -56,6 +56,9 @@ Sensitivity analysis mode using space-filling Sobol sequences:
             upper: 1.3
             confidence: 0.9
             bounds: [0, 2]
+          guardrail_on:
+            distribution: bernoulli
+            probability: 0.5
         template:
           sensitivity:
             crop_yields:
@@ -252,10 +255,39 @@ def _validate_distribution_spec(param_name: str, param_spec: dict) -> None:
                 f"Parameter '{param_name}' with log_uniform distribution "
                 "requires lower > 0"
             )
+    elif dist == "log_uniform_zero":
+        for key in ("lower", "upper", "zero_fraction"):
+            if key not in param_spec:
+                raise ValueError(
+                    f"Parameter '{param_name}' with log_uniform_zero distribution "
+                    "requires 'lower', 'upper' and 'zero_fraction'"
+                )
+        if param_spec["lower"] <= 0:
+            raise ValueError(
+                f"Parameter '{param_name}' with log_uniform_zero distribution "
+                "requires lower > 0 (the positive log-uniform floor)"
+            )
+        if not 0 <= param_spec["zero_fraction"] < 1:
+            raise ValueError(
+                f"Parameter '{param_name}' with log_uniform_zero distribution "
+                "requires zero_fraction in [0, 1)"
+            )
+    elif dist == "bernoulli":
+        if "probability" not in param_spec:
+            raise ValueError(
+                f"Parameter '{param_name}' with bernoulli distribution "
+                "requires 'probability'"
+            )
+        if not 0 <= param_spec["probability"] <= 1:
+            raise ValueError(
+                f"Parameter '{param_name}' with bernoulli distribution "
+                "requires probability in [0, 1]"
+            )
     else:
         raise ValueError(
             f"Parameter '{param_name}' has unsupported distribution '{dist}'. "
-            "Supported: uniform, normal, lognormal, normal_ci, log_uniform"
+            "Supported: uniform, normal, lognormal, normal_ci, log_uniform, "
+            "log_uniform_zero, bernoulli"
         )
 
 
@@ -300,8 +332,76 @@ def build_chaospy_distribution(param_spec: dict) -> cp.Distribution:
         return cp.Normal(mean, std)
     elif dist == "log_uniform":
         return cp.LogUniform(np.log(param_spec["lower"]), np.log(param_spec["upper"]))
+    elif dist == "log_uniform_zero":
+        return _log_uniform_zero_distribution(
+            param_spec["lower"], param_spec["upper"], param_spec["zero_fraction"]
+        )
+    elif dist == "bernoulli":
+        return _bernoulli_distribution(param_spec["probability"])
     else:
         raise ValueError(f"Unsupported distribution: {dist}")
+
+
+def _log_uniform_zero_distribution(
+    lower: float, upper: float, zero_fraction: float
+) -> cp.Distribution:
+    """Log-uniform marginal with a point mass at exactly zero.
+
+    A fraction ``zero_fraction`` of the probability sits at 0; the remaining
+    mass is log-uniform on ``[lower, upper]``. Used for the water-price slice
+    axis so the design has an exact unpriced anchor (0 = current scarcity)
+    while still resolving the relief onset in log space above ``lower``.
+
+    Built as a chaospy UserDistribution defined by its inverse CDF (the only
+    piece the Sobol inverse-transform sampler needs), so both sample
+    generation and reconstruction go through the joint distribution
+    unchanged.
+    """
+    llo, lhi = np.log(lower), np.log(upper)
+
+    def cdf(x, **_):
+        x = np.asarray(x, dtype=float)
+        frac = zero_fraction + (1 - zero_fraction) * (
+            np.log(np.maximum(x, lower)) - llo
+        ) / (lhi - llo)
+        return np.where(x <= 0, zero_fraction, np.where(x >= upper, 1.0, frac))
+
+    def ppf(q, **_):
+        q = np.asarray(q, dtype=float)
+        pos = np.exp(llo + (q - zero_fraction) / (1 - zero_fraction) * (lhi - llo))
+        return np.where(q <= zero_fraction, 0.0, pos)
+
+    def lower_fn(**_):
+        return 0.0
+
+    def upper_fn(**_):
+        return float(upper)
+
+    return cp.UserDistribution(cdf=cdf, ppf=ppf, lower=lower_fn, upper=upper_fn)
+
+
+def _bernoulli_distribution(probability: float) -> cp.Distribution:
+    """Bernoulli marginal represented as exact 0/1 inverse-CDF samples."""
+    threshold = 1.0 - probability
+
+    def cdf(x, **_):
+        x = np.asarray(x, dtype=float)
+        return np.where(x < 0, 0.0, np.where(x < 1, threshold, 1.0))
+
+    def ppf(q, **_):
+        if probability == 0:
+            return np.zeros_like(q, dtype=float)
+        if probability == 1:
+            return np.ones_like(q, dtype=float)
+        return (np.asarray(q, dtype=float) > threshold).astype(float)
+
+    def lower_fn(**_):
+        return 0.0
+
+    def upper_fn(**_):
+        return 1.0
+
+    return cp.UserDistribution(cdf=cdf, ppf=ppf, lower=lower_fn, upper=upper_fn)
 
 
 def build_joint_distribution(
@@ -362,7 +462,15 @@ def _generate_sensitivity_samples(spec: dict) -> list[dict]:
 
     result = []
     for j in range(n_samples):
-        result.append(dict(zip(param_names, physical_samples[:, j].tolist())))
+        values = physical_samples[:, j].tolist()
+        result.append(
+            {
+                name: bool(value)
+                if spec["parameters"][name].get("distribution") == "bernoulli"
+                else value
+                for name, value in zip(param_names, values)
+            }
+        )
     return result
 
 

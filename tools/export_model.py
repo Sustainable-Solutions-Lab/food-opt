@@ -34,6 +34,8 @@ from workflow.scripts.solve_model.core import (
     add_ghg_pricing_to_objective,
     add_macronutrient_constraints,
     add_residue_feed_constraints,
+    add_water_scarcity_cap,
+    add_water_scarcity_pricing_to_objective,
     build_residue_feed_fraction_by_country,
 )
 from workflow.scripts.solve_model.health import add_health_objective
@@ -113,6 +115,16 @@ def build_and_export_model(
         ghg_price = float(config["emissions"]["ghg_price"])
         add_ghg_pricing_to_objective(n, ghg_price)
         logger.info("Added GHG pricing: $%.2f/tCO2", ghg_price)
+
+    # Add water-scarcity pricing and/or cap if enabled
+    if config["water_scarcity"]["pricing_enabled"]:
+        water_price = float(config["water_scarcity"]["price"])
+        add_water_scarcity_pricing_to_objective(n, water_price)
+        logger.info("Added water-scarcity pricing: $%.4f/m3-world-eq", water_price)
+    water_cap = config["water_scarcity"]["cap_mm3_world_eq"]
+    if water_cap is not None:
+        add_water_scarcity_cap(n, float(water_cap))
+        logger.info("Added water-scarcity cap: %.1f Mm3-world-eq", float(water_cap))
 
     # Add food incentives if enabled
     if config["food_incentives"]["enabled"]:

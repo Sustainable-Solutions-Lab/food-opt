@@ -33,6 +33,12 @@ _ANALYSIS_SCRIPTS = expand(
         "extract_health_impacts.py",
         "extract_baseline_deviation.py",
         "extract_food_prices.py",
+        "extract_water_metrics.py",
+        "extract_production_value.py",
+        "extract_food_energy.py",
+        "extract_barrier_constraints.py",
+        "extract_barrier_reference.py",
+        "extract_production_cost.py",
     ],
 )
 
@@ -104,6 +110,9 @@ if config["solving"]["inline_analysis"]:
             deviation_penalty=lambda w: get_effective_config(w.scenario)[
                 "deviation_penalty"
             ],
+            reallocation_cap=lambda w: get_effective_config(w.scenario)[
+                "reallocation_cap"
+            ],
             animal_growth_cap=lambda w: get_effective_config(w.scenario)["validation"][
                 "animal_growth_cap"
             ],
@@ -120,6 +129,23 @@ if config["solving"]["inline_analysis"]:
             reforestation_cap=lambda w: get_effective_config(w.scenario)["land"][
                 "reforestation_cap"
             ],
+            production_value=lambda w: get_effective_config(w.scenario)[
+                "production_value"
+            ],
+            food_energy=lambda w: get_effective_config(w.scenario)["food_energy"][
+                "floor"
+            ],
+            biodiversity=lambda w: get_effective_config(w.scenario)["biodiversity"][
+                "cap"
+            ],
+            production_concentration=lambda w: get_effective_config(w.scenario)[
+                "production_concentration"
+            ]["cap"],
+            protein=lambda w: get_effective_config(w.scenario)["protein"]["floor"],
+            affordability=lambda w: get_effective_config(w.scenario)["affordability"][
+                "cost_cap"
+            ],
+            emissions_cap=lambda w: get_effective_config(w.scenario)["emissions"]["cap"],
             forage_calibration_enabled=lambda w: get_effective_config(w.scenario)[
                 "grazing"
             ]["grassland_forage_calibration"]["enabled"],

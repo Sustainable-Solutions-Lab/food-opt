@@ -16,6 +16,7 @@ import argparse
 from datetime import datetime
 import math
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 
@@ -116,6 +117,24 @@ def main():
         "--environment",
         help="Pixi environment (e.g., gurobi)",
     )
+    parser.add_argument(
+        "--python-executable",
+        help=(
+            "Use this Python executable to run tools/cluster-solve instead of "
+            "invoking pixi. Useful on clusters where an environment has already "
+            "been materialized separately."
+        ),
+    )
+    parser.add_argument(
+        "--export-env",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help=(
+            "Export an environment variable in the generated SLURM script. "
+            "May be supplied multiple times."
+        ),
+    )
     parser.add_argument("--partition", help="SLURM partition")
     parser.add_argument("--account", help="SLURM account")
     parser.add_argument(
@@ -157,12 +176,18 @@ def main():
         time_minutes = min(resources["time_minutes"], parse_time(args.max_time))
     cpus = resources["cpus"]
 
-    n_batches = math.ceil(n_scenarios / args.batch_size)
+    # Dependency waves: the manifest orders scenarios so that reference
+    # scenarios (whose analysis outputs other solves read) come first, and
+    # records the per-wave entry counts. Each wave is one SLURM array,
+    # chained to the previous wave with an afterok dependency.
+    waves = manifest["waves"]
 
     print("\nBatch layout:")
     print(f"  Scenarios: {n_scenarios}")
+    if len(waves) > 1:
+        print(f"  Dependency waves: {' + '.join(str(c) for c in waves)}")
     print(f"  Batch size: {args.batch_size}")
-    print(f"  Array elements: {n_batches}")
+    print(f"  Array elements: {sum(math.ceil(c / args.batch_size) for c in waves)}")
     print(f"  Parallel solves per element: {args.parallel}")
     print(f"  CPUs per element: {cpus}")
     print(f"  Memory per element: {mem_mb} MB ({mem_mb / 1000:.1f} GB)")
@@ -175,56 +200,78 @@ def main():
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Build sbatch directives
-    sbatch_lines = [
-        f"#SBATCH --array=0-{n_batches - 1}",
-        f"#SBATCH --time={format_time(time_minutes)}",
-        f"#SBATCH --mem={mem_mb}M",
-        f"#SBATCH --cpus-per-task={cpus}",
-        f"#SBATCH --job-name=solve_{name}",
-        f"#SBATCH --output={logs_dir}/solve_%A_%a.out",
-        f"#SBATCH --error={logs_dir}/solve_%A_%a.err",
-    ]
-    if args.partition:
-        sbatch_lines.append(f"#SBATCH --partition={args.partition}")
-    if args.account:
-        sbatch_lines.append(f"#SBATCH --account={args.account}")
-    if args.sbatch_args:
-        for extra in args.sbatch_args.split():
-            sbatch_lines.append(f"#SBATCH {extra}")
+    def sbatch_directives(wave_idx: int, count: int) -> str:
+        n_batches = math.ceil(count / args.batch_size)
+        job_name = f"solve_{name}" if len(waves) == 1 else f"solve_{name}_w{wave_idx}"
+        sbatch_lines = [
+            f"#SBATCH --array=0-{n_batches - 1}",
+            f"#SBATCH --time={format_time(time_minutes)}",
+            f"#SBATCH --mem={mem_mb}M",
+            f"#SBATCH --cpus-per-task={cpus}",
+            f"#SBATCH --job-name={job_name}",
+            f"#SBATCH --output={logs_dir}/solve_%A_%a.out",
+            f"#SBATCH --error={logs_dir}/solve_%A_%a.err",
+        ]
+        if args.partition:
+            sbatch_lines.append(f"#SBATCH --partition={args.partition}")
+        if args.account:
+            sbatch_lines.append(f"#SBATCH --account={args.account}")
+        if args.sbatch_args:
+            for extra in args.sbatch_args.split():
+                sbatch_lines.append(f"#SBATCH {extra}")
+        return "\n".join(sbatch_lines)
 
-    sbatch_directives = "\n".join(sbatch_lines)
+    if args.python_executable:
+        solve_python = shlex.quote(args.python_executable)
+    else:
+        env_prefix = (
+            f"pixi run -e {args.environment}" if args.environment else "pixi run"
+        )
+        solve_python = f"{env_prefix} python"
 
-    env_prefix = f"pixi run -e {args.environment}" if args.environment else "pixi run"
+    extra_exports = []
+    for item in args.export_env:
+        if "=" not in item:
+            parser.error(f"--export-env must be NAME=VALUE, got {item!r}")
+        env_name, value = item.split("=", 1)
+        if not env_name:
+            parser.error(f"--export-env has empty variable name: {item!r}")
+        extra_exports.append(f"export {env_name}={shlex.quote(value)}")
+    extra_exports_block = "\n".join(extra_exports)
 
-    script_content = f"""\
+    def script_body(wave_idx: int, offset: int, count: int) -> str:
+        return f"""\
 #!/bin/bash
-{sbatch_directives}
+{sbatch_directives(wave_idx, count)}
 
 set -euo pipefail
 
 MANIFEST="{manifest_path}"
 BATCH_SIZE={args.batch_size}
 PARALLEL={args.parallel}
+OFFSET={offset}
 
-# Compute index range for this array element
-START=$((SLURM_ARRAY_TASK_ID * BATCH_SIZE))
+# Compute manifest index range for this array element (within this wave)
+START=$((OFFSET + SLURM_ARRAY_TASK_ID * BATCH_SIZE))
 END=$((START + BATCH_SIZE - 1))
-TOTAL={n_scenarios}
+LAST={offset + count - 1}
 
-if [ "$START" -ge "$TOTAL" ]; then
+if [ "$START" -gt "$LAST" ]; then
     echo "No scenarios for array task $SLURM_ARRAY_TASK_ID"
     exit 0
 fi
 
-# Cap END at total
-if [ "$END" -ge "$TOTAL" ]; then
-    END=$((TOTAL - 1))
+# Cap END at the wave's last manifest index
+if [ "$END" -gt "$LAST" ]; then
+    END=$LAST
 fi
 
 echo "Array task $SLURM_ARRAY_TASK_ID: scenarios $START-$END"
 
 cd "{PROJECT_ROOT}"
+export PYPSA_API__NEW_COMPONENTS_API=true
+export PYPSA_GENERAL__ALLOW_NETWORK_REQUESTS=false
+{extra_exports_block}
 
 # Run scenarios in parallel batches using GNU parallel or a simple loop
 PIDS=()
@@ -250,7 +297,7 @@ for IDX in $(seq $START $END); do
         fi
     done
 
-    {env_prefix} python tools/cluster-solve "$MANIFEST" --index "$IDX" --skip-existing &
+    {solve_python} tools/cluster-solve "$MANIFEST" --index "$IDX" --skip-existing &
     PIDS+=($!)
 done
 
@@ -266,29 +313,40 @@ fi
 echo "Array task $SLURM_ARRAY_TASK_ID complete."
 """
 
-    script_path = batch_dir / f"batch_solve_{name}_{timestamp}.sh"
-    script_path.write_text(script_content)
-    script_path.chmod(0o755)
-    print(f"\n  Script: {script_path}")
+    # One script + submission per wave, chained with afterok dependencies.
+    prev_job_id = None
+    offset = 0
+    for wave_idx, count in enumerate(waves):
+        suffix = "" if len(waves) == 1 else f"_w{wave_idx}"
+        script_path = batch_dir / f"batch_solve_{name}{suffix}_{timestamp}.sh"
+        script_content = script_body(wave_idx, offset, count)
+        script_path.write_text(script_content)
+        script_path.chmod(0o755)
+        print(f"\n  Script: {script_path}")
+        offset += count
+
+        if args.dry_run:
+            print("\n--- Generated sbatch script ---")
+            print(script_content)
+            continue
+
+        cmd = ["sbatch", "--parsable"]
+        if prev_job_id is not None:
+            cmd.append(f"--dependency=afterok:{prev_job_id}")
+        cmd.append(str(script_path))
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"sbatch failed:\n{result.stderr}", file=sys.stderr)
+            sys.exit(1)
+        prev_job_id = result.stdout.strip().split(";")[0]
+        dep_note = "" if wave_idx == 0 else " (afterok on previous wave)"
+        print(f"  Submitted job {prev_job_id}{dep_note}")
 
     if args.dry_run:
-        print("\n--- Generated sbatch script ---")
-        print(script_content)
-        print("--- Dry run: not submitting ---")
+        print("\n--- Dry run: not submitting ---")
         return
 
-    # Submit
-    result = subprocess.run(
-        ["sbatch", str(script_path)],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        print(f"sbatch failed:\n{result.stderr}", file=sys.stderr)
-        sys.exit(1)
-
-    print(f"\n{result.stdout.strip()}")
-    print(f"Monitor with: squeue -u $USER -n solve_{name}")
+    print(f"\nMonitor with: squeue -u $USER | grep solve_{name}")
 
 
 if __name__ == "__main__":

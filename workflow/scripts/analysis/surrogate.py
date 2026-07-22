@@ -376,18 +376,26 @@ class LogColumns(BaseEstimator, TransformerMixin):
     turns a log-uniform marginal into a uniform one and the typically
     log-linear response into a near-linear one.  Tree methods are invariant
     to monotone rescalings so they skip this; the MLP is not.
+
+    Each logged column carries a floor equal to its marginal's lower bound;
+    the value is clipped up to that floor before logging.  For a plain
+    log-uniform column every sample already sits at or above the floor, so
+    the clip is a no-op; for a ``log_uniform_zero`` column (point mass at 0)
+    it maps the zeros to ``log(lower)``, i.e. the symlog floor, keeping the
+    exact-zero anchor at the same feature value as the smallest positive
+    price instead of ``log(0) = -inf``.
     """
 
-    def __init__(self, log_indices: tuple[int, ...] = ()):
-        self.log_indices = list(log_indices)
+    def __init__(self, log_cols: tuple[tuple[int, float], ...] = ()):
+        self.log_cols = list(log_cols)
 
     def fit(self, x, y=None):
         return self
 
     def transform(self, x):
         x = np.asarray(x, dtype=float).copy()
-        for j in self.log_indices:
-            x[:, j] = np.log(x[:, j])
+        for j, floor in self.log_cols:
+            x[:, j] = np.log(np.maximum(x[:, j], floor))
         return x
 
 
@@ -413,7 +421,7 @@ class AveragingEnsemble:
 def fit_mlp_multi(
     x_design: np.ndarray,
     y_mat: np.ndarray,
-    log_indices: list[int],
+    log_cols: list[tuple[int, float]],
     hidden_layer_sizes: tuple[int, ...] = (256, 128, 64),
     solver: str = "adam",
     alpha: float = 1e-4,
@@ -466,7 +474,7 @@ def fit_mlp_multi(
             )
         return Pipeline(
             [
-                ("log", LogColumns(tuple(log_indices))),
+                ("log", LogColumns(tuple(log_cols))),
                 ("scaler", StandardScaler()),
                 ("mlp", MLPRegressor(**mlp_kwargs)),
             ]
@@ -539,12 +547,16 @@ def fit_bundle(
     joint_dist, param_names = build_joint_distribution(generator_spec)
     method_options = dict(method_config.get("method_options", {}))
 
-    # Input columns the MLP should log-transform first (log-uniform params).
+    # Input columns the MLP should log-transform first (log-uniform params),
+    # each paired with its floor (the marginal's lower bound) so a
+    # log_uniform_zero column's exact-zero anchor maps to log(lower) rather
+    # than log(0).
     params_spec = generator_spec["parameters"]
-    log_indices = [
-        i
+    log_dists = {"log_uniform", "log_uniform_zero"}
+    log_cols = [
+        (i, float(params_spec[name]["lower"]))
         for i, name in enumerate(param_names)
-        if params_spec[name].get("distribution") == "log_uniform"
+        if params_spec[name].get("distribution") in log_dists
     ]
 
     n_total = len(x_design)
@@ -619,7 +631,7 @@ def fit_bundle(
             train_columns,
             method_options,
             n_threads,
-            log_indices,
+            log_cols,
             priority_weight=priority_weight,
             field_score_columns=score_columns,
         )
@@ -816,7 +828,7 @@ def _fit_multi_output(
     available_columns: list[str],
     opts: dict,
     n_jobs: int,
-    log_indices: list[int],
+    log_cols: list[tuple[int, float]],
     priority_weight: float = 1.0,
     field_score_columns: set[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, dict]]:
@@ -896,7 +908,7 @@ def _fit_multi_output(
         fit_result = fit_mlp_multi(
             x_train,
             y_train_std,
-            log_indices,
+            log_cols,
             hidden_layer_sizes=tuple(opts["hidden_layer_sizes"]),
             solver=opts["solver"],
             alpha=opts["alpha"],

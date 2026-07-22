@@ -31,6 +31,7 @@ if _dp_cal_cfg["generate"]:
             ),
             model=f"<results>/{name}/build/model.nc",
             baseline_diet=f"<processing>/{name}/baseline_diet.csv",
+            producer_prices=f"<processing>/{name}/producer_prices.csv",
             m49="data/curated/M49-codes.csv",
             food_groups="data/curated/food_groups.csv",
             nutrition="data/curated/nutrition.csv",

@@ -30,6 +30,7 @@ from workflow.scripts.snakemake_utils import _recursive_update
 SOLVE_TIME_CONFIG_PREFIXES = {
     "emissions.ghg_price",
     "emissions.ghg_pricing_enabled",
+    "emissions.cap",
     "water_scarcity",
     "groundwater_depletion",
     "health.enabled",
@@ -39,6 +40,7 @@ SOLVE_TIME_CONFIG_PREFIXES = {
     "validation.enforce_baseline_diet",
     "validation.animal_growth_cap",
     "deviation_penalty",
+    "reallocation_cap",
     "macronutrients",
     "food_utility_piecewise",
     "food_incentives",
@@ -50,6 +52,12 @@ SOLVE_TIME_CONFIG_PREFIXES = {
     "biomass.biofuel_demand_scale",
     "land.regional_limit",
     "land.reforestation_cap",
+    "production_value.floor",
+    "food_energy.floor",
+    "biodiversity.cap",
+    "production_concentration.cap",
+    "protein.floor",
+    "affordability.cost_cap",
     "grazing.grassland_forage_calibration.enabled",
     "exogenous_feed_calibration.enabled",
     "consumer_values",
@@ -173,6 +181,189 @@ def deviation_penalty_uses_calibrated(dp_cfg: dict) -> bool:
     )
 
 
+def cost_cap_is_reference_based(cost_cap_cfg: dict) -> bool:
+    """True when an enabled affordability cap reads a reference scenario."""
+    return cost_cap_cfg["enabled"] and isinstance(cost_cap_cfg["max_cost_bnusd"], dict)
+
+
+def affordability_reference_inputs(
+    cost_cap_cfg: dict,
+    scenario: str,
+    base_config: dict,
+    scenario_defs: dict,
+) -> dict[str, str]:
+    """Reference-scenario input for a reference-based affordability cap.
+
+    Returns ``{}`` when the cap is disabled or absolute. For the reference
+    form (``{reference_scenario}``) returns that scenario's
+    ``production_cost.parquet`` analysis output, keyed ``cost_reference``,
+    with ``{name}`` and ``<results>`` left for the caller to resolve. Single source of truth
+    shared by the solve-input builder in workflow/rules/model.smk and by
+    ``build_scenario_entry`` below, so the Snakemake DAG and the HPC
+    manifest wire identical dependencies.
+
+    Fails fast when a reference scenario is undefined or itself uses a
+    reference-based cap (reference chains cannot recurse).
+    """
+    if not cost_cap_is_reference_based(cost_cap_cfg):
+        return {}
+    spec = cost_cap_cfg["max_cost_bnusd"]
+    ref = spec["reference_scenario"]
+    if ref not in scenario_defs:
+        raise ValueError(
+            f"Scenario {scenario}: affordability cost-cap reference "
+            f"'{ref}' is not a defined scenario"
+        )
+    ref_cap = get_effective_config(base_config, ref, scenario_defs)["affordability"][
+        "cost_cap"
+    ]
+    if cost_cap_is_reference_based(ref_cap):
+        raise ValueError(
+            f"Scenario {scenario}: cost-cap reference scenario '{ref}' "
+            "itself uses a reference-based cap; references must use an "
+            "absolute cap or none"
+        )
+    return {
+        "cost_reference": (
+            f"<results>/{{name}}/analysis/scen-{ref}/production_cost.parquet"
+        )
+    }
+
+
+def emissions_cap_is_relative(cap_cfg: dict) -> bool:
+    """True when an enabled emissions cap uses the reference-relative form."""
+    return cap_cfg["enabled"] and isinstance(cap_cfg["max_mtco2eq"], dict)
+
+
+def emissions_cap_reference_inputs(
+    cap_cfg: dict,
+    scenario: str,
+    base_config: dict,
+    scenario_defs: dict,
+) -> dict[str, str]:
+    """Reference-scenario input for a reference-relative emissions cap.
+
+    Returns ``{}`` when the cap is disabled or absolute. For the relative form
+    ({relaxation, reference_scenario}) returns the reference scenario's
+    ``net_emissions.parquet`` analysis output, keyed ``emissions_reference``,
+    with ``{name}`` and ``<results>`` left for the caller to resolve. Shared by
+    the solve-input builder in workflow/rules/model.smk and by
+    ``build_scenario_entry`` below so the Snakemake DAG and the HPC manifest
+    wire identical dependencies.
+
+    Fails fast when the reference scenario is undefined or itself uses a
+    relative cap (reference chains cannot recurse).
+    """
+    if not emissions_cap_is_relative(cap_cfg):
+        return {}
+    ref = cap_cfg["max_mtco2eq"]["reference_scenario"]
+    if ref not in scenario_defs:
+        raise ValueError(
+            f"Scenario {scenario}: emissions cap reference '{ref}' is not a "
+            "defined scenario"
+        )
+    ref_cap = get_effective_config(base_config, ref, scenario_defs)["emissions"]["cap"]
+    if emissions_cap_is_relative(ref_cap):
+        raise ValueError(
+            f"Scenario {scenario}: emissions cap reference scenario '{ref}' "
+            "itself uses a reference-relative cap; references must use an "
+            "absolute cap or none"
+        )
+    return {
+        "emissions_reference": (
+            f"<results>/{{name}}/analysis/scen-{ref}/net_emissions.parquet"
+        )
+    }
+
+
+def barrier_reference_scenarios(config: dict) -> set[str]:
+    """Reference scenarios used by enabled non-cost/GHG guardrails."""
+    refs: set[str] = set()
+    biodiversity = config["biodiversity"]["cap"]
+    if biodiversity["enabled"] and isinstance(biodiversity["max_conversion_mha"], dict):
+        refs.add(biodiversity["max_conversion_mha"]["reference_scenario"])
+    concentration = config["production_concentration"]["cap"]
+    if concentration["enabled"] and concentration.get("reference_scenario"):
+        refs.add(concentration["reference_scenario"])
+    for section in ("food_energy", "protein", "production_value"):
+        floor = config[section]["floor"]
+        if floor["enabled"] and floor.get("reference_scenario"):
+            refs.add(floor["reference_scenario"])
+    return refs
+
+
+def barrier_reference_inputs(
+    config: dict,
+    scenario: str,
+    base_config: dict,
+    scenario_defs: dict,
+) -> dict[str, str]:
+    """Return the shared realized-guardrail reference input, if required."""
+    refs = barrier_reference_scenarios(config)
+    if not refs:
+        return {}
+    if len(refs) != 1:
+        raise ValueError(
+            f"Scenario {scenario}: guardrails must share one reference scenario, "
+            f"got {sorted(refs)}"
+        )
+    ref = next(iter(refs))
+    if ref not in scenario_defs:
+        raise ValueError(
+            f"Scenario {scenario}: barrier reference '{ref}' is not defined"
+        )
+    ref_config = get_effective_config(base_config, ref, scenario_defs)
+    if barrier_reference_scenarios(ref_config):
+        raise ValueError(
+            f"Scenario {scenario}: barrier reference '{ref}' itself uses a "
+            "barrier reference"
+        )
+    return {
+        "barrier_reference": (
+            f"<results>/{{name}}/analysis/scen-{ref}/barrier_reference.parquet"
+        )
+    }
+
+
+def reallocation_reference_inputs(
+    cap_cfg: dict,
+    scenario: str,
+    base_config: dict,
+    scenario_defs: dict,
+) -> dict[str, str]:
+    """Return the compact realized-dispatch reference for a reallocation cap."""
+    if not cap_cfg["enabled"]:
+        return {}
+    baseline = cap_cfg["baseline_scenario"]
+    endpoint = cap_cfg["endpoint_scenario"]
+    if baseline is None or endpoint is None:
+        raise ValueError(
+            f"Scenario {scenario}: enabled reallocation_cap requires both "
+            "baseline_scenario and endpoint_scenario"
+        )
+    missing = {baseline, endpoint} - set(scenario_defs)
+    if missing:
+        raise ValueError(
+            f"Scenario {scenario}: undefined reallocation-cap reference "
+            f"scenario(s): {sorted(missing)}"
+        )
+    for reference in (baseline, endpoint):
+        ref_cap = get_effective_config(base_config, reference, scenario_defs)[
+            "reallocation_cap"
+        ]
+        if ref_cap["enabled"]:
+            raise ValueError(
+                f"Scenario {scenario}: reallocation-cap reference '{reference}' "
+                "must not itself enable reallocation_cap"
+            )
+    return {
+        "reallocation_reference": (
+            f"<results>/{{name}}/reallocation_reference/"
+            f"baseline-{baseline}/endpoint-{endpoint}.parquet"
+        )
+    }
+
+
 def validate_scenario_config_schemas(
     base_config: dict, scenario_defs: dict, project_root
 ) -> None:
@@ -248,6 +439,11 @@ ANALYSIS_OUTPUT_NAMES = (
     "baseline_deviation",
     "food_prices",
     "water_metrics",
+    "production_value",
+    "food_energy",
+    "barrier_constraints",
+    "barrier_reference",
+    "production_cost",
 )
 
 
@@ -367,6 +563,8 @@ def build_scenario_entry(
         "m49": "data/curated/M49-codes.csv",
         "food_groups": "data/curated/food_groups.csv",
         "baseline_diet": rp("<processing>/{name}/baseline_diet.csv"),
+        "producer_prices": rp("<processing>/{name}/producer_prices.csv"),
+        "nutrition": "data/curated/nutrition.csv",
     }
 
     # Health processing inputs only when this scenario enables health (mirrors
@@ -423,6 +621,24 @@ def build_scenario_entry(
     if dp_cal_cfg["enabled"] and deviation_penalty_uses_calibrated(dp_cfg):
         inputs["deviation_penalty_calibration"] = dp_cal_cfg["calibrated_yaml"]
 
+    afford_refs = affordability_reference_inputs(
+        eff["affordability"]["cost_cap"], scenario, base_config, scenario_defs
+    )
+    inputs.update({key: rp(path) for key, path in afford_refs.items()})
+
+    emissions_refs = emissions_cap_reference_inputs(
+        eff["emissions"]["cap"], scenario, base_config, scenario_defs
+    )
+    inputs.update({key: rp(path) for key, path in emissions_refs.items()})
+
+    barrier_refs = barrier_reference_inputs(eff, scenario, base_config, scenario_defs)
+    inputs.update({key: rp(path) for key, path in barrier_refs.items()})
+
+    reallocation_refs = reallocation_reference_inputs(
+        eff["reallocation_cap"], scenario, base_config, scenario_defs
+    )
+    inputs.update({key: rp(path) for key, path in reallocation_refs.items()})
+
     if inline_analysis:
         inputs["population"] = rp("<processing>/{name}/population.csv")
 
@@ -443,12 +659,20 @@ def build_scenario_entry(
         "food_group_constraints": eff["food_groups"]["constraints"],
         "enforce_baseline": eff["validation"]["enforce_baseline_diet"],
         "deviation_penalty": eff["deviation_penalty"],
+        "reallocation_cap": eff["reallocation_cap"],
         "animal_growth_cap": eff["validation"]["animal_growth_cap"],
         "crop_growth_cap": eff["validation"]["crop_growth_cap"],
         "food_utility_piecewise": utility_cfg,
         "fix_within_group_ratios": eff["food_groups"]["fix_within_group_ratios"],
         "sensitivity": eff["sensitivity"],
         "reforestation_cap": eff["land"]["reforestation_cap"],
+        "production_value": eff["production_value"],
+        "food_energy": eff["food_energy"]["floor"],
+        "biodiversity": eff["biodiversity"]["cap"],
+        "production_concentration": eff["production_concentration"]["cap"],
+        "protein": eff["protein"]["floor"],
+        "affordability": eff["affordability"]["cost_cap"],
+        "emissions_cap": eff["emissions"]["cap"],
         "forage_calibration_enabled": cal_cfg["enabled"],
         "forage_overlap_crops": eff["grazing"]["forage_overlap_crops"],
         "exogenous_feed_calibration_enabled": exo_feed_cal_cfg["enabled"],
@@ -497,13 +721,41 @@ def build_scenario_entry(
     else:
         log = rp("<logs>/{name}/solve_model_scen-{scenario}.log")
 
-    return {
+    entry = {
         "scenario": scenario,
         "inputs": inputs,
         "params": params,
         "outputs": outputs,
         "log": log,
     }
+    # Scenarios whose analysis outputs this solve reads (reference-based
+    # affordability caps). tools/export-solve-manifest orders the manifest by
+    # dependency wave and tools/batch-solve chains the waves with SLURM job
+    # dependencies, so references are solved first on the cluster.
+    depends_on = sorted(
+        {
+            spec["reference_scenario"]
+            for spec in [eff["affordability"]["cost_cap"]["max_cost_bnusd"]]
+            if isinstance(spec, dict) and eff["affordability"]["cost_cap"]["enabled"]
+        }
+        | {
+            eff["emissions"]["cap"]["max_mtco2eq"]["reference_scenario"]
+            for spec in [eff["emissions"]["cap"]["max_mtco2eq"]]
+            if isinstance(spec, dict) and eff["emissions"]["cap"]["enabled"]
+        }
+        | barrier_reference_scenarios(eff)
+        | (
+            {
+                eff["reallocation_cap"]["baseline_scenario"],
+                eff["reallocation_cap"]["endpoint_scenario"],
+            }
+            if eff["reallocation_cap"]["enabled"]
+            else set()
+        )
+    )
+    if depends_on:
+        entry["depends_on"] = depends_on
+    return entry
 
 
 def build_namespace(entry: dict, shared_params: dict | None = None) -> SimpleNamespace:

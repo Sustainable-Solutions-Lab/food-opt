@@ -47,6 +47,32 @@ from workflow.scripts.solve_namespace import (
 
 logger = logging.getLogger(__name__)
 
+
+def add_churn_abs_split(m, link_names, deviation, label):
+    """Linearize per-link ``|deviation|`` for a churn budget via a nonneg split.
+
+    Adds ``dev_pos, dev_neg >= 0`` with ``dev_pos - dev_neg == deviation`` and
+    returns the per-link expression ``dev_pos + dev_neg``. A budget that bounds
+    the sum of this expression from above admits exactly the dispatch vectors
+    with ``sum |deviation| <= budget`` (the minimal feasible split gives
+    ``dev_pos + dev_neg == |deviation|``), so it is LP-equivalent to a budget
+    over ``abs_dev >= +/-deviation`` while presolving to a smaller model -- one
+    equality row per link instead of two inequalities -- mirroring the
+    L1-penalty split in :func:`_add_production_l1_penalty`.
+    """
+    dev_pos = m.add_variables(
+        lower=0, coords=[link_names], dims=["name"], name=f"{label}_dev_pos"
+    )
+    dev_neg = m.add_variables(
+        lower=0, coords=[link_names], dims=["name"], name=f"{label}_dev_neg"
+    )
+    m.add_constraints(
+        dev_pos - dev_neg == deviation,
+        name=f"GlobalConstraint-{label}_dev_split",
+    )
+    return dev_pos + dev_neg
+
+
 # Carriers representing land-use transitions (all have zero baseline).
 LAND_CONVERSION_CARRIERS = [
     "land_conversion",
@@ -205,22 +231,33 @@ def add_production_stability_constraints(
 
     # --- CROP PRODUCTION ---
     # Single-crop and multi-cropping links draw the same cropland bus0, so they
-    # share one crop stability budget over both carriers. The multi links carry
-    # combination labels in the "crop" column, so no per-link band logic needs a
-    # special case.
+    # share one crop churn budget over both carriers (design 6.6). The multi links
+    # carry combination labels in the "crop" column, so no per-link band logic
+    # needs a special case.
     crops_cfg = land_cfg["crops"]
     crop_carriers = ("crop_production", "crop_production_multi")
     if land_enabled and crops_cfg["enabled"]:
         if penalty_mode == "hard":
-            _add_production_hard_constraints(
-                n,
-                link_p,
-                links_df,
-                crop_carriers,
-                "crop",
-                crops_cfg,
-                slack_marginal_cost,
-            )
+            if crops_cfg["scope"] == "regional":
+                _add_regional_churn_constraints(
+                    n,
+                    link_p,
+                    links_df,
+                    crop_carriers,
+                    "crop",
+                    crops_cfg,
+                    slack_marginal_cost,
+                )
+            else:
+                _add_production_hard_constraints(
+                    n,
+                    link_p,
+                    links_df,
+                    crop_carriers,
+                    "crop",
+                    crops_cfg,
+                    slack_marginal_cost,
+                )
         elif penalty_mode == "l1":
             _add_production_l1_penalty(
                 n,
@@ -248,16 +285,27 @@ def add_production_stability_constraints(
     grassland_cfg = land_cfg["grassland"]
     if land_enabled and grassland_cfg["enabled"]:
         if penalty_mode == "hard":
-            _add_production_hard_constraints(
-                n,
-                link_p,
-                links_df,
-                "grassland_production",
-                "grassland",
-                grassland_cfg,
-                slack_marginal_cost,
-                include_all_links=True,
-            )
+            if grassland_cfg["scope"] == "regional":
+                _add_regional_churn_constraints(
+                    n,
+                    link_p,
+                    links_df,
+                    "grassland_production",
+                    "grassland",
+                    grassland_cfg,
+                    slack_marginal_cost,
+                )
+            else:
+                _add_production_hard_constraints(
+                    n,
+                    link_p,
+                    links_df,
+                    "grassland_production",
+                    "grassland",
+                    grassland_cfg,
+                    slack_marginal_cost,
+                    include_all_links=True,
+                )
         elif penalty_mode == "l1":
             _add_production_l1_penalty(
                 n,
@@ -351,9 +399,14 @@ def add_production_stability_constraints(
                 )
 
         if penalty_mode == "hard":
-            _add_animal_hard_constraints(
-                n, link_p, links_df, feed_cfg, slack_marginal_cost
-            )
+            if feed_cfg["scope"] == "regional":
+                _add_feed_churn_constraints(
+                    n, link_p, links_df, feed_cfg, slack_marginal_cost
+                )
+            else:
+                _add_animal_hard_constraints(
+                    n, link_p, links_df, feed_cfg, slack_marginal_cost
+                )
         elif penalty_mode == "l1":
             _add_animal_l1_penalty(
                 n,
@@ -408,6 +461,11 @@ def _carrier_list(carrier: str | Sequence[str]) -> list[str]:
     return [carrier] if isinstance(carrier, str) else list(carrier)
 
 
+def _primary_carrier(carrier: str | Sequence[str]) -> str:
+    """The component carrier used for denominator lookups (first of a set)."""
+    return carrier if isinstance(carrier, str) else carrier[0]
+
+
 def _production_and_baselines(
     link_p,
     links_df,
@@ -419,11 +477,11 @@ def _production_and_baselines(
     """Extract area expressions and baselines for production links.
 
     ``carrier`` is a single carrier or a set of carriers (e.g.
-    ``("crop_production", "crop_production_multi")`` so multi-cropping links
-    share the crop stability budget). Returns ``(link_names, area, baselines)``
+    ``("crop_production", "crop_production_multi")`` so multi-cropping links share
+    the crop churn budget; design 6.6). Returns ``(link_names, area, baselines)``
     where ``area`` is the link dispatch variable (Mha) and ``baselines`` is the
-    observed baseline area (Mha, NaN-guarded to 0). Returns ``None`` if there
-    are no eligible links. When ``include_all_links`` is False, only links above
+    observed baseline area (Mha, NaN-guarded to 0). Returns ``None`` if there are
+    no eligible links. When ``include_all_links`` is False, only links above
     ``min_baseline`` are included; when True, all links are included.
     """
     carriers = _carrier_list(carrier)
@@ -620,6 +678,273 @@ def _add_production_hard_constraints(
         2 * len(link_names),
         label,
         delta * 100,
+    )
+
+
+# ─── Production: regional churn budget (hard mode) ───────────────────────────
+
+
+def _suitable_area_by_region(n: pypsa.Network, carrier: str) -> pd.Series:
+    """Return per-region suitable land area (Mha) for a production carrier.
+
+    The denominator for the ``regional_denominator: "suitable"`` churn
+    budget. For cropland it is the land that can carry crops: existing
+    cropland generator ``p_nom`` plus extendable new-land ``p_nom_max``.
+    For grassland it is the grazeable area: existing convertible plus
+    marginal grassland generator ``p_nom`` (marginal rangeland is grazeable
+    but not croppable, so this differs from the cropland denominator).
+    """
+    gens = n.generators.static
+    if carrier == "crop_production":
+        existing = gens[gens["carrier"] == "land_existing_cropland"]
+        new = gens[gens["carrier"] == "land_new"]
+        area = (
+            existing.groupby("region")["p_nom"]
+            .sum()
+            .add(new.groupby("region")["p_nom_max"].sum(), fill_value=0.0)
+        )
+    elif carrier == "grassland_production":
+        grazeable = gens[
+            gens["carrier"].isin(
+                [
+                    "land_existing_grassland_convertible",
+                    "land_existing_grassland_marginal",
+                ]
+            )
+        ]
+        area = grazeable.groupby("region")["p_nom"].sum()
+    else:
+        raise ValueError(f"_suitable_area_by_region: unsupported carrier {carrier!r}")
+    return area.astype(float)
+
+
+def _add_regional_churn_constraints(
+    n: pypsa.Network,
+    link_p,
+    links_df,
+    carrier: str | Sequence[str],
+    label: str,
+    cfg: dict,
+    slack_marginal_cost: float,
+) -> None:
+    """Add a per-region land-use-change budget (hard mode, ``scope: regional``).
+
+    For each region, the total absolute area churn summed over all
+    production links of this carrier is bounded::
+
+        sum_{links in region} |area - baseline_area_mha|  <=  delta * D_region
+
+    where ``delta = max_relative_deviation`` and ``D_region`` is the regional
+    baseline area (``regional_denominator: "baseline"``) or the regional
+    suitable area (``"suitable"``; see :func:`_suitable_area_by_region`).
+
+    Unlike the per-link band, this lets the crop (or grassland) mix
+    reallocate freely within a region -- including into items absent at
+    baseline -- as long as total churn stays within budget. The churn is in
+    native Mha (``deviation_type`` does not apply); the relative
+    interpretation lives in ``D_region``. When ``enable_slack`` is true a
+    single per-region slack variable allows exceeding the budget at
+    ``slack_marginal_cost`` per Mha.
+    """
+    result = _production_and_baselines(
+        link_p, links_df, carrier, cfg["min_baseline"], include_all_links=True
+    )
+    if result is None:
+        return
+
+    m = n.model
+    link_names, area, baselines = result
+    delta = cfg["max_relative_deviation"]
+    denom_mode = cfg["regional_denominator"]
+
+    prod_links = links_df.loc[link_names]
+    if "region" not in prod_links.columns:
+        raise ValueError(
+            f"{'/'.join(_carrier_list(carrier))} links lack a 'region' column; "
+            "cannot form a regional churn budget. The build must tag production "
+            "links with a region."
+        )
+    regions = prod_links["region"].astype(str)
+
+    # Per-link absolute churn via a nonneg equality split (Mha).
+    churn_abs = add_churn_abs_split(
+        m, link_names, area - baselines, f"{label}_regional_churn"
+    )
+
+    # Per-region denominator (Mha).
+    region_keys = sorted(regions.unique())
+    baseline_by_region = prod_links.groupby(regions.to_numpy())[
+        "baseline_area_mha"
+    ].sum()
+    if denom_mode == "baseline":
+        denom = baseline_by_region.reindex(region_keys)
+    elif denom_mode == "suitable":
+        # Regions carrying production links but lacking suitable-area generators
+        # (e.g. a degenerate zero-baseline grassland link in a region with no
+        # grazeable land) fall back to their baseline area -- a ~0 budget that
+        # pins the link rather than raising.
+        denom = (
+            _suitable_area_by_region(n, _primary_carrier(carrier))
+            .reindex(region_keys)
+            .fillna(baseline_by_region.reindex(region_keys))
+        )
+    else:
+        raise ValueError(
+            f"deviation_penalty {label}.regional_denominator must be 'baseline' "
+            f"or 'suitable', got {denom_mode!r}"
+        )
+    budget = (delta * denom).to_numpy(dtype=float)
+
+    group_map = xr.DataArray(
+        regions.to_numpy(),
+        coords={"name": link_names},
+        dims="name",
+        name="churn_region",
+    )
+    churn = churn_abs.groupby(group_map).sum()
+    budget_xr = xr.DataArray(
+        budget, coords={"churn_region": region_keys}, dims="churn_region"
+    )
+
+    if cfg["enable_slack"]:
+        slack = m.add_variables(
+            lower=0,
+            coords=[pd.Index(region_keys, name="churn_region")],
+            dims=["churn_region"],
+            name=f"{label}_regional_budget_slack",
+        )
+        m.add_constraints(
+            churn - slack <= budget_xr,
+            name=f"GlobalConstraint-{label}_regional_budget",
+        )
+        m.objective += slack_marginal_cost * slack.sum()
+    else:
+        m.add_constraints(
+            churn <= budget_xr,
+            name=f"GlobalConstraint-{label}_regional_budget",
+        )
+
+    n.global_constraints.add(
+        [f"{label}_regional_budget_{r}" for r in region_keys],
+        sense="<=",
+        constant=budget,
+        type="production_stability",
+    )
+
+    logger.info(
+        "Added %d per-region %s churn-budget constraints (delta=%.0f%%, "
+        "denominator=%s, slack=%s); total budget %.1f Mha over %d regions",
+        len(region_keys),
+        label,
+        delta * 100,
+        denom_mode,
+        cfg["enable_slack"],
+        float(budget.sum()),
+        len(region_keys),
+    )
+
+
+def _add_feed_churn_constraints(
+    n: pypsa.Network,
+    link_p,
+    links_df,
+    cfg: dict,
+    slack_marginal_cost: float,
+) -> None:
+    """Add a per-country feed-use churn budget (hard mode, feed ``scope: regional``).
+
+    For each country, the total absolute animal feed-use churn summed over all
+    animal-production links is bounded::
+
+        sum_{links in country} |feed_use - baseline_feed_use_mt_dm|
+            <= delta * F_country
+
+    where ``delta = max_relative_deviation`` and ``F_country`` is the country's
+    baseline feed use (Mt DM). This mirrors the land regional churn budget
+    (:func:`_add_regional_churn_constraints`) so the crop, grassland and feed
+    components share one geometry on a single flexibility axis: at ``delta=0``
+    feed sourcing is frozen at 2020, at ``delta=1`` a country's feed mix may be
+    fully reshuffled. Only the ``"baseline"`` denominator is meaningful for feed
+    (there is no land-area ``"suitable"`` analogue); ``"suitable"`` raises.
+    Animal links are pooled at country scope because their ``region`` column is
+    blank (animals are country-resolved).
+    """
+    denom_mode = cfg["regional_denominator"]
+    if denom_mode != "baseline":
+        raise ValueError(
+            "deviation_penalty feed.regional_denominator must be 'baseline' "
+            f"(no 'suitable' analogue for feed), got {denom_mode!r}"
+        )
+    result = _animal_feed_and_baselines(
+        link_p, links_df, cfg["min_baseline"], include_all_links=True
+    )
+    if result is None:
+        return
+
+    m = n.model
+    link_names, feed_use, baselines = result
+    delta = cfg["max_relative_deviation"]
+
+    animal_links = links_df.loc[link_names]
+    if "country" not in animal_links.columns:
+        raise ValueError(
+            "animal_production links lack a 'country' column; cannot form a "
+            "feed churn budget."
+        )
+    countries = animal_links["country"].astype(str)
+
+    # Per-link absolute churn via a nonneg equality split (Mt DM).
+    churn_abs = add_churn_abs_split(m, link_names, feed_use - baselines, "feed_churn")
+
+    # Per-country denominator (Mt DM baseline feed use).
+    denom = animal_links.groupby(countries.to_numpy())["baseline_feed_use_mt_dm"].sum()
+    country_keys = sorted(countries.unique())
+    budget = (delta * denom.reindex(country_keys)).to_numpy(dtype=float)
+
+    group_map = xr.DataArray(
+        countries.to_numpy(),
+        coords={"name": link_names},
+        dims="name",
+        name="churn_country",
+    )
+    churn = churn_abs.groupby(group_map).sum()
+    budget_xr = xr.DataArray(
+        budget, coords={"churn_country": country_keys}, dims="churn_country"
+    )
+
+    if cfg["enable_slack"]:
+        slack = m.add_variables(
+            lower=0,
+            coords=[pd.Index(country_keys, name="churn_country")],
+            dims=["churn_country"],
+            name="feed_regional_budget_slack",
+        )
+        m.add_constraints(
+            churn - slack <= budget_xr,
+            name="GlobalConstraint-feed_regional_budget",
+        )
+        m.objective += slack_marginal_cost * slack.sum()
+    else:
+        m.add_constraints(
+            churn <= budget_xr,
+            name="GlobalConstraint-feed_regional_budget",
+        )
+
+    n.global_constraints.add(
+        [f"feed_regional_budget_{c}" for c in country_keys],
+        sense="<=",
+        constant=budget,
+        type="production_stability",
+    )
+
+    logger.info(
+        "Added %d per-country feed churn-budget constraints (delta=%.0f%%, "
+        "denominator=baseline, slack=%s); total budget %.1f Mt DM over %d countries",
+        len(country_keys),
+        delta * 100,
+        cfg["enable_slack"],
+        float(budget.sum()),
+        len(country_keys),
     )
 
 
@@ -1456,7 +1781,8 @@ def add_reforestation_cap_constraints(
     """
     if max_fraction < 0.0 or max_fraction > 1.0:
         raise ValueError(
-            f"land.reforestation_cap.max_fraction must be in [0, 1], got {max_fraction}"
+            "land.reforestation_cap.max_fraction must be in [0, 1], "
+            f"got {max_fraction}"
         )
     if buffer_mha < 0.0:
         raise ValueError(

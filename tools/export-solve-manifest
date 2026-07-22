@@ -142,6 +142,34 @@ def main():
         print(f"Skipped {skipped} scenarios with existing outputs", file=sys.stderr)
     print(f"Manifest entries: {len(entries)}", file=sys.stderr)
 
+    # Order entries by dependency wave: scenarios whose analysis outputs
+    # others read (reference-based affordability caps, via depends_on)
+    # come first, so tools/batch-solve can submit one SLURM array per wave
+    # chained with job dependencies while keeping manifest indices
+    # contiguous per wave. References not in the manifest (e.g. already
+    # solved and excluded via --skip-existing) impose no ordering; the
+    # dependent solve fails loudly if their outputs are missing.
+    by_name = {entry["scenario"]: entry for entry in entries}
+
+    def _wave(entry) -> int:
+        deps = [d for d in entry.get("depends_on", ()) if d in by_name]
+        if not deps:
+            return 0
+        return 1 + max(_wave(by_name[d]) for d in deps)
+
+    entries.sort(key=_wave)
+    wave_counts: list[int] = []
+    for entry in entries:
+        w = _wave(entry)
+        if w == len(wave_counts):
+            wave_counts.append(0)
+        wave_counts[w] += 1
+    if len(wave_counts) > 1:
+        print(
+            f"Dependency waves: {' + '.join(str(c) for c in wave_counts)}",
+            file=sys.stderr,
+        )
+
     # Factor out params that are identical across all scenarios (structural
     # config keys that cannot vary per-scenario).  This dramatically reduces
     # manifest size when there are many scenarios.
@@ -174,6 +202,7 @@ def main():
             "threads": int(config["solving"]["threads"]),
         },
         "shared_params": shared_params,
+        "waves": wave_counts,
         "scenarios": entries,
     }
 

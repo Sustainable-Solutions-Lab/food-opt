@@ -76,13 +76,20 @@ class OutputSpec:
     kind: str  # "scalar" | "vector" | "field"
     reducer_kwargs: dict[str, Any]
     n_components: int | None = None  # PCA rank for "field" outputs
+    transform: str | None = None  # target transform, e.g. "log" (scalar only)
 
 
 # Keys consumed directly by OutputSpec; everything else in an output entry
 # is forwarded verbatim to the reducer as keyword arguments.
 _RESERVED_KEYS: frozenset[str] = frozenset(
-    {"source", "reducer", "label", "units", "kind", "n_components"}
+    {"source", "reducer", "label", "units", "kind", "n_components", "transform"}
 )
+
+# Target transforms applied to a scalar output after reduction. The surrogate
+# then fits (and Sobol decomposes) the transformed quantity; useful for outputs
+# spanning several orders of magnitude, where a linear fit is dominated by the
+# tail. "log" requires strictly positive values.
+_TRANSFORMS: frozenset[str] = frozenset({"log"})
 
 
 def parse_outputs_spec(cfg: dict) -> list[OutputSpec]:
@@ -106,6 +113,18 @@ def parse_outputs_spec(cfg: dict) -> list[OutputSpec]:
                 f"Field output '{name}' requires a positive 'n_components' "
                 f"(PCA rank); got {n_components!r}"
             )
+        transform = entry.get("transform")
+        if transform is not None:
+            if transform not in _TRANSFORMS:
+                raise ValueError(
+                    f"Output '{name}': unknown transform '{transform}' "
+                    f"(expected one of {sorted(_TRANSFORMS)})"
+                )
+            if kind != "scalar":
+                raise ValueError(
+                    f"Output '{name}': transform is only supported for scalar "
+                    f"outputs, not kind '{kind}'"
+                )
         specs.append(
             OutputSpec(
                 name=name,
@@ -116,6 +135,7 @@ def parse_outputs_spec(cfg: dict) -> list[OutputSpec]:
                 kind=kind,
                 reducer_kwargs=kwargs,
                 n_components=n_components,
+                transform=transform,
             )
         )
     return specs
@@ -356,6 +376,27 @@ def _reduce_scenario(
     return [_reduce(spec, scen_dir / spec.source) for spec in specs]
 
 
+def _apply_transform(spec: OutputSpec, values: list) -> list:
+    """Apply the scalar output's target transform (if any) to its column.
+
+    NaNs (failed solves) pass through untouched so the caller can still drop
+    them. ``log`` requires strictly positive finite values and raises otherwise:
+    a non-positive value where a log target is declared signals bad data.
+    """
+    if spec.transform is None:
+        return values
+    arr = np.asarray(values, dtype=float)
+    if spec.transform == "log":
+        nonpos = np.isfinite(arr) & (arr <= 0)
+        if nonpos.any():
+            raise ValueError(
+                f"Output '{spec.name}': transform 'log' requires positive "
+                f"values, got non-positive entries (e.g. {arr[nonpos][:3]})"
+            )
+        return np.log(arr).tolist()
+    raise ValueError(f"Output '{spec.name}': unknown transform '{spec.transform}'")
+
+
 def load_scenario_outputs(
     analysis_dir: Path,
     scenario_names: list[str],
@@ -404,7 +445,7 @@ def load_scenario_outputs(
     columns: dict[str, list] = {"scenario": list(scenario_names)}
     for spec in specs:
         if spec.kind == "scalar":
-            columns[spec.name] = raw[spec.name]
+            columns[spec.name] = _apply_transform(spec, raw[spec.name])
             continue
         # Vector: union-of-keys reindex with zero fill.
         keys: list[str] = []

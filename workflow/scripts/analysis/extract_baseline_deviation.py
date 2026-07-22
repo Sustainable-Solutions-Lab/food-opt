@@ -43,12 +43,11 @@ def extract_baseline_deviation(n: pypsa.Network) -> pd.DataFrame:
     p = n.links.dynamic["p0"].loc[n.snapshots[-1]]
 
     # Each component is the set of link carriers whose bus0 dispatch
-    # contributes to that physical quantity. Multi-cropping links carry
-    # no observed baseline (baseline_area_mha is undefined for cycles
-    # beyond the single primary crop), but their bus0 dispatch is still
-    # Mha of cropping intensity above baseline and must be counted as
-    # deviation. The baseline of any link without a baseline column is
-    # treated as zero so abs_deviation = |actual| for those links.
+    # contributes to that physical quantity. Multi-cropping links now carry an
+    # observed baseline (baseline_area_mha, from the MIRCA-OS Stage-2 aggregation),
+    # so deviation is measured against that anchor rather than against zero. Any
+    # link without a baseline column is still treated as zero baseline so
+    # abs_deviation = |actual| for those links.
     rows = []
     for carriers, baseline_col, label, unit in [
         (

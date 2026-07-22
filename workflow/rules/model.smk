@@ -250,6 +250,11 @@ def solve_model_inputs(w):
         "m49": "data/curated/M49-codes.csv",
         "food_groups": "data/curated/food_groups.csv",
         "baseline_diet": f"<processing>/{w.name}/baseline_diet.csv",
+        # Unconditional: production value and food energy coefficients are
+        # stamped on every solve so analysis can report both even without
+        # floor constraints.
+        "producer_prices": f"<processing>/{w.name}/producer_prices.csv",
+        "nutrition": "data/curated/nutrition.csv",
     }
 
     eff_cfg = get_effective_config(w.scenario)
@@ -288,6 +293,46 @@ def solve_model_inputs(w):
         inputs["nutrition"] = "data/curated/nutrition.csv"
 
     inputs.update(calibration_artefact_inputs(eff_cfg))
+
+    # Reference-based affordability cap: depend on the reference scenario's
+    # realized production cost, so Snakemake solves it first.
+    afford_refs = affordability_reference_inputs(
+        eff_cfg["affordability"]["cost_cap"],
+        w.scenario,
+        dict(config),
+        load_scenario_defs(),
+    )
+    inputs.update({key: path.format(name=w.name) for key, path in afford_refs.items()})
+
+    # Reference-relative emissions cap: depend on the reference scenario's
+    # realized net emissions, so Snakemake solves it first.
+    emissions_refs = emissions_cap_reference_inputs(
+        eff_cfg["emissions"]["cap"],
+        w.scenario,
+        dict(config),
+        load_scenario_defs(),
+    )
+    inputs.update(
+        {key: path.format(name=w.name) for key, path in emissions_refs.items()}
+    )
+
+    barrier_refs = barrier_reference_inputs(
+        eff_cfg,
+        w.scenario,
+        dict(config),
+        load_scenario_defs(),
+    )
+    inputs.update({key: path.format(name=w.name) for key, path in barrier_refs.items()})
+
+    reallocation_refs = reallocation_reference_inputs(
+        eff_cfg["reallocation_cap"],
+        w.scenario,
+        dict(config),
+        load_scenario_defs(),
+    )
+    inputs.update(
+        {key: path.format(name=w.name) for key, path in reallocation_refs.items()}
+    )
 
     return inputs
 
@@ -344,6 +389,21 @@ def solve_model_mem_mb(wildcards, attempt: int) -> int:
     return math.ceil(base_mem_mb * (1.3 ** (attempt - 1)))
 
 
+rule extract_reallocation_reference:
+    input:
+        baseline="<results>/{name}/solved/model_scen-{baseline}.nc",
+        endpoint="<results>/{name}/solved/model_scen-{endpoint}.nc",
+    output:
+        "<results>/{name}/reallocation_reference/baseline-{baseline}/endpoint-{endpoint}.parquet",
+    resources:
+        runtime="4m",
+        mem_mb=5000,
+    log:
+        "<logs>/{name}/extract_reallocation_reference_{baseline}_to_{endpoint}.log",
+    script:
+        "../scripts/extract_reallocation_reference.py"
+
+
 # NOTE: When changing inputs or params on solve_model, also update
 # tools/export-solve-manifest which mirrors these for the HPC manifest.
 rule solve_model:
@@ -387,6 +447,7 @@ rule solve_model:
         deviation_penalty=lambda w: get_effective_config(w.scenario)[
             "deviation_penalty"
         ],
+        reallocation_cap=lambda w: get_effective_config(w.scenario)["reallocation_cap"],
         animal_growth_cap=lambda w: get_effective_config(w.scenario)["validation"][
             "animal_growth_cap"
         ],
@@ -403,6 +464,17 @@ rule solve_model:
         reforestation_cap=lambda w: get_effective_config(w.scenario)["land"][
             "reforestation_cap"
         ],
+        production_value=lambda w: get_effective_config(w.scenario)["production_value"],
+        food_energy=lambda w: get_effective_config(w.scenario)["food_energy"]["floor"],
+        biodiversity=lambda w: get_effective_config(w.scenario)["biodiversity"]["cap"],
+        production_concentration=lambda w: get_effective_config(w.scenario)[
+            "production_concentration"
+        ]["cap"],
+        protein=lambda w: get_effective_config(w.scenario)["protein"]["floor"],
+        affordability=lambda w: get_effective_config(w.scenario)["affordability"][
+            "cost_cap"
+        ],
+        emissions_cap=lambda w: get_effective_config(w.scenario)["emissions"]["cap"],
         forage_calibration_enabled=lambda w: get_effective_config(w.scenario)[
             "grazing"
         ]["grassland_forage_calibration"]["enabled"],

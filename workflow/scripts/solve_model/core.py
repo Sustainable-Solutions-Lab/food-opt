@@ -21,9 +21,26 @@ import xarray as xr
 from workflow.scripts import constants
 from workflow.scripts.build_model.utils import _per_capita_mass_to_mt_per_year
 from workflow.scripts.population import get_country_population
+from workflow.scripts.solve_model.affordability import (
+    add_production_cost_cap,
+    assign_production_cost_cap_duals,
+)
+from workflow.scripts.solve_model.biodiversity import (
+    add_conversion_cap_constraints,
+    assign_conversion_cap_duals,
+)
 from workflow.scripts.solve_model.diet_stability import (
     add_diet_stability_constraints,
     evaluate_diet_stability_cost,
+)
+from workflow.scripts.solve_model.emissions_cap import (
+    add_emissions_cap,
+    assign_emissions_cap_dual,
+)
+from workflow.scripts.solve_model.food_energy import (
+    add_food_energy_floor_constraints,
+    assign_food_energy_floor_duals,
+    stamp_food_energy_coefficients,
 )
 from workflow.scripts.solve_model.food_utility import (
     add_piecewise_food_utility,
@@ -35,6 +52,10 @@ from workflow.scripts.solve_model.health import (
     evaluate_health_posthoc,
     run_relax_and_fix,
 )
+from workflow.scripts.solve_model.production_concentration import (
+    add_concentration_cap_constraints,
+    assign_concentration_cap_duals,
+)
 from workflow.scripts.solve_model.production_stability import (
     LAND_CONVERSION_CARRIERS,
     add_animal_growth_cap_constraints,
@@ -44,6 +65,17 @@ from workflow.scripts.solve_model.production_stability import (
     add_reforestation_cap_constraints,
     resolve_calibrated_l1_costs,
 )
+from workflow.scripts.solve_model.production_value import (
+    add_production_value_floor_constraints,
+    assign_production_value_floor_duals,
+    stamp_production_value_coefficients,
+)
+from workflow.scripts.solve_model.protein_floor import (
+    add_protein_floor_constraints,
+    assign_protein_floor_duals,
+    stamp_protein_coefficients,
+)
+from workflow.scripts.solve_model.reallocation_cap import add_reallocation_cap
 
 # Module-level logger (replaced by run_solve's caller)
 logger = logging.getLogger(__name__)
@@ -1580,6 +1612,22 @@ def run_solve(
     if depletion_capped:
         add_groundwater_depletion_cap(n, float(smk.params.groundwater_cap))
 
+    # Stamp production value coefficients on production links (static metadata
+    # only, so safe before create_model). Unconditional: analysis reports
+    # per-country production value for every scenario, floored or not.
+    production_value_cfg = smk.params.production_value
+    with _phase("stamp_production_value_coefficients"):
+        stamp_production_value_coefficients(
+            n,
+            smk.input.producer_prices,
+            str(production_value_cfg["floor"]["price_basis"]),
+            exclude_crops=production_value_cfg["exclude_crops"],
+        )
+    with _phase("stamp_food_energy_coefficients"):
+        stamp_food_energy_coefficients(n, smk.input.nutrition)
+    with _phase("stamp_protein_coefficients"):
+        stamp_protein_coefficients(n, smk.input.nutrition)
+
     # Update health store marginal costs to match scenario value_per_yll.
     # The build uses the base config value; scenarios may override it.
     _apply_health_pricing(n, float(smk.params.health_value_per_yll))
@@ -1691,16 +1739,16 @@ def run_solve(
 
     if piecewise_utility_enabled:
         if enforce_baseline:
-            raise ValueError(
-                "food_utility_piecewise cannot be combined with "
-                "validation.enforce_baseline_diet=true"
+            logger.info(
+                "Skipping piecewise food utility because the baseline diet is fixed"
             )
-        with _phase("add_piecewise_food_utility"):
-            add_piecewise_food_utility(
-                n,
-                smk.input.food_utility_piecewise,
-                float(piecewise_utility_cfg["min_block_width_mt"]),
-            )
+        else:
+            with _phase("add_piecewise_food_utility"):
+                add_piecewise_food_utility(
+                    n,
+                    smk.input.food_utility_piecewise,
+                    float(piecewise_utility_cfg["min_block_width_mt"]),
+                )
 
     solver_name = smk.params.solver
     solver_options = dict(smk.params.solver_options)
@@ -1779,9 +1827,14 @@ def run_solve(
         }
 
     with _phase("add_macronutrient_constraints"):
-        add_macronutrient_constraints(
-            n, macronutrient_cfg, population_map, baseline_by_nutrient
-        )
+        if enforce_baseline:
+            logger.info(
+                "Skipping macronutrient constraints because the baseline diet is fixed"
+            )
+        else:
+            add_macronutrient_constraints(
+                n, macronutrient_cfg, population_map, baseline_by_nutrient
+            )
     with _phase("add_food_group_constraints"):
         add_food_group_constraints(
             n,
@@ -1815,12 +1868,23 @@ def run_solve(
         slack_marginal_cost = float(smk.params.slack_marginal_cost)
         with _phase("add_production_stability_constraints"):
             add_production_stability_constraints(n, dp_cfg, slack_marginal_cost)
-        # Diet penalty: per-(food, country) L1 (or quadratic) penalty anchoring
-        # consumption to the baseline diet. Only applies when diet.enabled is
-        # true and the diet is not already pinned via enforce_baseline_diet.
+        # Diet component: per-(food, country) L1/quadratic penalty or (hard
+        # mode) per-country churn budget anchoring consumption to the baseline
+        # diet. Only applies when diet.enabled is true and the diet is not
+        # already pinned via enforce_baseline_diet.
         if dp_cfg["diet"]["enabled"] and not enforce_baseline:
             with _phase("add_diet_stability_constraints"):
-                add_diet_stability_constraints(n, matched_baseline, dp_cfg)
+                add_diet_stability_constraints(
+                    n, matched_baseline, dp_cfg, slack_marginal_cost
+                )
+
+    with _phase("add_reallocation_cap"):
+        add_reallocation_cap(
+            n,
+            smk.params.reallocation_cap,
+            dp_cfg,
+            getattr(smk.input, "reallocation_reference", None),
+        )
 
     # Add animal growth cap constraints (independent of production stability)
     animal_growth_cap_cfg = smk.params.animal_growth_cap
@@ -1840,6 +1904,47 @@ def run_solve(
     reforest_buffer_mha = float(reforest_cfg["buffer_mha"])
     with _phase("add_reforestation_cap_constraints"):
         add_reforestation_cap_constraints(n, reforest_fraction, reforest_buffer_mha)
+
+    # Per-country floor on gross agricultural production value (food
+    # sovereignty / sector-protection analysis). Coefficients were stamped
+    # before create_model; the constraint itself is linopy-level.
+    barrier_reference = getattr(smk.input, "barrier_reference", None)
+    with _phase("add_production_value_floor_constraints"):
+        add_production_value_floor_constraints(
+            n, production_value_cfg["floor"], barrier_reference
+        )
+
+    # Per-country floor on primal food-energy production (calorie
+    # self-sufficiency twin of the value floor).
+    with _phase("add_food_energy_floor_constraints"):
+        add_food_energy_floor_constraints(n, smk.params.food_energy, barrier_reference)
+
+    # Biodiversity guardrail: cap on total natural-land conversion to
+    # agriculture (Mha), a barrier to relief distinct from the LUC carbon it
+    # carries.
+    with _phase("add_conversion_cap_constraints"):
+        add_conversion_cap_constraints(n, smk.params.biodiversity, barrier_reference)
+
+    # Stability guardrail: per-crop cap on the share of global production any
+    # one country may hold.
+    with _phase("add_concentration_cap_constraints"):
+        add_concentration_cap_constraints(
+            n, smk.params.production_concentration, barrier_reference
+        )
+
+    # Utilisation guardrail: per-country floor on primal protein production
+    # (protein self-sufficiency, the diet-quality twin of the calorie floor).
+    with _phase("add_protein_floor_constraints"):
+        add_protein_floor_constraints(n, smk.params.protein, barrier_reference)
+
+    # Access guardrail: cap on total marginal production cost (affordability).
+    with _phase("add_production_cost_cap"):
+        add_production_cost_cap(n, smk.params.affordability, smk.input)
+
+    # Emissions guardrail: one-sided cap on total net GHG (MtCO2eq) on the
+    # emission:ghg store level. Linopy-level, so after create_model.
+    with _phase("add_emissions_cap"):
+        add_emissions_cap(n, smk.params.emissions_cap, smk.input)
 
     # Apply negative cost-calibration corrections only up to baseline (two-tier).
     # Positive corrections are already applied additively at build time;
@@ -2027,6 +2132,14 @@ def run_solve(
                     n.optimize.assign_duals(False)
             with _phase("_extract_p_set_duals"):
                 _extract_p_set_duals(n)
+            with _phase("assign_production_value_floor_duals"):
+                assign_production_value_floor_duals(n)
+                assign_food_energy_floor_duals(n)
+                assign_conversion_cap_duals(n)
+                assign_concentration_cap_duals(n)
+                assign_protein_floor_duals(n)
+                assign_production_cost_cap_duals(n)
+                assign_emissions_cap_dual(n)
             if not skip_post_processing:
                 with _phase("post_processing"):
                     n.optimize.post_processing()
@@ -2060,6 +2173,23 @@ def run_solve(
             if total > 1e-6:
                 logger.info(
                     "%s production slack used: %.4f Mt total (lower+upper)",
+                    label.capitalize(),
+                    total,
+                )
+        # Regional churn-budget slack (hard mode, scope=regional): one slack
+        # per region, single-sided (budget overshoot in Mha).
+        for label in ("crop", "grassland"):
+            var_name = f"{label}_regional_budget_slack"
+            if var_name not in n.model.variables:
+                continue
+            sol = n.model.variables[var_name].solution
+            production_slack[f"{label}_regional"] = {
+                "budget": {str(k): v for k, v in sol.to_series().to_dict().items()}
+            }
+            total = float(sol.sum())
+            if total > 1e-6:
+                logger.info(
+                    "%s regional churn-budget slack used: %.4f Mha total",
                     label.capitalize(),
                     total,
                 )
@@ -2116,6 +2246,27 @@ def run_solve(
                             name=conv_links.tolist()
                         )
                         stability_cost += crop_l1 * float(conv_flow.sum())
+            if penalty_mode == "hard":
+                # Hard mode carries no per-link/quadratic objective penalty, but
+                # its feasibility-insurance slack (per-link bounds and regional/
+                # feed churn budgets) does enter the objective at
+                # slack_marginal_cost. Sum it so the objective breakdown
+                # reconciles instead of leaving a large uncategorised residual.
+                hard_slack_cost = float(smk.params.slack_marginal_cost)
+                for var_name in [
+                    "crop_production_slack",
+                    "crop_production_slack_upper",
+                    "grassland_production_slack",
+                    "grassland_production_slack_upper",
+                    "animal_production_slack",
+                    "animal_production_slack_upper",
+                    "crop_regional_budget_slack",
+                    "grassland_regional_budget_slack",
+                    "feed_regional_budget_slack",
+                ]:
+                    if var_name in n.model.variables:
+                        sol = n.model.variables[var_name].solution
+                        stability_cost += hard_slack_cost * float(sol.sum())
             quad_var_names = [
                 "crop_stability_dev",
                 "grassland_stability_dev",
@@ -2133,7 +2284,9 @@ def run_solve(
 
             # Diet deviation post-hoc cost (separate so the objective
             # breakdown can show production and diet as distinct terms).
-            diet_cost = evaluate_diet_stability_cost(n, matched_baseline, dp_cfg)
+            diet_cost = evaluate_diet_stability_cost(
+                n, matched_baseline, dp_cfg, float(smk.params.slack_marginal_cost)
+            )
             if abs(diet_cost) > 1e-12:
                 n.meta["diet_stability_cost"] = diet_cost
 

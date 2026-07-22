@@ -100,6 +100,7 @@ def compute_calibration(
     *,
     min_multiplier: float,
     max_multiplier: float,
+    demand_headroom: float,
     min_consumption_mt: float = 1e-6,
 ) -> pd.DataFrame:
     """Build the per-food demand multipliers.
@@ -108,6 +109,16 @@ def compute_calibration(
     pathological mismatch cannot push demand to extreme values. The bounds
     should be tight (defaults 0.5 and 2.0) so they only trip when the
     upstream data has a serious structural problem we want to surface.
+
+    ``demand_headroom`` shrinks the multiplier of *shortage* foods (those the
+    calibration solve could not fully supply, raw multiplier < 1) by an extra
+    fraction, so their fixed demand is set safely below achievable supply
+    rather than exactly at it. Without this margin a capacity-limited food
+    (e.g. area-pinned apple, which runs flat-out at its orchard ceiling) has
+    its demand pinned to the exact production ceiling, so any drift reopens
+    demand slack -- whose penalty price then trade-equalises as an artefact.
+    Well-supplied foods (raw >= 1) are untouched, so global demand is not
+    shaved.
     """
     per_food = _aggregate_per_food(network)
     if per_food.empty:
@@ -122,6 +133,11 @@ def compute_calibration(
     raw.loc[has_demand] = (cons.loc[has_demand] - net.loc[has_demand]) / cons.loc[
         has_demand
     ]
+
+    # Headroom margin on shortage foods only (raw < 1): set demand below the
+    # achievable supply, leaving slack-free room for scenario reallocation.
+    shortage = has_demand & (raw < 1.0)
+    raw.loc[shortage] = raw.loc[shortage] * (1.0 - demand_headroom)
 
     clipped = raw.clip(lower=min_multiplier, upper=max_multiplier)
     per_food["multiplier"] = clipped
@@ -146,6 +162,7 @@ def main() -> None:
     output_path = Path(snakemake.output.calibration_file)  # type: ignore[name-defined]
     min_multiplier = float(snakemake.params.min_multiplier)  # type: ignore[name-defined]
     max_multiplier = float(snakemake.params.max_multiplier)  # type: ignore[name-defined]
+    demand_headroom = float(snakemake.params.demand_headroom)  # type: ignore[name-defined]
 
     logger.info("Loading solved network from %s", network_path)
     n = pypsa.Network(str(network_path))
@@ -154,6 +171,7 @@ def main() -> None:
         n,
         min_multiplier=min_multiplier,
         max_multiplier=max_multiplier,
+        demand_headroom=demand_headroom,
     )
 
     n_adj = int(((cal["multiplier"] - 1.0).abs() > 0.01).sum())

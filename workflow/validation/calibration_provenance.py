@@ -56,6 +56,19 @@ PROVENANCE_EXEMPT_PREFIXES = {
     "planning_horizon",
     # Post-solve analysis only.
     "sensitivity_analysis",
+    # Production value / food energy accounting: prices and energy densities
+    # enter no calibration objective (the floors are solve-time and off
+    # during calibration).
+    "production_value",
+    "food_energy",
+    # Biodiversity conversion cap and production concentration cap: solve-time
+    # guardrails, off during calibration; enter no calibration objective.
+    "biodiversity",
+    "production_concentration",
+    # Protein self-sufficiency floor and affordability cost cap: solve-time
+    # guardrails, off during calibration; enter no calibration objective.
+    "protein",
+    "affordability",
     # Calibration application/generation machinery. Fit-relevant knobs in
     # these sections (e.g. food_loss_waste_calibration.food_groups,
     # food_demand_calibration.min_multiplier) stay in the snapshot.

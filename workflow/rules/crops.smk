@@ -42,6 +42,40 @@ rule prepare_faostat_crop_costs:
         "../scripts/prepare_faostat_crop_costs.py"
 
 
+# Producer prices for crops AND animal products (production value accounting;
+# both live here because they share the FAOSTAT PP pipeline with crop costs).
+rule prepare_producer_prices:
+    input:
+        pp_parquet="data/downloads/faostat/PP.parquet",
+        crop_mapping="data/curated/faostat_crop_item_map.csv",
+        animal_mapping="data/curated/faostat_animal_price_item_map.csv",
+        m49_codes="data/curated/M49-codes.csv",
+        cpi="<processing>/shared/cpi_annual.csv",
+        proxies="data/curated/faostat_cost_proxies.yaml",
+        moisture="data/curated/crop_moisture_content.csv",
+    params:
+        countries=config["countries"],
+        crops=config["crops"],
+        animal_products=config["animal_products"]["include"],
+        currency_base_year=config["currency_base_year"],
+        averaging_period=config["costs"]["averaging_period"],
+        price_element_code=config["production_value"]["faostat"]["price_element_code"],
+        outlier_cap_quantile=config["production_value"]["outlier_cap_quantile"],
+    output:
+        "<processing>/{name}/producer_prices.csv",
+    group:
+        "prep"
+    resources:
+        runtime="2m",
+        mem_mb=5000,
+    log:
+        "<logs>/{name}/prepare_producer_prices.log",
+    benchmark:
+        "<benchmarks>/{name}/prepare_producer_prices.tsv"
+    script:
+        "../scripts/prepare_producer_prices.py"
+
+
 rule prepare_faostat_crop_production:
     input:
         mapping="data/curated/faostat_crop_item_map.csv",

@@ -319,6 +319,7 @@ if _food_demand_cal_cfg["generate"]:
         params:
             min_multiplier=_food_demand_cal_cfg["min_multiplier"],
             max_multiplier=_food_demand_cal_cfg["max_multiplier"],
+            demand_headroom=_food_demand_cal_cfg["demand_headroom"],
         output:
             calibration_file=_food_demand_cal_cfg["calibration_file"],
         resources:

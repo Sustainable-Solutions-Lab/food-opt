@@ -16,9 +16,16 @@ from pathlib import Path
 import pandas as pd
 import pypsa
 
+from workflow.scripts.analysis.extract_barrier_constraints import (
+    extract_barrier_constraints,
+)
+from workflow.scripts.analysis.extract_barrier_reference import (
+    extract_barrier_reference,
+)
 from workflow.scripts.analysis.extract_baseline_deviation import (
     extract_baseline_deviation,
 )
+from workflow.scripts.analysis.extract_food_energy import extract_food_energy
 from workflow.scripts.analysis.extract_food_prices import extract_food_prices
 from workflow.scripts.analysis.extract_ghg_attribution import (
     add_monetary_value as add_ghg_monetary_value,
@@ -40,6 +47,12 @@ from workflow.scripts.analysis.extract_health_impacts import (
 from workflow.scripts.analysis.extract_net_emissions import extract_net_emissions
 from workflow.scripts.analysis.extract_objective_breakdown import (
     extract_objective_breakdown,
+)
+from workflow.scripts.analysis.extract_production_cost import (
+    extract_production_cost,
+)
+from workflow.scripts.analysis.extract_production_value import (
+    extract_production_value,
 )
 from workflow.scripts.analysis.extract_statistics import (
     extract_animal_production,
@@ -146,13 +159,47 @@ def run_analysis(
     logger.info("Extracting net emissions...")
     net_emissions = extract_net_emissions(n, ch4_gwp, n2o_gwp)
 
-    # --- Objective breakdown ---
-    logger.info("Extracting objective breakdown...")
-    objective_breakdown = extract_objective_breakdown(n)
-
-    # --- Water metrics (scarcity / withdrawal / groundwater per region) ---
+    # --- Water metrics (AWARE scarcity / withdrawal per region) ---
     logger.info("Extracting water metrics...")
     water_metrics = extract_water_by_region(n)
+
+    # --- Production value (gross agricultural value at producer prices) ---
+    logger.info("Extracting production value...")
+    production_value = extract_production_value(n)
+
+    # --- Food energy (calorie production, trade and floor metrics) ---
+    logger.info("Extracting food energy...")
+    food_energy = extract_food_energy(n)
+
+    # --- Barrier guardrail constraints and their shadow prices ---
+    logger.info("Extracting barrier constraints...")
+    barrier_constraints = extract_barrier_constraints(n)
+
+    logger.info("Extracting barrier reference values...")
+    barrier_reference = extract_barrier_reference(n)
+
+    # --- Realized production cost (the affordability cap's capped quantity) ---
+    logger.info("Extracting production cost...")
+    production_cost = extract_production_cost(n)
+
+    # --- Objective breakdown ---
+    logger.info("Extracting objective breakdown...")
+    try:
+        objective_breakdown = extract_objective_breakdown(n)
+    except ValueError as exc:
+        logger.warning(
+            "Objective breakdown extraction failed validation; writing a "
+            "diagnostic row and continuing with the remaining analysis outputs. "
+            "This usually means the objective extractor is missing an auxiliary "
+            "cost term, not that the solved network is invalid. Error: %s",
+            exc,
+        )
+        objective_breakdown = pd.DataFrame(
+            {
+                "model_objective": [float(n.objective)],
+                "extraction_error": [str(exc)],
+            }
+        )
 
     # --- GHG attribution ---
     logger.info("Computing GHG attribution...")
@@ -221,6 +268,11 @@ def run_analysis(
         "baseline_deviation": baseline_deviation,
         "food_prices": food_prices,
         "water_metrics": water_metrics,
+        "production_value": production_value,
+        "food_energy": food_energy,
+        "barrier_constraints": barrier_constraints,
+        "barrier_reference": barrier_reference,
+        "production_cost": production_cost,
     }
     # Producer-side drift guard: every output declared in the
     # canonical list must be produced here, and we must not produce
