@@ -55,9 +55,6 @@ validation:
 health:
   enabled: false
 
-calibration:
-  accept_provenance_mismatch: true
-
 scenarios:
   # Consumer-value calibration anchor (fixed diet, no piecewise, no prices).
   # enforce_baseline_diet is re-asserted because this config flips the global

@@ -71,7 +71,6 @@ water_scarcity:
 
 calibration:
   source: fbs-water
-  accept_provenance_mismatch: true
 
 scenarios:
   # Consumer-value calibration anchor (fixed diet, no piecewise, no prices).
