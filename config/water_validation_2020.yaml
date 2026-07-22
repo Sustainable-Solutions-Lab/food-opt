@@ -32,7 +32,6 @@ water:
   temporal_resolution: 12
   supply:
     scarcity_tiers: true
-    groundwater: true
 deviation_penalty:
   enabled: false
 

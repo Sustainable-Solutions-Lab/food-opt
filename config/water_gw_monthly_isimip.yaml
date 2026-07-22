@@ -21,7 +21,6 @@ water:
   temporal_resolution: 12
   supply:
     scarcity_tiers: true
-    groundwater: true
 # Fix diet to the 2020 baseline (production-side reorganization only).
 validation:
   enforce_baseline_diet: true

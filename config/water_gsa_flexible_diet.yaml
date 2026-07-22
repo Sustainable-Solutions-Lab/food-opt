@@ -234,7 +234,6 @@ water:
   temporal_resolution: 4
   supply:
     scarcity_tiers: true
-    groundwater: true
 
 # The water paper uses the FBS-derived baseline diet and its own calibration
 # artefact set (fit against the FBS diet; regenerate with

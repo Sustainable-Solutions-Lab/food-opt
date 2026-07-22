@@ -19,7 +19,6 @@ water:
   temporal_resolution: 12
   supply:
     scarcity_tiers: true
-    groundwater: true
 aggregation:
   regions:
     target_count: 1500
