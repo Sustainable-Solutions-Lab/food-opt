@@ -3,14 +3,13 @@
 # workflow/scripts/write_calibration_provenance.py via
 # tools/calibrate; do not edit by hand.
 # Licensing: see the annotation in REUSE.toml.
-base_config: config/default.yaml
-generated_at: '2026-07-10T21:26:03+00:00'
-git_commit: 999933cdee52baf4a1eb9fe8b4872480abdd4911
+base_config: config/water_tradeoff_fixed_diet.yaml
+generated_at: '2026-07-23T04:55:51+00:00'
+git_commit: 5662cf2e7e000d2cba5a8a1059b9ad465c032dc3
 source: fbs-water
 structural_config:
   aggregation.irrigated_area_source: current
-  aggregation.regions.allow_cross_border: false
-  aggregation.regions.basin_scarcity_weight: 3.0
+  aggregation.regions.basin_scarcity_weight: 2.0
   aggregation.regions.method: kmeans
   aggregation.regions.target_count: 750
   aggregation.resource_class_quantiles:
@@ -655,6 +654,181 @@ structural_config:
   data.usda.nutrients.fat: Total lipid (fat)
   data.usda.nutrients.protein: Protein
   data.usda.retrieve_nutrition: false
+  derived.multiple_cropping.catalog:
+    cotton_wheat:
+      crops:
+      - cotton
+      - wheat
+      water_supplies:
+      - r
+      - i
+    double_rice:
+      crops:
+      - wetland-rice
+      - wetland-rice
+      water_supplies:
+      - r
+      - i
+    maize_soybean:
+      crops:
+      - maize
+      - soybean
+      water_supplies:
+      - r
+      - i
+    rice_maize:
+      crops:
+      - wetland-rice
+      - maize
+      water_supplies:
+      - r
+      - i
+    rice_wheat:
+      crops:
+      - wetland-rice
+      - wheat
+      water_supplies:
+      - r
+      - i
+    triple_rice:
+      crops:
+      - wetland-rice
+      - wetland-rice
+      - wetland-rice
+      water_supplies:
+      - r
+      - i
+    wheat_maize:
+      crops:
+      - wheat
+      - maize
+      water_supplies:
+      - r
+      - i
+    wheat_soybean:
+      crops:
+      - wheat
+      - soybean
+      water_supplies:
+      - r
+      - i
+  derived.multiple_cropping.effective:
+    cotton_wheat:
+      crops:
+      - cotton
+      - wheat
+      water_supplies:
+      - r
+      - i
+    double_rice:
+      crops:
+      - wetland-rice
+      - wetland-rice
+      water_supplies:
+      - r
+      - i
+    maize_soybean:
+      crops:
+      - maize
+      - soybean
+      water_supplies:
+      - r
+      - i
+    rice_maize:
+      crops:
+      - wetland-rice
+      - maize
+      water_supplies:
+      - r
+      - i
+    rice_wheat:
+      crops:
+      - wetland-rice
+      - wheat
+      water_supplies:
+      - r
+      - i
+    triple_rice:
+      crops:
+      - wetland-rice
+      - wetland-rice
+      - wetland-rice
+      water_supplies:
+      - r
+      - i
+    wheat_maize:
+      crops:
+      - wheat
+      - maize
+      water_supplies:
+      - r
+      - i
+    wheat_soybean:
+      crops:
+      - wheat
+      - soybean
+      water_supplies:
+      - r
+      - i
+  derived.multiple_cropping.mirca_source_year: 2020
+  derived.multiple_cropping.observed:
+    cotton_wheat:
+      crops:
+      - cotton
+      - wheat
+      water_supplies:
+      - r
+      - i
+    double_rice:
+      crops:
+      - wetland-rice
+      - wetland-rice
+      water_supplies:
+      - r
+      - i
+    maize_soybean:
+      crops:
+      - maize
+      - soybean
+      water_supplies:
+      - r
+      - i
+    rice_maize:
+      crops:
+      - wetland-rice
+      - maize
+      water_supplies:
+      - r
+      - i
+    rice_wheat:
+      crops:
+      - wetland-rice
+      - wheat
+      water_supplies:
+      - r
+      - i
+    triple_rice:
+      crops:
+      - wetland-rice
+      - wetland-rice
+      - wetland-rice
+      water_supplies:
+      - r
+      - i
+    wheat_maize:
+      crops:
+      - wheat
+      - maize
+      water_supplies:
+      - r
+      - i
+    wheat_soybean:
+      crops:
+      - wheat
+      - soybean
+      water_supplies:
+      - r
+      - i
   diet.anchor_groups_to_gbd: false
   diet.baseline_age: All ages
   diet.fbs.whole_grain_shares.flour-wholemeal: 0.07
@@ -810,55 +984,6 @@ structural_config:
   luc.horizon_years: 30
   luc.managed_flux_mode: zero
   luc.savanna_pvc_threshold: 75
-  multiple_cropping.cotton_wheat.crops:
-  - cotton
-  - wheat
-  multiple_cropping.cotton_wheat.water_supplies:
-  - i
-  - r
-  multiple_cropping.double_rice.crops:
-  - wetland-rice
-  - wetland-rice
-  multiple_cropping.double_rice.water_supplies:
-  - i
-  - r
-  multiple_cropping.maize_soybean.crops:
-  - maize
-  - soybean
-  multiple_cropping.maize_soybean.water_supplies:
-  - i
-  - r
-  multiple_cropping.rice_maize.crops:
-  - wetland-rice
-  - maize
-  multiple_cropping.rice_maize.water_supplies:
-  - i
-  - r
-  multiple_cropping.rice_wheat.crops:
-  - wetland-rice
-  - wheat
-  multiple_cropping.rice_wheat.water_supplies:
-  - i
-  - r
-  multiple_cropping.triple_rice.crops:
-  - wetland-rice
-  - wetland-rice
-  - wetland-rice
-  multiple_cropping.triple_rice.water_supplies:
-  - i
-  - r
-  multiple_cropping.wheat_maize.crops:
-  - wheat
-  - maize
-  multiple_cropping.wheat_maize.water_supplies:
-  - i
-  - r
-  multiple_cropping.wheat_soybean.crops:
-  - wheat
-  - soybean
-  multiple_cropping.wheat_soybean.water_supplies:
-  - i
-  - r
   non_food_crops:
   - alfalfa
   - silage-maize
@@ -877,7 +1002,6 @@ structural_config:
   residues.max_feed_fraction_by_region.Southern Asia: 0.85
   residues.max_feed_fraction_by_region.Sub-Saharan Africa: 0.7
   water.data.availability: aware
-  water.data.groundwater: watergap
   water.data.groundwater_trend_end: 2019
   water.data.groundwater_trend_start: 2000
   water.data.huang_reference_year: 2010
@@ -887,8 +1011,8 @@ structural_config:
   water.irrigation.eta_max: 5.0
   water.irrigation.eta_min: 0.2
   water.supply.groundwater_ceiling_factor: 3.0
-  water.supply.mode: groundwater
   water.supply.pumping_cost_usd_per_m3: 0.04
+  water.supply.scarcity_tiers: true
   water.temporal_resolution: 4
   weight_conversion.carcass_to_fresh.meat-cattle: 0.67
   weight_conversion.carcass_to_fresh.meat-chicken: 0.6

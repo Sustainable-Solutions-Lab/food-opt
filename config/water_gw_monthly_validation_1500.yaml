@@ -60,3 +60,7 @@ food_demand_calibration:
 
 calibration:
   source: fbs-water
+  # The fbs-water set is fit at the study resolution (T=4); this monthly
+  # diagnostic differs from the stamp only in water.temporal_resolution.
+  # It probes seasonal water fidelity, not calibrated cost or L1 levels.
+  accept_provenance_mismatch: true
