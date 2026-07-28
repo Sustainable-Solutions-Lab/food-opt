@@ -93,7 +93,13 @@ def health_required():
     """
     if config["health"]["enabled"]:
         return True
-    return any(get_effective_config(s)["health"]["enabled"] for s in list_scenarios())
+    # Only a scenario that names the key can flip it on, so read the overrides
+    # directly; merging an effective config per scenario is prohibitively slow
+    # for generated ensembles of thousands of scenarios.
+    return any(
+        overrides.get("health", {}).get("enabled", False)
+        for overrides in load_scenario_defs().values()
+    )
 
 
 def gbd_anchoring_enabled():
@@ -315,3 +321,35 @@ def gaez_path(kind: str, water_supply: str, crop: str) -> str:
     return (
         f"{prefix}_{climate}_{period}_{climate_scenario}_{input_level}_{ws}_{crop}.tif"
     )
+
+
+def calibration_artefact_inputs(cfg):
+    """Return the calibration artefacts a solve reads, gated by their config.
+
+    Shared by ``solve_model`` and ``calibrate_deviation_penalty``: both run the
+    same solve, so both depend on the same files. Each block is skipped when its
+    calibration is disabled, which is how the generating step avoids a cycle
+    onto its own output.
+    """
+    inputs = {}
+
+    cal_cfg = cfg["grazing"]["grassland_forage_calibration"]
+    if cal_cfg["enabled"]:
+        inputs["grassland_yield_correction"] = cal_cfg["grassland_yield_correction"]
+        inputs["fodder_conversion_correction"] = cal_cfg["fodder_conversion_correction"]
+        inputs["exogenous_forage"] = cal_cfg["exogenous_forage"]
+
+    exo_feed_cal_cfg = cfg["exogenous_feed_calibration"]
+    if exo_feed_cal_cfg["enabled"]:
+        inputs["exogenous_feed"] = exo_feed_cal_cfg["exogenous_feed"]
+
+    fd_cal_cfg = cfg["food_demand_calibration"]
+    if fd_cal_cfg["enabled"]:
+        inputs["food_demand_calibration"] = fd_cal_cfg["calibration_file"]
+
+    dp_cfg = cfg["deviation_penalty"]
+    dp_cal_cfg = dp_cfg["calibration"]
+    if dp_cal_cfg["enabled"] and deviation_penalty_uses_calibrated(dp_cfg):
+        inputs["deviation_penalty_calibration"] = dp_cal_cfg["calibrated_yaml"]
+
+    return inputs

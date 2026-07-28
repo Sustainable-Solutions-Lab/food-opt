@@ -287,38 +287,7 @@ def solve_model_inputs(w):
     ):
         inputs["nutrition"] = "data/curated/nutrition.csv"
 
-    # Grassland forage calibration: include CSVs when enabled for this scenario.
-    # When generate=true, the calibration CSVs are produced from the source
-    # scenario's solve, so non-source scenarios depend on them via the DAG.
-    # The source scenario has enabled=false and skips this block.
-    cal_cfg = eff_cfg["grazing"]["grassland_forage_calibration"]
-    if cal_cfg["enabled"]:
-        inputs["grassland_yield_correction"] = cal_cfg["grassland_yield_correction"]
-        inputs["fodder_conversion_correction"] = cal_cfg["fodder_conversion_correction"]
-        inputs["exogenous_forage"] = cal_cfg["exogenous_forage"]
-
-    # Protein-feed calibration: per-country exogenous protein supply CSV.
-    # Same gating pattern as the forage calibration.
-    exo_feed_cal_cfg = eff_cfg["exogenous_feed_calibration"]
-    if exo_feed_cal_cfg["enabled"]:
-        inputs["exogenous_feed"] = exo_feed_cal_cfg["exogenous_feed"]
-
-    # Food demand calibration: include the per-food multiplier CSV when
-    # enabled. The generation config sets enabled=false to break the DAG
-    # cycle on the source scenario; solve_model then treats the calibration
-    # as absent (multiplier=1).
-    fd_cal_cfg = eff_cfg["food_demand_calibration"]
-    if fd_cal_cfg["enabled"]:
-        inputs["food_demand_calibration"] = fd_cal_cfg["calibration_file"]
-
-    # Deviation-penalty L1 calibration: include the calibrated YAML when
-    # any component's l1_cost is set to the "calibrated" sentinel. The
-    # solve resolves the sentinel via
-    # solve_model/production_stability.resolve_calibrated_l1_costs.
-    dp_cfg = eff_cfg["deviation_penalty"]
-    dp_cal_cfg = dp_cfg["calibration"]
-    if dp_cal_cfg["enabled"] and deviation_penalty_uses_calibrated(dp_cfg):
-        inputs["deviation_penalty_calibration"] = dp_cal_cfg["calibrated_yaml"]
+    inputs.update(calibration_artefact_inputs(eff_cfg))
 
     return inputs
 
