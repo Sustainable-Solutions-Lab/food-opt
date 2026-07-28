@@ -7,7 +7,6 @@ Common configuration variables and helper functions shared across Snakemake rule
 
 This file should be included first in the main Snakefile, before any other rule files.
 """
-import copy
 import csv
 import hashlib
 import json
@@ -22,6 +21,7 @@ from workflow.scripts.solve_namespace import (
     _is_solve_time_key,
     _leaf_keys,
     deviation_penalty_uses_calibrated,
+    get_effective_config as _get_effective_config,
     health_input_paths,
     resolve_gbd_anchoring,
     resolve_pathvars,
@@ -45,20 +45,11 @@ if (
     )
 
 
-def _recursive_update(target, source):
-    for key, value in source.items():
-        if isinstance(value, dict) and key in target and isinstance(target[key], dict):
-            _recursive_update(target[key], value)
-        else:
-            target[key] = value
-    return target
-
-
 def load_scenario_defs():
     """Load scenario definitions from the config's `scenarios` key."""
     global _SCENARIO_CACHE
     if _SCENARIO_CACHE is None:
-        raw_defs = config.get("scenarios") or {}
+        raw_defs = config["scenarios"]
         _SCENARIO_CACHE = expand_scenario_defs(raw_defs)
     return _SCENARIO_CACHE
 
@@ -70,17 +61,7 @@ def list_scenarios():
 
 def get_effective_config(scenario_name):
     """Return the configuration with scenario overrides applied."""
-    scenario_defs = load_scenario_defs()
-
-    # Start with a deep copy of the global config to avoid mutating it
-    # We convert config to dict because it might be a Config object
-    eff_config = copy.deepcopy(dict(config))
-
-    if scenario_name and scenario_name in scenario_defs:
-        overrides = scenario_defs[scenario_name]
-        _recursive_update(eff_config, overrides)
-
-    return eff_config
+    return _get_effective_config(dict(config), scenario_name, load_scenario_defs())
 
 
 def health_required():
@@ -193,7 +174,6 @@ def scenario_override_hash(scenario_name):
 # Extract configuration name and relevant config sections
 name = config["name"]
 gaez_cfg = config["data"]["gaez"]
-grazing_cfg = config.get("grazing", {})
 
 # Load GAEZ crop code mapping from CSV
 with open("data/curated/gaez_crop_code_mapping.csv", newline="") as _gaez_mapping_file:
@@ -253,7 +233,7 @@ def gaez_crops(crops=None):
     crops bypass GAEZ entirely and must not appear in those input lists.
     """
     base = list(crops) if crops is not None else list(config["crops"])
-    cropgrids_set = set(config.get("cropgrids_crops") or [])
+    cropgrids_set = set(config["cropgrids_crops"])
     return [c for c in base if c not in cropgrids_set]
 
 
@@ -269,7 +249,7 @@ def irrigated_crops():
         base = list(config["crops"])
     else:
         base = list(irr_cfg)
-    cropgrids_set = set(config.get("cropgrids_crops") or [])
+    cropgrids_set = set(config["cropgrids_crops"])
     return [c for c in base if c not in cropgrids_set]
 
 
@@ -280,7 +260,7 @@ def gaez_path(kind: str, water_supply: str, crop: str) -> str:
     water_supply: "i" (irrigated) or "r" (rainfed)
     crop: crop name (e.g., "wheat")
     """
-    cropgrids_set = set(config.get("cropgrids_crops") or [])
+    cropgrids_set = set(config["cropgrids_crops"])
     if crop in cropgrids_set:
         raise ValueError(
             f"gaez_path() called for CROPGRIDS-backed crop '{crop}'; this "

@@ -132,9 +132,7 @@ def main() -> None:
             "No FAOSTAT production records matched the configured animal products"
         )
 
-    # Egg unit handling. Only hen eggs are mapped to the "eggs" model
-    # product (config/default.yaml). FAOSTAT may report egg production in
-    # tonnes ("t") or in thousands of eggs ("1000 No").
+    # FAOSTAT QCL reports current egg production in tonnes.
     egg_mask_raw = df["product"] == "eggs"
     if egg_mask_raw.any():
         if "Unit" not in df.columns:
@@ -144,29 +142,14 @@ def main() -> None:
         egg_units = sorted(egg_unit_series.loc[egg_mask_raw].unique())
         logger.info("Egg production units in source data: %s", ", ".join(egg_units))
 
-        # Exact-match unit detection; avoid substring matches that could
-        # accept unexpected vintages silently.
-        thousand_eggs_mask = egg_mask_raw & egg_unit_series.isin({"1000 no"})
-        tonnes_mask = egg_mask_raw & egg_unit_series.isin({"t"})
-        unknown_mask = egg_mask_raw & ~(thousand_eggs_mask | tonnes_mask)
-
-        if unknown_mask.any():
-            unknown_units = sorted(egg_unit_series.loc[unknown_mask].unique())
+        unexpected_units = sorted(
+            egg_unit_series.loc[egg_mask_raw & (egg_unit_series != "t")].unique()
+        )
+        if unexpected_units:
             raise RuntimeError(
                 "Unexpected FAOSTAT egg unit(s): "
-                + ", ".join(unknown_units)
-                + ". Expected 't' or '1000 No'."
-            )
-
-        if thousand_eggs_mask.any():
-            # egg_thousands * 1000 eggs/thousand * 60g/egg / 1000 g/kg / 1000 kg/tonne
-            # = egg_thousands * 0.06 tonnes
-            df.loc[thousand_eggs_mask, "Value"] = (
-                df.loc[thousand_eggs_mask, "Value"] * 0.06
-            )
-            logger.info(
-                "Converted %d egg records from '1000 No' to tonnes (60 g/egg)",
-                int(thousand_eggs_mask.sum()),
+                + ", ".join(unexpected_units)
+                + ". Expected 't'."
             )
 
     result = (

@@ -4,9 +4,9 @@
 
 
 gaez = config["data"]["gaez"]
-plotting_cfg = config.get("plotting", {})
-food_group_colors = plotting_cfg.get("colors", {}).get("food_groups", {})
-_param_groups_cfg = plotting_cfg.get("colors", {}).get("parameter_groups", {})
+plotting_cfg = config["plotting"]
+food_group_colors = plotting_cfg["colors"]["food_groups"]
+_param_groups_cfg = plotting_cfg["colors"]["parameter_groups"]
 parameter_colors = {
     param: color
     for group in _param_groups_cfg.values()
@@ -78,8 +78,7 @@ def _sobol_sensitivity_groups():
 
 def _sobol_sensitivity_methods():
     """Return all configured surrogate method names."""
-    sa_cfg = config.get("sensitivity_analysis", {})
-    return list(sa_cfg.get("methods", {}).keys())
+    return list(config["sensitivity_analysis"]["methods"])
 
 
 def _sobol_plot_targets():
@@ -574,7 +573,7 @@ rule plot_food_consumption_baseline_map:
         pdf="<results>/{name}/plots/scen-{scenario}/food_consumption_baseline_map.pdf",
         csv="<results>/{name}/plots/scen-{scenario}/food_consumption_baseline_map.csv",
     params:
-        age=config.get("diet", {}).get("baseline_age", "All ages"),
+        age=config["diet"]["baseline_age"],
         reference_year=config["baseline_year"],
         group_colors=food_group_colors,
     group:

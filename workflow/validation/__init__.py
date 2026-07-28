@@ -4,7 +4,6 @@
 
 """Validation entry points for configuration and data consistency checks."""
 
-from collections.abc import Iterable
 from pathlib import Path
 from typing import Callable
 
@@ -37,38 +36,35 @@ from .yield_unit_conversions import validate_yield_unit_conversions
 
 Validator = Callable[[dict, Path], None]
 
-_CHECKS: dict[str, Validator] = {
-    "config_schema": validate_config_schema,
-    "calibration": validate_calibration,
-    "calibration_provenance": validate_calibration_provenance,
-    "commodities": validate_commodities,
-    "consumer_values": validate_consumer_values,
-    "optimal_taxes": validate_optimal_taxes,
-    "country_regions": validate_country_regions,
-    "food_groups": validate_food_groups,
-    "food_basis": validate_food_basis,
-    "diet_basis": validate_diet_basis,
-    "faostat_maps": validate_faostat_maps,
-    "crop_food_pathways": validate_crop_food_pathways,
-    "crop_groups": validate_crop_groups,
-    "crop_moisture_content": validate_crop_moisture_content,
-    "cropgrids_crops": validate_cropgrids_crops,
-    "gaez_crop_mapping": validate_gaez_crop_mapping,
-    "seed_rates": validate_seed_rates,
-    "health_map": validate_health_map,
-    "m49_codes": validate_m49_codes,
-    "multi_cropping": validate_multi_cropping,
-    "nutrition": validate_nutrition,
-    "sensitivity_generator": validate_sensitivity_generator,
-    "yield_unit_conversions": validate_yield_unit_conversions,
-}
+_SEMANTIC_CHECKS: tuple[tuple[str, Validator], ...] = (
+    ("calibration", validate_calibration),
+    ("calibration_provenance", validate_calibration_provenance),
+    ("commodities", validate_commodities),
+    ("consumer_values", validate_consumer_values),
+    ("optimal_taxes", validate_optimal_taxes),
+    ("country_regions", validate_country_regions),
+    ("food_groups", validate_food_groups),
+    ("food_basis", validate_food_basis),
+    ("diet_basis", validate_diet_basis),
+    ("faostat_maps", validate_faostat_maps),
+    ("crop_food_pathways", validate_crop_food_pathways),
+    ("crop_groups", validate_crop_groups),
+    ("crop_moisture_content", validate_crop_moisture_content),
+    ("cropgrids_crops", validate_cropgrids_crops),
+    ("gaez_crop_mapping", validate_gaez_crop_mapping),
+    ("seed_rates", validate_seed_rates),
+    ("health_map", validate_health_map),
+    ("m49_codes", validate_m49_codes),
+    ("multi_cropping", validate_multi_cropping),
+    ("nutrition", validate_nutrition),
+    ("sensitivity_generator", validate_sensitivity_generator),
+    ("yield_unit_conversions", validate_yield_unit_conversions),
+)
 
 
 def validate(
     config: dict,
     project_root: Path | None = None,
-    *,
-    enabled_checks: Iterable[str] | None = None,
 ) -> None:
     """Run configured validation checks against the active config and data.
 
@@ -78,22 +74,14 @@ def validate(
         The merged Snakemake configuration dictionary.
     project_root:
         Root directory of the repository. Defaults to the current working directory.
-    enabled_checks:
-        Optional iterable of check names to run. When omitted, all registered checks
-        are executed.
     """
     logger.info("Validating configuration and input datasets")
 
     root = Path(project_root) if project_root else Path.cwd()
-    check_names = tuple(enabled_checks) if enabled_checks else tuple(_CHECKS)
+    validate_config_schema(config, root)
 
     errors: list[str] = []
-    for name in check_names:
-        try:
-            check = _CHECKS[name]
-        except KeyError as exc:
-            raise KeyError(f"Unknown validation check '{name}'") from exc
-
+    for name, check in _SEMANTIC_CHECKS:
         try:
             check(config, root)
         except Exception as exc:

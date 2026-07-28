@@ -188,10 +188,8 @@ flag at its default ``false``.
         --allowed-rules build_surrogate \
         -- results/gsa/surrogates/surrogate_gsa_xgb.pkl
 
-The method (``xgb``/``pce``/``rf``/``mlp``) is a wildcard of the rule;
-``sensitivity_analysis.default_surrogate`` in the config picks the
-default when downstream consumers (uncertainty plots, notebooks) load
-a bundle without specifying a method.
+The method (``xgb``/``pce``/``rf``/``mlp``) is a wildcard of the rule and is
+always explicit in downstream bundle and plot targets.
 
 Repeat the command for each ``{group}`` needed (e.g., ``gsa-l1-low``,
 ``gsa-l1-high``) and for alternative surrogate types if you want to

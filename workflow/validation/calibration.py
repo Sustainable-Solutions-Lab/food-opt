@@ -84,7 +84,7 @@ def _resolve(config: dict, path: tuple) -> dict:
 def validate_calibration(config: dict, project_root: Path | None = None) -> None:
     """Ensure calibration sections use the canonical enabled/generate pattern."""
     root = Path(project_root) if project_root else Path.cwd()
-    scenario_names = set((config.get("scenarios") or {}).keys())
+    scenario_names = set(config["scenarios"])
 
     errors: list[str] = []
     for section in _CALIBRATION_SECTIONS:

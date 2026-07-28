@@ -30,12 +30,12 @@ def validate_cropgrids_crops(config: dict, project_root: Path) -> None:
     4. Every entry has a row in ``data/curated/cropgrids_crop_mapping.csv``
        with a non-empty ``cropgrids_name`` (so the CROPGRIDS NetCDF can be
        extracted), a non-empty ``faostat_qcl_item_code`` (so FAOSTAT yield
-       can be looked up), and a non-empty ``faostat_qcl_yield_element_code``.
+       can be looked up).
     5. No entry appears in ``data/curated/gaez_crop_code_mapping.csv``: it is
        reserved for GAEZ-backed crops, and a stray entry would otherwise
        feed the GAEZ download rules.
     """
-    cropgrids_crops = list(config.get("cropgrids_crops") or [])
+    cropgrids_crops = list(config["cropgrids_crops"])
     if not cropgrids_crops:
         return
 

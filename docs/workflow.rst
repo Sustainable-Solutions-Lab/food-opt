@@ -24,7 +24,11 @@ Paths shown below use the default roots (``processing/``, ``results/``,
 Validation Hook
 ---------------
 
-Before Snakemake resolves any rules, the ``workflow/Snakefile`` uses the ``onstart`` hook to run configuration/data validation powered by `Pydantic <https://docs.pydantic.dev/>`__ and `Pandera <https://pandera.readthedocs.io/>`__. The checks live in ``workflow/validation/`` and currently ensure, for example, that every category in ``data/curated/food_groups.csv`` is listed under ``config.food_groups.included``. Add new validators by dropping another module in that package and registering it in ``workflow/validation/__init__.py``—the hook aggregates all errors and aborts the workflow if any check fails.
+Before Snakemake includes any rule files, ``workflow/Snakefile`` directly
+validates the merged configuration and input data. JSON Schema checks the
+configuration structure first; semantic checks in ``workflow/validation/`` use
+Pandera and focused Python validators. Semantic errors are aggregated before
+the workflow aborts.
 
 The complete workflow dependency graph is shown below. Each node represents a Snakemake rule, and edges show dependencies between rules.
 

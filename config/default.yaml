@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: CC-BY-4.0
 
 # Default configuration - override in project-specific configs
+name: "default"
+
 # --- section: scenario_metadata ---
 scenarios:
   # Each key represents a named scenario that can be activated via the
@@ -1396,7 +1398,6 @@ health:
   region_clusters: 30
   breakpoint_rel_tol: 0.05  # Max Stage 1 PWL deviation as a fraction of each RR curve's amplitude (5%)
   log_rr_points: 15
-  ssb_sugar_g_per_100g: 5.7  # ~=50 kcal per 226.8 g sugar-sweetened beverage (SSB) implies ~5.7 g sugar per 100 g
   value_per_yll: 50000  # USD_2024 per year of life lost
   intake_age_min: 11  # GDD adult band starts at 11; set to 11 to retain adult intake data. Note however that GDB chronic disease risk factors are for adults of >=25 years.
   # Dietary risk factors to consider (must match GBD risk-factor items)
@@ -1746,7 +1747,6 @@ data:
     # GAEZ v5 parameters
     # Note: RES05 (yields/suitability) has ENSEMBLE, but RES02 (growing season) only has individual GCMs
     climate_model: "GFDL-ESM4" # Specific GCMs: "GFDL-ESM4", "IPSL-CM6A-LR", "MPI-ESM1-2-HR", "MRI-ESM2-0", "UKESM1-0-LL"
-    climate_model_ensemble: "ENSEMBLE" # Multi-model mean (only available for RES05, not RES02)
     period: "FP2140" # Future: "FP2140" (2021-2040), "FP4160" (2041-2060), "FP6180" (2061-2080), "FP8100" (2081-2100); Historical: "HP0120" (2001-2020), "HP8100" (1981-2000)
     climate_scenario: "SSP126" # "SSP126" (low emissions), "SSP370" (medium, ~RCP4.5), "SSP585" (high), "HIST" (historical)
     input_level: "H" # "H" (High), "L" (Low)
@@ -1948,9 +1948,6 @@ remote_solve:
 sensitivity_analysis:
   holdout_fraction: 0.15
   threads: 6
-  # Method downstream consumers (uncertainty-band plots, notebooks) use when
-  # no explicit choice is given. Must match a key under ``methods``.
-  default_surrogate: mlp
   # When false (default), the surrogate-fit rule declares every Sobol scenario
   # the generator promises so Snakemake drives the full solve→analyse→
   # surrogate chain in a single invocation (the canonical Snakemake idiom).

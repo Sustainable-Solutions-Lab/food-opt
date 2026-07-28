@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from workflow.scripts.solve_namespace import (
+    get_effective_config,
     validate_scenario_config_schemas,
     validate_scenario_overrides,
 )
@@ -73,6 +74,33 @@ class TestValidateScenarioConfigSchemas:
         with pytest.raises(ValueError, match="stale"):
             validate_scenario_config_schemas(base_config, defs, ".")
 
+    @pytest.mark.parametrize(
+        "override",
+        [
+            {"solving": {"inline_analysis": True}},
+            {"remote_solve": {"enabled": True}},
+            {"plotting": {"comparison_scenarios": "all"}},
+            {"food_groups": {"max_per_capita": {"grain": 100.0}}},
+            {"biomass": {"marginal_values_usd_per_tonne": 100.0}},
+        ],
+    )
+    def test_rejects_parse_or_build_time_override(self, override):
+        with pytest.raises(ValueError, match="structural key"):
+            validate_scenario_overrides({"ignored": override})
+
+    def test_accepts_solver_resource_override(self):
+        validate_scenario_overrides(
+            {
+                "parallel": {
+                    "solving": {
+                        "threads": 4,
+                        "runtime": 20,
+                        "mem_mb": 8000,
+                    }
+                }
+            }
+        )
+
     def test_validates_one_representative_per_structure(self, base_config, monkeypatch):
         """Thousands of same-template samples must cost one validation."""
         import workflow.validation.config_schema as cs
@@ -84,3 +112,18 @@ class TestValidateScenarioConfigSchemas:
         defs = {f"gsa_{i}": {"emissions": {"ghg_price": float(i)}} for i in range(50)}
         validate_scenario_config_schemas(base_config, defs, ".")
         assert len(calls) == 1
+
+
+def test_get_effective_config_applies_nested_overrides_without_mutating_base() -> None:
+    base = {"solving": {"solver": "highs", "threads": 1}}
+    scenarios = {"parallel": {"solving": {"threads": 4}}}
+
+    effective = get_effective_config(base, "parallel", scenarios)
+
+    assert effective == {"solving": {"solver": "highs", "threads": 4}}
+    assert base["solving"]["threads"] == 1
+
+
+def test_get_effective_config_rejects_unknown_scenario() -> None:
+    with pytest.raises(KeyError, match="missing"):
+        get_effective_config({}, "missing", {})

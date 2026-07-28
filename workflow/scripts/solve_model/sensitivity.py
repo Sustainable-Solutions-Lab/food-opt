@@ -16,8 +16,6 @@ Supported adjustments:
 - Food loss (loss_fraction on crop_production / crop_production_multi /
   animal_production links)
 - Food waste (waste_fraction on food_consumption links)
-- Food loss + waste bundle (food_loss_waste applies the same factor to
-  both unless an explicit food_loss / food_waste key overrides it)
 - Feed conversion ratios (efficiency on animal_production links)
 - Production costs (marginal_cost on crop_production, animal_production)
 
@@ -105,10 +103,6 @@ def apply_sensitivity_factors(n: pypsa.Network, sensitivity_cfg: dict) -> None:
         - food_waste: float multiplier on the waste_fraction baked into
           food_consumption efficiencies and the ``flw_multiplier``
           metadata column.
-        - food_loss_waste: float bundle convenience key. Applies the
-          same factor to both loss and waste, unless an explicit
-          food_loss or food_waste key is also set (per-component keys
-          override the bundle).
         - feed_conversion: float
         - costs: {crop: float, animal: float}
     """
@@ -123,12 +117,8 @@ def apply_sensitivity_factors(n: pypsa.Network, sensitivity_cfg: dict) -> None:
     if emission_cfg:
         _apply_emission_factors(n, emission_cfg)
 
-    # food_loss_waste is a bundle: it sets both food_loss and food_waste
-    # in one place. Per-component keys (food_loss, food_waste) take
-    # precedence when both are supplied.
-    bundle_factor = sensitivity_cfg.get("food_loss_waste", 1.0)
-    food_loss_factor = sensitivity_cfg.get("food_loss", bundle_factor)
-    food_waste_factor = sensitivity_cfg.get("food_waste", bundle_factor)
+    food_loss_factor = sensitivity_cfg.get("food_loss", 1.0)
+    food_waste_factor = sensitivity_cfg.get("food_waste", 1.0)
 
     if food_loss_factor != 1.0:
         _apply_food_loss_factor(n, food_loss_factor)

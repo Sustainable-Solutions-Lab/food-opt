@@ -85,7 +85,7 @@ def validate_crop_food_pathways(config: dict, project_root: Path) -> None:
         )
 
     # Check that byproducts listed in config appear as foods
-    byproducts_cfg = set(config.get("byproducts", []))
+    byproducts_cfg = set(config["byproducts"])
     foods_in_csv = set(df["food"].unique())
 
     missing_byproducts = sorted(byproducts_cfg - foods_in_csv)

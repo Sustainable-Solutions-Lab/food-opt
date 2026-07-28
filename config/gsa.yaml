@@ -125,7 +125,8 @@ scenarios:
             ch4: "{ch4_factor}"
             n2o: "{n2o_factor}"
             luc: "{luc_factor}"
-          food_loss_waste: "{flw_factor}"
+          food_loss: "{flw_factor}"
+          food_waste: "{flw_factor}"
           feed_conversion: "{fcr_factor}"
           health_relative_risk:
             protective: "{rr_protective}"
@@ -147,7 +148,6 @@ scenarios:
 sensitivity_analysis:
   holdout_fraction: 0.15
   threads: 6
-  default_surrogate: mlp
   # GSA solves run outside Snakemake on the cluster (tools/batch-solve), so the
   # surrogate fit reads scenarios from disk rather than declaring every output.
   discover_scenarios_on_disk: true

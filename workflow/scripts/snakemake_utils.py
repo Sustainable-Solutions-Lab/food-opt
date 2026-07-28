@@ -91,7 +91,7 @@ def _recursive_update(target: dict, source: dict, _path: tuple[str, ...] = ()) -
 
 def load_scenarios(config: dict) -> dict:
     """Load scenario definitions from the config's `scenarios` key."""
-    raw_defs = config.get("scenarios") or {}
+    raw_defs = config["scenarios"]
     return expand_scenario_defs(raw_defs)
 
 

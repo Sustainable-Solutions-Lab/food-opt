@@ -61,7 +61,6 @@ if __name__ == "__main__":
 
     validation_cfg = snakemake.params.validation  # type: ignore[attr-defined]
     use_actual_production = bool(validation_cfg["use_actual_production"])
-    enforce_baseline = bool(validation_cfg["enforce_baseline_diet"])
     enforce_baseline_feed = bool(validation_cfg["enforce_baseline_feed"])
     # Enable land slack if explicitly requested or when using actual production
     enable_land_slack = bool(validation_cfg["land_slack"]) or use_actual_production
@@ -230,7 +229,7 @@ if __name__ == "__main__":
     else:
         expected_irrigated_crops = set(map(str, irrigation_cfg))
     # CROPGRIDS-backed crops are rainfed-only by construction.
-    cropgrids_crops = set(snakemake.config.get("cropgrids_crops") or [])  # type: ignore[index]
+    cropgrids_crops = set(snakemake.config["cropgrids_crops"])  # type: ignore[index]
     expected_irrigated_crops -= cropgrids_crops
 
     # Read yields data and harvested area for each crop and water supply.
@@ -300,6 +299,10 @@ if __name__ == "__main__":
             "where they can be grown."
         )
 
+    # Read regions once for correction mapping and model construction.
+    regions_df = gpd.read_file(snakemake.input.regions)
+    region_to_country = regions_df.set_index("region")["country"]
+
     # Apply per-(country, crop) yield corrections. Two sources, applied
     # multiplicatively through the same per-cell rescaling:
     #   * fodder_yield_corrections: Eurostat-anchored FDD-crop corrections,
@@ -311,15 +314,12 @@ if __name__ == "__main__":
     def _apply_yield_corrections(corr_df: pd.DataFrame, source_label: str) -> None:
         if corr_df.empty:
             return
-        _r2c_corr = gpd.read_file(snakemake.input.regions)[
-            ["region", "country"]
-        ].set_index("region")["country"]
         n_adjusted = 0
         for _, row in corr_df.iterrows():
             country = str(row["country"])
             crop = str(row["crop"])
             factor = float(row["yield_correction_factor"])
-            corr_regions = set(_r2c_corr[_r2c_corr == country].index)
+            corr_regions = set(region_to_country[region_to_country == country].index)
             for ws in ("r", "i"):
                 key = f"{crop}_yield_{ws}"
                 if key not in yields_data:
@@ -344,9 +344,6 @@ if __name__ == "__main__":
     yield_cal_path = snakemake.input.get("yield_calibration")
     if yield_cal_path:
         _apply_yield_corrections(read_csv(yield_cal_path), "FAOSTAT-target")
-
-    # Read regions
-    regions_df = gpd.read_file(snakemake.input.regions)
 
     # Load class-level land areas
     land_class_df = read_csv(snakemake.input.land_area_by_class)
@@ -380,23 +377,16 @@ if __name__ == "__main__":
     )
     ch4_to_co2_factor = float(snakemake.params.emissions["ch4_to_co2_factor"])
     n2o_to_co2_factor = float(snakemake.params.emissions["n2o_to_co2_factor"])
-    try:
-        luc_coefficients_path = snakemake.input.luc_carbon_coefficients
-        luc_coeff_df = read_csv(luc_coefficients_path)
-        if not luc_coeff_df.empty:
-            luc_lef_lookup = utils._build_luc_lef_lookup(luc_coeff_df)
-            logger.info(
-                "Loaded LUC LEFs for %d (region, class, water, use) combinations",
-                len(luc_lef_lookup),
-            )
-        else:
-            logger.warning(
-                "LUC carbon coefficients file is empty; skipping LUC emission adjustments"
-            )
-    except (AttributeError, FileNotFoundError) as e:
+    luc_coeff_df = read_csv(snakemake.input.luc_carbon_coefficients)
+    if not luc_coeff_df.empty:
+        luc_lef_lookup = utils._build_luc_lef_lookup(luc_coeff_df)
         logger.info(
-            "LUC carbon coefficients not available (%s); skipping LUC emission adjustments",
-            type(e).__name__,
+            "Loaded LUC LEFs for %d (region, class, water, use) combinations",
+            len(luc_lef_lookup),
+        )
+    else:
+        logger.warning(
+            "LUC carbon coefficients file is empty; skipping LUC emission adjustments"
         )
 
     land_rainfed_df = land_class_df.xs("r", level="water_supply").copy()
@@ -727,7 +717,6 @@ if __name__ == "__main__":
     food_to_group = food_groups.set_index("food")["group"].to_dict()
     food_group_list = list(snakemake.params.food_groups)
 
-    macronutrient_cfg = snakemake.params.macronutrients
     nutrient_units = (
         nutrition_data.reset_index()
         .drop_duplicates(subset=["nutrient"])

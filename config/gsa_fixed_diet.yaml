@@ -99,7 +99,8 @@ scenarios:
             ch4: "{ch4_factor}"
             n2o: "{n2o_factor}"
             luc: "{luc_factor}"
-          food_loss_waste: "{flw_factor}"
+          food_loss: "{flw_factor}"
+          food_waste: "{flw_factor}"
           feed_conversion: "{fcr_factor}"
         land:
           reforestation_cap:

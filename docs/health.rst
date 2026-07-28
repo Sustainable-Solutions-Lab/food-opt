@@ -341,7 +341,7 @@ Appendix 1, p. 171).
 - **Intake units**: Per-group basis matches the baseline-diet pipeline
   output (model basis; see :doc:`current_diets`). GBD exposure is
   converted to that basis at load time via ``diet.source_basis`` and
-  ``diet.weight_conversion``.
+  ``weight_conversion``.
 - **Alternative RR sources**: The ``health.alternative_rr`` config option allows
   substituting GBD dose-response curves with log-linear curves from literature
   meta-analyses on a per-risk-factor basis. By default, red meat uses literature

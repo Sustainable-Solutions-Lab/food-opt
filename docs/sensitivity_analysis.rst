@@ -234,7 +234,6 @@ distributions rather than fixed value lists.
    # Surrogate fitting + Sobol settings (see surrogate_modelling for methods)
    sensitivity_analysis:
      holdout_fraction: 0.15
-     default_surrogate: mlp
      sobol:
        outputs: [total_cost, co2, ch4, n2o, land_use, yll]
        grid_resolution: 15     # conditional-Sobol grid points per slice axis
@@ -287,8 +286,8 @@ parameter per risk factor produces cause-specific adjustments automatically.
   is the entire value.
 
 **``sensitivity_analysis.sobol`` field reference** (the Sobol-index settings;
-the surrogate-fitting fields -- ``methods``, ``outputs``,
-``default_surrogate``, ``holdout_fraction``, ``discover_scenarios_on_disk`` --
+the surrogate-fitting fields -- ``methods``, ``outputs``, ``holdout_fraction``,
+``discover_scenarios_on_disk`` --
 are documented in :doc:`surrogate_modelling`):
 
 - ``outputs``: Allowlist of output names whose Sobol indices are computed and
@@ -817,9 +816,7 @@ Sobol computation, policy sweeps, and uncertainty-band plots consume.
 Output paths use two wildcards: ``{group}`` identifies the scenario sampling
 group (e.g., ``gsa``, ``gsa-l1-low``) and ``{method}`` selects the surrogate
 type (``pce``, ``rf``, ``xgb``, ``mlp``).  All methods consume the same
-solved scenarios, and ``sensitivity_analysis.default_surrogate`` selects the
-surrogate downstream consumers (notebooks, uncertainty plots) load by
-default.
+solved scenarios; downstream targets name the desired method explicitly.
 
 .. note::
 

@@ -20,39 +20,14 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# Map IHME dietary risk names to model risk_factor identifiers and exposure conversion factors
+# Map IHME dietary risk names to model risk-factor identifiers.
 RISK_CONFIG = {
-    "Diet low in fruits": {"risk_factor": "fruits", "unit": "g/day", "conversion": 1.0},
-    "Diet low in vegetables": {
-        "risk_factor": "vegetables",
-        "unit": "g/day",
-        "conversion": 1.0,
-    },
-    "Diet low in whole grains": {
-        "risk_factor": "whole_grains",
-        "unit": "g/day",
-        "conversion": 1.0,
-    },
-    "Diet low in legumes": {
-        "risk_factor": "legumes",
-        "unit": "g/day",
-        "conversion": 1.0,
-    },
-    "Diet low in nuts and seeds": {
-        "risk_factor": "nuts_seeds",
-        "unit": "g/day",
-        "conversion": 1.0,
-    },
-    "Diet high in red meat": {
-        "risk_factor": "red_meat",
-        "unit": "g/day",
-        "conversion": 1.0,
-    },
-    "Diet high in sugar-sweetened beverages": {
-        "risk_factor": "sugar",
-        "unit": "g/day",
-        "conversion": None,
-    },
+    "Diet low in fruits": "fruits",
+    "Diet low in vegetables": "vegetables",
+    "Diet low in whole grains": "whole_grains",
+    "Diet low in legumes": "legumes",
+    "Diet low in nuts and seeds": "nuts_seeds",
+    "Diet high in red meat": "red_meat",
 }
 
 
@@ -112,7 +87,7 @@ def _parse_rr_value(cell: object) -> tuple[float, float | None, float | None]:
     return mean, low, high
 
 
-def _normalize_exposure(raw: str, conversion: float | None) -> float:
+def _normalize_exposure(raw: str) -> float:
     """Convert exposure text like '100 g/day' into g/day as float."""
     parts = raw.strip().split()
     if len(parts) < 2:
@@ -129,10 +104,7 @@ def _normalize_exposure(raw: str, conversion: float | None) -> float:
             "Energy-based exposures are not supported in the current health module"
         )
 
-    if conversion is None:
-        raise ValueError("Missing conversion factor for omega-3 exposure")
-
-    return value * conversion
+    return value
 
 
 def _extract_risk_blocks(df: pd.DataFrame) -> dict[str, tuple[int, int]]:
@@ -153,32 +125,15 @@ def _extract_risk_blocks(df: pd.DataFrame) -> dict[str, tuple[int, int]]:
     return bounds
 
 
-def parse_gbd2019_rr_appendix(
-    df: pd.DataFrame,
-    ssb_sugar_per_gram: float,
-    basis_factor_by_risk: dict[str, float] | None = None,
-) -> pd.DataFrame:
+def parse_gbd2019_rr_appendix(df: pd.DataFrame) -> pd.DataFrame:
     """Parse the Excel sheet into tidy RR records (all 15 adult age buckets)."""
-    if basis_factor_by_risk is None:
-        basis_factor_by_risk = {}
-
     records: list[dict[str, float | str]] = []
     skipped_causes: dict[str, set[str]] = {}
     skipped_units: set[str] = set()
     blocks = _extract_risk_blocks(df)
 
     for risk_name, (start, end) in blocks.items():
-        config = RISK_CONFIG[risk_name]
-        risk_id = config["risk_factor"]
-        conversion = config["conversion"]
-
-        if risk_id == "sugar":
-            if ssb_sugar_per_gram <= 0:
-                raise ValueError("ssb_sugar_per_gram must be positive")
-            conversion = ssb_sugar_per_gram
-
-        basis_factor = float(basis_factor_by_risk.get(risk_id, 1.0))
-        effective_conversion = None if conversion is None else conversion * basis_factor
+        risk_id = RISK_CONFIG[risk_name]
 
         block = df.iloc[start:end]
         block = block[block[0].notna()]
@@ -197,7 +152,7 @@ def parse_gbd2019_rr_appendix(
             cause = CAUSE_MAP[outcome]
 
             try:
-                exposure = _normalize_exposure(exposure_raw, effective_conversion)
+                exposure = _normalize_exposure(exposure_raw)
             except ValueError:
                 skipped_units.add(exposure_raw)
                 continue

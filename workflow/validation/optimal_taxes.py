@@ -21,7 +21,7 @@ def _optimal_taxes_enabled(config: dict, scenario_defs: dict) -> bool:
 
 def validate_optimal_taxes(config: dict, _project_root=None) -> None:
     """Ensure optimal taxes runs have required scenarios defined."""
-    scenario_defs = config.get("scenarios") or {}
+    scenario_defs = config["scenarios"]
 
     if not _optimal_taxes_enabled(config, scenario_defs):
         return

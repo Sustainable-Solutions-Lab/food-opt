@@ -38,6 +38,7 @@ SOLVE_TIME_CONFIG_PREFIXES = {
     "health.relax_and_fix_max_gap",
     "validation.enforce_baseline_diet",
     "validation.animal_growth_cap",
+    "validation.crop_growth_cap",
     "deviation_penalty",
     "macronutrients",
     "food_utility_piecewise",
@@ -45,8 +46,6 @@ SOLVE_TIME_CONFIG_PREFIXES = {
     "food_groups.constraints",
     "food_groups.fix_within_group_ratios",
     "food_groups.equal_by_country_source",
-    "food_groups.max_per_capita",
-    "biomass.marginal_values_usd_per_tonne",
     "biomass.biofuel_demand_scale",
     "land.regional_limit",
     "land.reforestation_cap",
@@ -54,9 +53,16 @@ SOLVE_TIME_CONFIG_PREFIXES = {
     "exogenous_feed_calibration.enabled",
     "consumer_values",
     "sensitivity",
-    "solving",
-    "plotting",
-    "remote_solve",
+    "solving.solver",
+    "solving.io_api",
+    "solving.threads",
+    "solving.calculate_fixed_duals",
+    "solving.options_gurobi",
+    "solving.options_highs",
+    "solving.export_for_tuning",
+    "solving.time_limit",
+    "solving.runtime",
+    "solving.mem_mb",
     "netcdf",
 }
 
@@ -293,8 +299,7 @@ def get_effective_config(
     eff = copy.deepcopy(base_config)
     if not scenario_name:
         return eff
-    if scenario_name in scenario_defs:
-        _recursive_update(eff, scenario_defs[scenario_name])
+    _recursive_update(eff, scenario_defs[scenario_name])
     return eff
 
 
@@ -315,12 +320,12 @@ def resolve_pathvars(path: str, path_roots: dict[str, str]) -> str:
 
 def default_path_roots(config: dict) -> dict[str, str]:
     """Resolve the standard four path roots from a config dict."""
-    paths_cfg = config.get("paths", {}) or {}
+    paths_cfg = config["paths"]
     return {
-        "results": resolve_path_root(paths_cfg.get("results_root", "results")),
-        "processing": resolve_path_root(paths_cfg.get("processing_root", "processing")),
-        "logs": resolve_path_root(paths_cfg.get("logs_root", "logs")),
-        "benchmarks": resolve_path_root(paths_cfg.get("benchmarks_root", "benchmarks")),
+        "results": resolve_path_root(paths_cfg["results_root"]),
+        "processing": resolve_path_root(paths_cfg["processing_root"]),
+        "logs": resolve_path_root(paths_cfg["logs_root"]),
+        "benchmarks": resolve_path_root(paths_cfg["benchmarks_root"]),
     }
 
 
@@ -367,6 +372,9 @@ def build_scenario_entry(
         "m49": "data/curated/M49-codes.csv",
         "food_groups": "data/curated/food_groups.csv",
         "baseline_diet": rp("<processing>/{name}/baseline_diet.csv"),
+        "solve_scripts": sorted(
+            str(path) for path in Path("workflow/scripts/solve_model").glob("*.py")
+        ),
     }
 
     # Health processing inputs only when this scenario enables health (mirrors
@@ -425,6 +433,9 @@ def build_scenario_entry(
 
     if inline_analysis:
         inputs["population"] = rp("<processing>/{name}/population.csv")
+        inputs["analysis_scripts"] = sorted(
+            str(path) for path in Path("workflow/scripts/analysis").glob("extract_*.py")
+        )
 
     params: dict = {
         "health_enabled": eff["health"]["enabled"],

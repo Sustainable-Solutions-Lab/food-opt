@@ -62,22 +62,15 @@ class TestNormalizeExposure:
     """Tests for converting exposure text to g/day float."""
 
     def test_basic_g_per_day(self):
-        assert _normalize_exposure("100 g/day", 1.0) == pytest.approx(100.0)
-
-    def test_g_per_day_with_conversion(self):
-        assert _normalize_exposure("50 g/day", 2.0) == pytest.approx(100.0)
+        assert _normalize_exposure("100 g/day") == pytest.approx(100.0)
 
     def test_energy_based_raises(self):
         with pytest.raises(ValueError, match="Energy-based exposures"):
-            _normalize_exposure("5 %energy/day", 1.0)
+            _normalize_exposure("5 %energy/day")
 
     def test_no_unit_raises(self):
         with pytest.raises(ValueError, match="Unexpected exposure label"):
-            _normalize_exposure("100", 1.0)
-
-    def test_none_conversion_raises(self):
-        with pytest.raises(ValueError, match="Missing conversion factor"):
-            _normalize_exposure("100 g/day", None)
+            _normalize_exposure("100")
 
 
 class TestExtractRiskBlocks:
@@ -142,7 +135,7 @@ class TestParseAppendix:
         for col in range(13, 28):
             row_data[col] = "0.80 (0.70, 0.90)"
         df = self._make_mock_df([{0: "Diet low in fruits"}, row_data])
-        result = parse_gbd2019_rr_appendix(df, ssb_sugar_per_gram=0.1)
+        result = parse_gbd2019_rr_appendix(df)
 
         assert len(result) == 15
         row = result.iloc[0]
@@ -160,7 +153,7 @@ class TestParseAppendix:
             breast_row[col] = "0.95 (0.90, 1.00)"
             ihd_row[col] = "0.80 (0.70, 0.90)"
         df = self._make_mock_df([{0: "Diet low in fruits"}, breast_row, ihd_row])
-        result = parse_gbd2019_rr_appendix(df, ssb_sugar_per_gram=0.1)
+        result = parse_gbd2019_rr_appendix(df)
         assert len(result) == 15
         assert result.iloc[0]["cause"] == "CHD"
 
@@ -169,7 +162,7 @@ class TestParseAppendix:
         for col in range(13, 28):
             row_data[col] = "0.80 (0.70, 0.90)"
         df = self._make_mock_df([{0: "Diet low in fruits"}, row_data])
-        result = parse_gbd2019_rr_appendix(df, ssb_sugar_per_gram=0.1)
+        result = parse_gbd2019_rr_appendix(df)
         assert set(result.columns) == {
             "risk_factor",
             "cause",
@@ -180,27 +173,13 @@ class TestParseAppendix:
             "rr_high",
         }
 
-    def test_sugar_conversion_applied(self):
-        ssb_sugar_per_gram = 0.11
-        row_data = {0: "Diabetes mellitus type 2", 1: "200 g/day"}
-        for col in range(13, 28):
-            row_data[col] = "1.30 (1.20, 1.40)"
-        df = self._make_mock_df(
-            [{0: "Diet high in sugar-sweetened beverages"}, row_data]
-        )
-        result = parse_gbd2019_rr_appendix(df, ssb_sugar_per_gram=ssb_sugar_per_gram)
-        assert result.iloc[0]["risk_factor"] == "sugar"
-        assert result.iloc[0]["exposure_g_per_day"] == pytest.approx(
-            200.0 * ssb_sugar_per_gram
-        )
-
     def test_no_records_raises(self):
         row_data = {0: "Breast cancer", 1: "100 g/day"}
         for col in range(13, 28):
             row_data[col] = "0.95 (0.90, 1.00)"
         df = self._make_mock_df([{0: "Diet low in fruits"}, row_data])
         with pytest.raises(ValueError, match="No dietary risk records"):
-            parse_gbd2019_rr_appendix(df, ssb_sugar_per_gram=0.1)
+            parse_gbd2019_rr_appendix(df)
 
     def test_duplicate_records_aggregated(self):
         row1 = {0: "Ischemic heart disease", 1: "100 g/day"}
@@ -209,7 +188,7 @@ class TestParseAppendix:
             row1[col] = "0.80 (0.70, 0.90)"
             row2[col] = "0.90 (0.85, 0.95)"
         df = self._make_mock_df([{0: "Diet low in fruits"}, row1, row2])
-        result = parse_gbd2019_rr_appendix(df, ssb_sugar_per_gram=0.1)
+        result = parse_gbd2019_rr_appendix(df)
         assert result.iloc[0]["rr_mean"] == pytest.approx(0.85)
         assert result.iloc[0]["rr_low"] == pytest.approx(0.775)
         assert result.iloc[0]["rr_high"] == pytest.approx(0.925)
@@ -230,26 +209,15 @@ class TestConstants:
         assert CAUSE_MAP["Colon and rectum cancer"] == "CRC"
 
     def test_risk_config_has_expected_risk_factors(self):
-        assert {v["risk_factor"] for v in RISK_CONFIG.values()} == {
+        assert set(RISK_CONFIG.values()) == {
             "fruits",
             "vegetables",
             "whole_grains",
             "legumes",
             "nuts_seeds",
             "red_meat",
-            "sugar",
         }
 
     def test_risk_config_keys_start_with_diet(self):
         for key in RISK_CONFIG:
             assert key.startswith("Diet"), f"Key '{key}' does not start with 'Diet'"
-
-    def test_risk_config_ssb_has_none_conversion(self):
-        assert (
-            RISK_CONFIG["Diet high in sugar-sweetened beverages"]["conversion"] is None
-        )
-
-    def test_risk_config_standard_factors_have_unit_conversion(self):
-        for name, config in RISK_CONFIG.items():
-            if config["risk_factor"] != "sugar":
-                assert config["conversion"] == 1.0, f"Expected 1.0 for {name}"

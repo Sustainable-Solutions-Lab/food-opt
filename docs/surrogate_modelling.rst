@@ -44,9 +44,8 @@ Surrogate methods
 -----------------
 
 Four methods are supported: ``pce``, ``rf``, ``xgb``, and ``mlp``. The same
-solved scenarios can be fitted by several methods independently; which one
-downstream consumers load by default is set by
-``sensitivity_analysis.default_surrogate`` (currently ``mlp``).
+solved scenarios can be fitted by several methods independently. The method is
+always explicit in the target or bundle filename.
 
 Polynomial Chaos Expansion (PCE)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -260,7 +259,6 @@ same solved scenarios without duplicating the design.
    sensitivity_analysis:
      holdout_fraction: 0.15        # fraction reserved for out-of-sample validation
      threads: 6                    # sklearn n_jobs / BLAS threads
-     default_surrogate: mlp        # method downstream consumers load by default
      discover_scenarios_on_disk: false
      sobol:                        # Sobol index settings (see sensitivity_analysis)
        outputs: [total_cost, co2, ch4, n2o, land_use, yll]
@@ -301,8 +299,6 @@ same solved scenarios without duplicating the design.
   validation (e.g. 0.15). Set to 0 to disable holdout.
 - ``threads``: Threads for the fit (sklearn ``n_jobs`` and BLAS). Note that
   ``tools/smk -jN`` clamps rule threads to ``N``.
-- ``default_surrogate``: Method downstream consumers (uncertainty-band plots,
-  notebooks) load when none is named explicitly. Must match a ``methods`` key.
 - ``discover_scenarios_on_disk``: When ``false`` (default), ``build_surrogate``
   declares every Sobol scenario as an input so one ``tools/smk`` call drives
   the whole solve-analyse-surrogate chain. When ``true``, it instead scans the

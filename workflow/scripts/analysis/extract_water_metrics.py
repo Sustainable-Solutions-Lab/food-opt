@@ -25,9 +25,6 @@ region and in total:
 - non-renewable groundwater depletion (Mm3 mined) from
   ``groundwater_nonrenewable`` tiers.
 
-It also exposes the per-tier (CF, draw, source) table used to bin withdrawn
-water by the scarcity of its source (the merit-order / withdrawal-by-CF figure).
-
 Basis: the tier draw is *consumption* C -- crops need their net requirement E
 and the ``irrigation_delivery`` link draws ``C = E / eta_c`` from the pool.
 ``withdrawn_mm3`` therefore reports consumption; the estimated physical
@@ -73,15 +70,6 @@ def _water_supply_draw(n: pypsa.Network) -> pd.DataFrame:
         },
         index=tiers.index,
     )
-
-
-def extract_water_tiers(n: pypsa.Network) -> pd.DataFrame:
-    """Per-tier (region, cf, draw_mm3) table; the input to CF-binned views.
-
-    One row per ``water_supply`` link. ``cf`` is the tier's marginal
-    characterisation factor; ``draw_mm3`` is the volume drawn from it.
-    """
-    return _water_supply_draw(n).reset_index(names="link")
 
 
 def extract_water_by_region(n: pypsa.Network) -> pd.DataFrame:

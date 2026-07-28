@@ -206,9 +206,7 @@ def main() -> None:
     demand = _aggregate_demand_by_group(network)
     consumption = _aggregate_consumption_by_group(network)
 
-    group_colors = (
-        snakemake.config.get("plotting", {}).get("colors", {}).get("food_groups", {})
-    )
+    group_colors = snakemake.config["plotting"]["colors"]["food_groups"]
 
     _plot_two_panel(
         slack_df,

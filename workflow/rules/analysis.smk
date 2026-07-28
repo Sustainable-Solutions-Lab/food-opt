@@ -23,17 +23,8 @@ rule prepare_faostat_emissions:
         "../scripts/prepare_faostat_emissions.py"
 
 
-_ANALYSIS_SCRIPTS = expand(
-    "workflow/scripts/analysis/{script}",
-    script=[
-        "extract_statistics.py",
-        "extract_net_emissions.py",
-        "extract_objective_breakdown.py",
-        "extract_ghg_attribution.py",
-        "extract_health_impacts.py",
-        "extract_baseline_deviation.py",
-        "extract_food_prices.py",
-    ],
+_ANALYSIS_SCRIPTS = sorted(
+    str(path) for path in Path("workflow/scripts/analysis").glob("extract_*.py")
 )
 
 from workflow.scripts.solve_namespace import ANALYSIS_OUTPUT_NAMES
@@ -172,9 +163,9 @@ if config["solving"]["inline_analysis"]:
                 "max_feed_fraction_by_region"
             ],
             countries=config["countries"],
-            export_for_tuning=lambda w: get_effective_config(w.scenario)[
-                "solving"
-            ].get("export_for_tuning", False),
+            export_for_tuning=lambda w: get_effective_config(w.scenario)["solving"][
+                "export_for_tuning"
+            ],
             netcdf=lambda w: get_effective_config(w.scenario)["netcdf"],
             scenario_hash=lambda w: scenario_override_hash(w.scenario),
             # --- analysis params ---
@@ -213,7 +204,7 @@ else:
             ),
             network="<results>/{name}/solved/model_scen-{scenario}.nc",
             food_groups="data/curated/food_groups.csv",
-            m49_codes="data/curated/M49-codes.csv",
+            m49="data/curated/M49-codes.csv",
             population="<processing>/{name}/population.csv",
             analysis_scripts=_ANALYSIS_SCRIPTS,
         params:
@@ -225,7 +216,7 @@ else:
             health_enabled=lambda w: get_effective_config(w.scenario)["health"][
                 "enabled"
             ],
-            value_per_yll=lambda w: get_effective_config(w.scenario)["health"][
+            health_value_per_yll=lambda w: get_effective_config(w.scenario)["health"][
                 "value_per_yll"
             ],
             health_risk_factors=config["health"]["risk_factors"],
@@ -254,7 +245,7 @@ def _sensitivity_generator_group(gen):
 
 def _sensitivity_generator(wildcards):
     """Return the sensitivity generator whose group matches the wildcard."""
-    raw_defs = config.get("scenarios") or {}
+    raw_defs = config["scenarios"]
     group = wildcards.group
 
     generators = [
@@ -367,8 +358,7 @@ def _sensitivity_scenario_inputs(wildcards):
 def _sensitivity_method_config(wildcards):
     """Return the method-specific config dict from sensitivity_analysis.methods."""
     method = wildcards.method
-    sa_cfg = config.get("sensitivity_analysis", {})
-    methods = sa_cfg.get("methods", {})
+    methods = config["sensitivity_analysis"]["methods"]
     if method not in methods:
         raise ValueError(
             f"Unknown sensitivity method '{method}'. "

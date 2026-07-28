@@ -172,10 +172,10 @@ The project uses **pytest** for integration testing via the Snakemake Python API
 Test Configuration
 ~~~~~~~~~~~~~~~~~~
 
-Two dedicated config files drive the test suite:
-
-* **``tests/config/test.yaml``**: Minimal overrides on top of ``default.yaml`` — 200 regions, 2 resource classes, 9 crops, 14 trade hubs. Outputs to ``results/test/``.
-* **``tests/config/test_scenarios.yaml``**: Two scenarios (``default`` and ``G``) to exercise the scenario mechanism and GHG pricing code path.
+**``tests/config/test.yaml``** provides minimal overrides on top of
+``default.yaml``: 200 regions, 2 resource classes, 11 crops, 14 trade hubs, and
+two scenarios (``default`` and ``G``) that exercise scenario resolution and GHG
+pricing. Outputs are written to ``results/test/``.
 
 Running Tests
 ~~~~~~~~~~~~~

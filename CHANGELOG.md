@@ -95,6 +95,9 @@ introduce breaking changes to configuration and outputs.
   re-stamps a set without solving, for when a code change provably cannot move
   the artefacts.
 
+- `config/default.yaml` now has the canonical name `default`. All shipped
+  configuration fields are validated as required; workflow code no longer
+  supplies hidden fallback values for missing keys.
 - `planning_horizon` now defaults to 2020, matching `baseline_year`, so an
   unmodified run solves the observed year the calibration artefacts are fit
   against. Configs that previously relied on the 2030 default (including
@@ -249,6 +252,12 @@ introduce breaking changes to configuration and outputs.
 
 - The MARS surrogate method; supported surrogates are now `pce`, `rf`, `xgb`
   and `mlp`.
+- Unused configuration keys `health.ssb_sugar_g_per_100g`,
+  `data.gaez.climate_model_ensemble`, and
+  `sensitivity_analysis.default_surrogate`. Surrogate methods are selected
+  explicitly in target and bundle names. Sensitivity scenarios must use the
+  separate `food_loss` and `food_waste` factors instead of the removed
+  `food_loss_waste` convenience key.
 
 ### Fixed
 

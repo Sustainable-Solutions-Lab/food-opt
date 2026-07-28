@@ -12,7 +12,7 @@ This workflow:
 5. Resolves the model with taxes/subsidies applied in the objective
 """
 
-plotting_cfg = config.get("plotting", {})
+plotting_cfg = config["plotting"]
 
 
 rule extract_optimal_consumption:
