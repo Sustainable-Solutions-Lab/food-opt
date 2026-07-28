@@ -8,8 +8,7 @@ The IHME Burden-of-Proof tool only serves age-aggregated ("All Ages") dietary
 relative-risk curves. GBD applies age-specific RRs for cardiovascular outcomes
 (the proportional effect attenuates with age); diabetes and colorectal cancer
 carry no age attenuation. We reconstruct that age structure once and freeze it
-into a curated table so the per-build workflow no longer depends on the GBD 2019
-relative-risk workbook.
+into a curated table used by the per-build workflow.
 
 Method
 ------

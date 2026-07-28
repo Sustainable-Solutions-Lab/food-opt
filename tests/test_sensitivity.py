@@ -722,11 +722,7 @@ class TestApplySensitivityFactors:
         np.testing.assert_allclose(result_ch4, original_ch4 * 1.1)
 
     def test_health_rr_config_ignored_at_build_time(self, mock_network):
-        """Test that health_relative_risk in config is ignored at build time.
-
-        Health RR sensitivity is now applied at solve time via per-risk-factor
-        quantile interpolation, not at build time.
-        """
+        """Health relative-risk sensitivity is applied at solve time."""
         n = mock_network
         original_rr = n.stores.static.loc[
             n.stores.static["carrier"].str.startswith("yll_"), "rr_ref"
@@ -737,7 +733,7 @@ class TestApplySensitivityFactors:
         }
         apply_sensitivity_factors(n, cfg)
 
-        # rr_ref should be unchanged — health RR is now handled at solve time
+        # Build-time reference curves remain unchanged.
         result_rr = n.stores.static.loc[
             n.stores.static["carrier"].str.startswith("yll_"), "rr_ref"
         ]

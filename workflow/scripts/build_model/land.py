@@ -261,10 +261,7 @@ def add_land_components(
         .astype(float)
         .rename("area_ha")
     )
-    # Work on a defensive copy: the function used to mutate the caller's
-    # DataFrame in place via `total_land_area["area_ha"] = ...`. No current
-    # caller reuses the input after this call, but the side effect is
-    # invisible from the signature and a latent footgun for future code.
+    # Work on a defensive copy so callers retain the input DataFrame.
     total_land_area = total_land_area.copy()
     total_area = total_land_area["area_ha"].astype(float)
     # FAOSTAT-baked baseline cropland sometimes exceeds the GAEZ-derived

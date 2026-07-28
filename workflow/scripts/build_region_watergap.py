@@ -43,7 +43,7 @@ ones. From them:
 - **mined groundwater** = the groundwater-storage decline. The trend reflects
   all users, so irrigation's part is attributed by its share of potential
   groundwater consumption (``pirrusegw / ptotusegw``, same basis and window);
-  a basin mined by municipal or industrial pumping then no longer zeroes
+  a basin mined by municipal or industrial pumping does not zero
   irrigation's renewable band.
 - **renewable groundwater** = ``max(pirrusegw - mined_irrigation, 0)``: the
   recharged part of irrigation groundwater consumption.
@@ -307,9 +307,8 @@ if __name__ == "__main__":
 
     # Total irrigation consumption (pirruse, annual): the demand anchor for
     # eta_c and the groundwater mining ceiling, on the same basis, simulation
-    # and reference window as the supply envelope above. Same schema as the
-    # legacy AWARE anchor (region, agri_consumption_m3) so consumers are
-    # source-agnostic.
+    # and reference window as the supply envelope above. The shared schema
+    # keeps consumers independent of the source dataset.
     agri = pd.DataFrame({"region": region_index}).assign(
         agri_consumption_m3=lambda d: d["region"].map(irr_total.sum(axis=1)).fillna(0.0)
     )

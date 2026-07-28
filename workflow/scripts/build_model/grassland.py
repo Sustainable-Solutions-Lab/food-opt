@@ -220,10 +220,8 @@ def add_grassland_feed_links(
 
     # Defensive guard: only create links whose pasture-pool bus exists. land.py
     # builds a pasture pool for every region/class with grassland (cropland or
-    # grazing-only) supply, so this should retain all rows; but with the
-    # left-join above we no longer rely on land_rainfed membership to guarantee
-    # a pool, so drop (and report) any orphan rather than leave an unbalanced
-    # bus reference.
+    # grazing-only) supply. Drop and report any orphan rather than leave an
+    # unbalanced bus reference.
     missing_pool = ~work["bus0"].isin(n.buses.static.index)
     if missing_pool.any():
         logger.warning(

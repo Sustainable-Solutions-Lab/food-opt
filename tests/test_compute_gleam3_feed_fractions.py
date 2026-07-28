@@ -227,10 +227,8 @@ def test_mixed_endogenous_exogenous_preserves_exogenous_share(
     crop_production: pd.DataFrame,
 ) -> None:
     """A bucket with both endogenous and exogenous items must emit an
-    exogenous row alongside the endogenous fractions; previously the
-    exogenous share was silently absorbed into the endogenous categories
-    (the real-world failure was GLEAM's 'Grass and leaves' bucket dropping
-    the LEAVES item)."""
+    exogenous row alongside the endogenous fractions. The exogenous share
+    must remain separate from the endogenous categories."""
     # Build a Grains bucket with two endogenous items (maize, barley) and
     # one unmapped GLEAM code that will be flagged as exogenous.
     xlsx_items = pd.DataFrame(

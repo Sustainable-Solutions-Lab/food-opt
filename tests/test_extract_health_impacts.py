@@ -4,21 +4,16 @@
 
 """Regression tests for ``workflow.scripts.analysis.extract_health_impacts``.
 
-These tests pin down three invariants that previously failed silently:
+These tests pin down three analysis invariants:
 
 1. Intake fed into the dose-response chain must come from the post-waste
-   food-group *store level*, not the pre-waste *food-bus withdrawal*. Earlier
-   versions of the analysis used ``food_group_consumption.parquet`` for
-   intake, which is the link-level withdrawal at the food bus -- i.e. the
-   retail-supply (pre-waste) mass. The LP applies the consumer waste
-   multiplier on the food_consumption link's group leg, so the store level
-   is lower. Using the wrong basis silently inflated intake by 10-30%.
+   food-group *store level*, not the pre-waste *food-bus withdrawal*.
+   ``food_group_consumption.parquet`` contains the link-level withdrawal at
+   the food bus, while the store level includes the consumer waste multiplier.
 
 2. Dose-response curves must be keyed per ``(health_cluster, risk_factor)``.
    ``risk_breakpoints.csv`` carries a ``health_cluster`` column because
-   age-weighted effective RR differs across clusters. A bug pooled curves
-   across clusters via ``pivot_table(aggfunc='first')``, silently keeping
-   one cluster's curve everywhere.
+   age-weighted effective RR differs across clusters.
 
 3. ``RR_d(log_total)`` must be evaluated via the chord PWL of exp() through
    ``cause_log_breakpoints``, matching ``_add_stage2_lp_tangent``. Using

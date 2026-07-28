@@ -391,7 +391,7 @@ Manure emissions are calculated in ``workflow/scripts/calculate_manure_emissions
 1. **Preprocessing** (``calculate_manure_emissions.py``):
 
    * Calculate VS excretion for each feed category using digestibility and ash content
-   * Average MCF across climate zones for each management system (temporary simplification)
+   * Average MCF across climate zones for each management system because model regions do not carry climate-zone detail
    * Compute weighted MCF for each animal product using GLEAM MMS distributions
    * Calculate CH₄ emissions per kg feed intake: VS × B₀ × MCF\ :sub:`weighted` × 0.67
    * Generate ``processing/{name}/manure_ch4_emission_factors.csv`` with emissions by country, product, and feed category

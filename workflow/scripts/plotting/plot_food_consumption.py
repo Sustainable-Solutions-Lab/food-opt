@@ -7,8 +7,6 @@
 from pathlib import Path
 
 import matplotlib
-
-matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -16,8 +14,7 @@ from workflow.scripts.constants import DAYS_PER_YEAR, GRAMS_PER_MEGATONNE, PJ_TO
 from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.plotting.color_utils import categorical_colors
 
-# Alias for backwards compatibility with modules that import from here
-KCAL_PER_PJ = PJ_TO_KCAL
+matplotlib.use("pdf")
 
 
 def _load_global_consumption(

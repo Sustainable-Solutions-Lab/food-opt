@@ -454,7 +454,7 @@ Each iteration is one paired solve (baseline with
 ``enforce_baseline_diet=true`` to derive consumer values, then main
 with piecewise utility active). Convergence is typically reached in
 3–5 iterations from a cold start and 1–2 from a warm start (the
-previously calibrated YAML is auto-detected and used as the seed). The
+existing calibrated YAML is auto-detected and used as the seed). The
 initial Jacobian is :math:`\mathrm{diag}(-1, -1)`, which is the exact
 log-log slope for a relationship of the form
 :math:`\text{dev} \propto 1/\ell_1`.

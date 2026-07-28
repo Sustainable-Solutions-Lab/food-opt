@@ -373,7 +373,7 @@ def main() -> None:
     max_iter = int(smk.params.max_iter)
     trust_log = float(smk.params.trust_region_log)
 
-    # Warm-start from a previously calibrated YAML when available. The path
+    # Warm-start from an existing calibrated YAML when available. The path
     # is passed as a param (not an input) to avoid a Snakemake self-loop on
     # calibrated_yaml. The script loads it iff the file exists on disk.
     prev_yaml = getattr(smk.params, "previous_yaml", None)
