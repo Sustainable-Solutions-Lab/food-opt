@@ -57,6 +57,12 @@ food_utility_piecewise:
 cost_calibration:
   enabled: false
 
+# Production is pinned to actuals here, so the deviation penalty has nothing
+# to act on. Leaving it enabled would make this step read the calibrated L1
+# costs, which the stability step produces at the end of the chain.
+deviation_penalty:
+  enabled: false
+
 # food_demand calibration depends on food_loss_waste.csv, which is built
 # from this step's output. Disable to break the cycle: food_waste's slack
 # must reflect the gap *without* the demand multiplier applied (the

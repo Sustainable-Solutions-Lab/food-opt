@@ -327,9 +327,16 @@ def calibration_artefact_inputs(cfg):
     if fd_cal_cfg["enabled"]:
         inputs["food_demand_calibration"] = fd_cal_cfg["calibration_file"]
 
+    # Mirrors the solve's own gate: the sentinel is resolved only for an
+    # enabled L1 penalty, so anything else never opens the file.
     dp_cfg = cfg["deviation_penalty"]
     dp_cal_cfg = dp_cfg["calibration"]
-    if dp_cal_cfg["enabled"] and deviation_penalty_uses_calibrated(dp_cfg):
+    if (
+        dp_cal_cfg["enabled"]
+        and dp_cfg["enabled"]
+        and dp_cfg["penalty_mode"] == "l1"
+        and deviation_penalty_uses_calibrated(dp_cfg)
+    ):
         inputs["deviation_penalty_calibration"] = dp_cal_cfg["calibrated_yaml"]
 
     return inputs

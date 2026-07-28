@@ -4,8 +4,8 @@
 # tools/calibrate; do not edit by hand.
 # Licensing: see the annotation in REUSE.toml.
 base_config: config/gsa.yaml
-generated_at: '2026-07-28T18:00:37+00:00'
-git_commit: e62c3a149e0bc4a9b103ae49c6af12b9e62a254f
+generated_at: '2026-07-28T22:30:03+00:00'
+git_commit: 53225fd85a4fa4ec491f92515226a9d09f790073
 source: gbd-anchored
 structural_config:
   aggregation.irrigated_area_source: current

@@ -17,6 +17,6 @@ l1_costs:
   cropland: 1.4406072051746193
   grassland: 0.23976429357967677
   feed: 0.06151640376563935
-iterations: 1
+iterations: 0
 converged: true
 final_residual_log_inf: 0.019950027731896344

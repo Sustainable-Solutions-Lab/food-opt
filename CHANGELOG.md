@@ -261,6 +261,16 @@ introduce breaking changes to configuration and outputs.
 
 ### Fixed
 
+- The feed, food_waste, food_demand and cost calibration steps no longer depend
+  on the calibrated deviation penalty, which the stability step produces at the
+  end of the chain. The first three pin production to actuals, so the penalty
+  had nothing to act on; the cost step drives production stability through hard
+  bounds, which never read the calibrated L1 costs. Regenerating the artefact
+  sets confirms the dependency was inert: every artefact is unchanged. The
+  calibration chain is a strict forward pass again, and
+  `tools/calibrate --check` settles after a full run instead of reporting the
+  first four steps stale.
+
 - Workflow startup no longer builds a full copy of the configuration for every
   configured scenario when deciding whether health data is needed. On configs
   with generated scenario ensembles this dominated DAG construction: for
