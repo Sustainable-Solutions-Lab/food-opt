@@ -47,6 +47,16 @@ def test_piecewise_utility_requires_enforced_baseline(default_config) -> None:
         validate_consumer_values(config)
 
 
+def test_deviation_penalty_generation_skips_baseline_check(default_config) -> None:
+    """The Broyden iteration names a scenario it synthesizes per iteration."""
+    config = deepcopy(default_config)
+    config["food_utility_piecewise"]["enabled"] = True
+    config["consumer_values"]["baseline_scenario"] = "_cal_baseline_iter00"
+    config["deviation_penalty"]["calibration"]["generate"] = True
+
+    validate_consumer_values(config)
+
+
 def test_scenario_piecewise_utility_accepts_enforced_baseline(default_config) -> None:
     config = deepcopy(default_config)
     config["scenarios"] = {

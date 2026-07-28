@@ -10,6 +10,12 @@ from workflow.scripts.solve_namespace import get_effective_config
 
 def validate_consumer_values(config: dict, _project_root=None) -> None:
     """Validate piecewise food utility against its configured baseline."""
+    if config["deviation_penalty"]["calibration"]["generate"]:
+        # The Broyden iteration synthesizes a baseline and a main scenario per
+        # iteration in-process, so the configured baseline names one of those
+        # rather than a scenario the workflow declares.
+        return
+
     scenario_defs = expand_scenario_defs(config["scenarios"])
     effective_configs = [("base config", config)]
     effective_configs.extend(
