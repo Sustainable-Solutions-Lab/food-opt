@@ -366,6 +366,9 @@ def build_scenario_entry(
         "m49": "data/curated/M49-codes.csv",
         "food_groups": "data/curated/food_groups.csv",
         "baseline_diet": rp("<processing>/{name}/baseline_diet.csv"),
+        "solve_scripts": sorted(
+            str(path) for path in Path("workflow/scripts/solve_model").glob("*.py")
+        ),
     }
 
     # Health processing inputs only when this scenario enables health (mirrors
@@ -424,6 +427,9 @@ def build_scenario_entry(
 
     if inline_analysis:
         inputs["population"] = rp("<processing>/{name}/population.csv")
+        inputs["analysis_scripts"] = sorted(
+            str(path) for path in Path("workflow/scripts/analysis").glob("extract_*.py")
+        )
 
     params: dict = {
         "health_enabled": eff["health"]["enabled"],

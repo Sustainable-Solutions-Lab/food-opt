@@ -65,15 +65,6 @@ def build_model_fiber_baseline_input(wildcards):
     return {}
 
 
-def build_model_grassland_calibration_input(wildcards):
-    """Grassland forage calibration is now applied at solve time.
-
-    This stub remains to avoid breaking unpack() calls in build_model inputs
-    while the transition settles.
-    """
-    return {}
-
-
 def build_model_fodder_yield_correction_input(wildcards):
     """Conditionally include fodder yield correction CSV."""
     if config["fodder_decomposition"]["yield_corrections"]["enabled"]:
@@ -138,7 +129,6 @@ rule build_model:
         unpack(yield_inputs),
         unpack(residue_yield_inputs),
         unpack(harvested_area_model_inputs),
-        unpack(build_model_grassland_calibration_input),
         unpack(build_model_fodder_yield_correction_input),
         unpack(build_model_yield_calibration_input),
         unpack(build_model_cost_calibration_input),
@@ -182,22 +172,8 @@ rule build_model:
         faostat_pasture_area="<processing>/{name}/faostat_pasture_area.csv",
         current_grassland_area="<processing>/{name}/luc/current_grassland_area_by_class.csv",
         grazing_only_land="<processing>/{name}/land_grazing_only_by_class.csv",
-        build_scripts=expand(
-            "workflow/scripts/build_model/{script}",
-            script=[
-                "animals.py",
-                "biomass.py",
-                "health.py",
-                "crops.py",
-                "food.py",
-                "grassland.py",
-                "infrastructure.py",
-                "land.py",
-                "nutrition.py",
-                "primary_resources.py",
-                "trade.py",
-                "utils.py",
-            ],
+        build_scripts=sorted(
+            str(path) for path in Path("workflow/scripts/build_model").glob("*.py")
         ),
         constants_script="workflow/scripts/constants.py",
     params:
@@ -250,6 +226,9 @@ def solve_model_inputs(w):
         "m49": "data/curated/M49-codes.csv",
         "food_groups": "data/curated/food_groups.csv",
         "baseline_diet": f"<processing>/{w.name}/baseline_diet.csv",
+        "solve_scripts": sorted(
+            str(path) for path in Path("workflow/scripts/solve_model").glob("*.py")
+        ),
     }
 
     eff_cfg = get_effective_config(w.scenario)

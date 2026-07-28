@@ -227,10 +227,6 @@ def add_biofuel_links(
 
     bus_index = n.buses.static.index
 
-    # Ensure bus_type column exists (default "food" for backward compatibility)
-    if "bus_type" not in biofuel_baseline.columns:
-        biofuel_baseline = biofuel_baseline.assign(bus_type="food")
-
     # Aggregate baseline demand by (source_item, crop, country, bus_type).
     # Link names below carry only (source_item, country), so the groupby
     # must produce a unique row per such pair; otherwise n.links.add

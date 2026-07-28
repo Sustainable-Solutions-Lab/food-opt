@@ -23,17 +23,8 @@ rule prepare_faostat_emissions:
         "../scripts/prepare_faostat_emissions.py"
 
 
-_ANALYSIS_SCRIPTS = expand(
-    "workflow/scripts/analysis/{script}",
-    script=[
-        "extract_statistics.py",
-        "extract_net_emissions.py",
-        "extract_objective_breakdown.py",
-        "extract_ghg_attribution.py",
-        "extract_health_impacts.py",
-        "extract_baseline_deviation.py",
-        "extract_food_prices.py",
-    ],
+_ANALYSIS_SCRIPTS = sorted(
+    str(path) for path in Path("workflow/scripts/analysis").glob("extract_*.py")
 )
 
 from workflow.scripts.solve_namespace import ANALYSIS_OUTPUT_NAMES
