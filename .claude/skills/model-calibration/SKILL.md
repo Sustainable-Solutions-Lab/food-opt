@@ -79,6 +79,7 @@ tools/calibrate food_demand
 tools/calibrate cost
 tools/calibrate stability
 tools/calibrate --check      # per-step staleness + provenance probe (no execution)
+tools/calibrate --record     # re-stamp the set as it stands (no execution)
 tools/calibrate --base config/<name>.yaml [all|<step>|--check]
                              # calibrate a dedicated set for another config
 ```
@@ -109,22 +110,23 @@ see [local_machine_smk_defaults.md](../../memory/local_machine_smk_defaults.md).
 tools/calibrate --check
 ```
 
-This runs a Snakemake dry-run per step and reports `[up-to-date]` or
-`[STALE]`. `tools/smk` also prints a one-line mtime-based reminder on
-every invocation, but treat that as advisory -- `git pull` touches
-mtimes and produces false positives.
+Takes ~20 s for the `default` set, ~30 s for `gbd-anchored`. It compares
+content hashes recorded in `data/curated/calibration/<source>/fingerprint.yaml`
+against the step's external DAG leaves (curated/bundled/manually-downloaded
+data, rule files, scripts), its config (YAML round-tripped, so comments don't
+count), and the artefacts the step wrote. Everything inside the artefact set is
+excluded, so the answer is stable: a completed chain reports all-green, and
+mtime churn from `git checkout` or `touch` is invisible.
 
-`--check` is more informative but is still mtime-based, and the steps
-write into a directory they all read from, so it oscillates: re-running
-any step rewrites its artefacts (often byte-for-byte identical) and the
-later steps immediately report `[STALE]`. A freshly completed full chain
-frequently still shows one or more steps stale. Treat `[STALE]` as "worth
-investigating", not "the set is wrong". The decisive test is to re-run
-the step and diff its artefacts -- if they come back identical, the flag
-was bookkeeping. Don't chase `--check` to all-green by re-running steps
-in a loop; it does not converge.
+`tools/smk` also prints a one-line mtime-based reminder on every invocation.
+That one *is* advisory and does produce false positives after `git pull`;
+silence it with `SMK_SKIP_CALIBRATION_HINT=1`.
 
-Silence the mtime hint in scripted contexts with `SMK_SKIP_CALIBRATION_HINT=1`.
+Editing any rule file or script in a step's DAG marks it stale, including
+inert changes (refactors, comments, unrelated rules). When you have
+established the artefacts are unaffected, `tools/calibrate --record`
+re-stamps the set without solving. It asserts the artefacts are current, so
+don't reach for it to make a genuine `[STALE]` go away.
 
 ### Triggers for a full re-run (start from `feed`)
 
@@ -203,7 +205,7 @@ sequential (each Broyden iteration depends on the previous solve).
 
 ## Output landing zones
 
-- `data/curated/calibration/<source>/*` -- one artefact set per base config, plus its `provenance.yaml` stamp; the `default` and `gbd-anchored` sets are **git-tracked**. Commit a set together as a refresh; mixed-vintage artefacts are the most common cause of confusing downstream solves.
+- `data/curated/calibration/<source>/*` -- one artefact set per base config, plus its `provenance.yaml` stamp and `fingerprint.yaml` input hashes; the `default` and `gbd-anchored` sets are **git-tracked**. Commit a set together as a refresh; mixed-vintage artefacts are the most common cause of confusing downstream solves.
 - `processing/calibration-<source>-<step>/*` -- one upstream prep tree per step (~250 MB each), NOT committed.
 - `results/calibration-<source>-<step>/*` -- per-iteration solve logs, NOT committed.
 - `results/calibration-<source>-stability/calibration/deviation_penalty_trace.csv` -- per-iter Broyden trace (per-component lambda, achieved deviations, residual norm). Inspect when stability behaves oddly.
@@ -212,7 +214,7 @@ sequential (each Broyden iteration depends on the previous solve).
 
 - A config selects its set with `calibration.source` (default: `default`); all artefact paths resolve through the `{calibration_source}` placeholder at config-load time.
 - Structurally divergent configs must either calibrate their own set (`calibration.source: <name>` + `tools/calibrate --base config/<name>.yaml`), point at a compatible set, or set `calibration.accept_provenance_mismatch: true` (test/tutorial-grade escape hatch: warning instead of error).
-- The provenance check covers config drift only; code/data staleness remains `tools/calibrate --check`'s job. Both run from `tools/calibrate --check`.
+- The provenance check covers structural config drift only; input and code staleness is the fingerprint's job. Both run from `tools/calibrate --check`.
 - The stamp compares all non-solve-time leaves minus exempt machinery keys (see `PROVENANCE_EXEMPT_PREFIXES` in `workflow/validation/calibration_provenance.py`). Solve-time knobs (GHG price, value_per_yll, deviation_penalty, scenario overrides) never trip it.
 - `tests/test_calibration_provenance.py::TestDefaultStampConsistency` fails when `config/default.yaml` changes structurally without a recalibration/restamp -- that is the intended forcing function.
 
@@ -291,9 +293,9 @@ historical centre once the chain absorbs its gaps cleanly.
 - **Each step must disable the calibrations of every *later* step.** The
   chain is a single forward pass, not an iteration to a fixed point, so a
   step that consumes a successor's artefact is fit against whatever
-  vintage happens to be on disk -- and `tools/calibrate --check` then
-  reports that step permanently `[STALE]`, advising a re-run that
-  restarts the cycle forever. The disable blocks in the step configs form
+  vintage happens to be on disk. That artefact is then an external leaf of
+  the step's DAG, so `tools/calibrate --check` goes stale every time the
+  successor is regenerated, and the chain never settles. The disable blocks in the step configs form
   a lower triangle (feed disables the other four, food_waste the last
   three, and so on); preserve it when adding a calibration.
 

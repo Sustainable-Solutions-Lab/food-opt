@@ -86,6 +86,15 @@ introduce breaking changes to configuration and outputs.
 
 ### Changed
 
+- `tools/calibrate --check` now answers by content instead of by file
+  timestamp. Each artefact set carries a `fingerprint.yaml` hashing the step's
+  external inputs (curated, bundled and manually downloaded data, the rule
+  files and scripts its DAG runs, and its config), so `git checkout`, `touch`
+  and comment-only config edits no longer report anything, and re-running one
+  step no longer marks its successors stale. New `tools/calibrate --record`
+  re-stamps a set without solving, for when a code change provably cannot move
+  the artefacts.
+
 - `planning_horizon` now defaults to 2020, matching `baseline_year`, so an
   unmodified run solves the observed year the calibration artefacts are fit
   against. Configs that previously relied on the 2030 default (including
@@ -242,6 +251,17 @@ introduce breaking changes to configuration and outputs.
   and `mlp`.
 
 ### Fixed
+
+- Workflow startup no longer builds a full copy of the configuration for every
+  configured scenario when deciding whether health data is needed. On configs
+  with generated scenario ensembles this dominated DAG construction: for
+  `gsa.yaml` (16384 samples) Snakefile parsing drops from ~35 s to ~4 s, and
+  every Snakemake invocation against such a config benefits.
+
+- Solve-time calibration artefacts (feed corrections, exogenous feed and
+  forage, food-demand multipliers, the calibrated deviation penalty) are now
+  declared as inputs of `solve_model` and `calibrate_deviation_penalty`, so
+  Snakemake reruns solves when they change.
 
 - The feed calibration step no longer consumes the food-waste calibration
   artefact, which is produced by a later step in the chain. Feed was

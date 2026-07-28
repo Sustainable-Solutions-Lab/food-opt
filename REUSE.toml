@@ -36,6 +36,14 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Koen van Greevenbroek"
 SPDX-License-Identifier = "CC-BY-4.0"
 
+# Machine-generated calibration input fingerprints (written by
+# workflow/scripts/calibration_fingerprint.py via tools/calibrate).
+[[annotations]]
+path = "data/curated/calibration/**/fingerprint.yaml"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Koen van Greevenbroek"
+SPDX-License-Identifier = "CC-BY-4.0"
+
 # Root LICENSE copy so GitHub detects the project license (it only scans the
 # repository root, not LICENSES/). The canonical text lives in LICENSES/.
 [[annotations]]

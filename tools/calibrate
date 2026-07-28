@@ -28,6 +28,7 @@
 #   tools/calibrate cost
 #   tools/calibrate stability
 #   tools/calibrate --check        # report which calibrations are stale (no execution)
+#   tools/calibrate --record       # fingerprint the set as it stands (no execution)
 #   tools/calibrate --base config/<name>.yaml [all|<step>|--check]
 #                                  # calibrate against a different base config;
 #                                  # the base must declare its own calibration.source
@@ -46,6 +47,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
 PROVENANCE_SCRIPT=workflow/scripts/write_calibration_provenance.py
+FINGERPRINT_SCRIPT=workflow/scripts/calibration_fingerprint.py
 
 # Extract a global --base <config> option (anywhere in argv).
 BASE_CONFIG=""
@@ -169,6 +171,18 @@ inject_env() {
   PASSTHROUGH_ARR=(-e "$DEFAULT_PIXI_ENV" "${PASSTHROUGH_ARR[@]}")
 }
 
+# True when the caller passed a dry-run flag; nothing on disk may be written
+# then, neither fingerprint nor provenance stamp.
+is_dry_run() {
+  local arg
+  for arg in "${PASSTHROUGH_ARR[@]}"; do
+    case "$arg" in
+      -n|--dry-run|--dryrun) return 0 ;;
+    esac
+  done
+  return 1
+}
+
 run_step() {
   local label="$1" configfile="$2"
   shift 2
@@ -180,6 +194,39 @@ run_step() {
   local name_override=(--config "name=calibration-${SOURCE}-${label}")
   echo "[calibrate] $label -- tools/smk --configfile ${cfgfiles[*]} ${name_override[*]} ${PASSTHROUGH_ARR[*]} -- ${TARGETS_ARR[*]}"
   tools/smk --configfile "${cfgfiles[@]}" "${name_override[@]}" "${PASSTHROUGH_ARR[@]}" -- "${TARGETS_ARR[@]}"
+  is_dry_run || record_fingerprint "$label" "$configfile" "${cfgfiles[@]}"
+}
+
+# Record what this step was built against, so --check can compare by content.
+record_fingerprint() {
+  fingerprint_cmd record "$@"
+}
+
+# Build the argv shared by `record` and `check`: the same configs and targets
+# the step itself runs with, so the DAG matches exactly.
+fingerprint_cmd() {
+  local mode="$1" label="$2" configfile="$3"
+  shift 3
+  local args=(--step "$label" --cal-dir "$CAL_DIR"
+              --name "calibration-${SOURCE}-${label}" --hash-config "$configfile")
+  local f tgt
+  for f in "$@"; do args+=(--configfile "$f"); done
+  for tgt in "${TARGETS_ARR[@]}"; do args+=(--target "$tgt"); done
+  pixi run python "$FINGERPRINT_SCRIPT" "$mode" "${args[@]}"
+}
+
+# Fingerprint the set as it stands on disk, without solving. This asserts the
+# artefacts are current, so only run it when you know they are.
+record_step() {
+  local label="$1" configfile="$2"
+  shift 2
+  split_args "$@"
+  inject_env
+  local cfgfiles=()
+  [[ -n "$BASE_CONFIG" ]] && cfgfiles+=("$BASE_CONFIG")
+  cfgfiles+=("$configfile" "$ANCHOR_OVERLAY")
+  record_fingerprint "$label" "$configfile" "${cfgfiles[@]}"
+  printf '  [recorded]   %s\n' "$label"
 }
 
 check_step() {
@@ -190,23 +237,12 @@ check_step() {
   local cfgfiles=()
   [[ -n "$BASE_CONFIG" ]] && cfgfiles+=("$BASE_CONFIG")
   cfgfiles+=("$configfile" "$ANCHOR_OVERLAY")
-  local name_override=(--config "name=calibration-${SOURCE}-${label}")
-  local out
-  if ! out=$(tools/smk --configfile "${cfgfiles[@]}" "${name_override[@]}" "${PASSTHROUGH_ARR[@]}" --dry-run --quiet -- "${TARGETS_ARR[@]}" 2>&1); then
-    printf '  [error]      %-10s (dry-run failed; see output below)\n' "$label"
-    printf '%s\n' "$out" | sed 's/^/    /'
-    return 2
-  fi
-  # Snakemake prints "Nothing to be done" when everything is up-to-date.
-  if echo "$out" | grep -q "Nothing to be done"; then
-    printf '  [up-to-date] %-10s\n' "$label"
-  else
-    printf '  [STALE]      %-10s (run: tools/calibrate %s)\n' "$label" "$label"
-  fi
+  fingerprint_cmd check "$label" "$configfile" "${cfgfiles[@]}"
 }
 
 # Stamp the artefact set with the structural config it was fit against.
 stamp_provenance() {
+  is_dry_run && return 0
   pixi run python "$PROVENANCE_SCRIPT" "${BASE_ARGS[@]}"
 }
 
@@ -240,6 +276,7 @@ shift || true
 if [[ "$SOURCE" != "default" ]]; then
   case "$cmd" in
     all|feed|food_waste|food_demand|cost|stability) seed_source_set ;;
+    --record|record) ;;
     --check|check)
       for f in "${ARTEFACT_FILES[@]}"; do
         if [[ ! -f "$CAL_DIR/$f" ]]; then
@@ -256,6 +293,14 @@ case "$cmd" in
   -h|--help|help)
     sed -n '7,40p' "$0"
     exit 0
+    ;;
+  --record|record)
+    echo "[calibrate] Recording fingerprints for the set as it stands on disk ..."
+    record_step feed        config/calibration/feed.yaml        "${FEED_TARGETS[@]}"        -- "$@"
+    record_step food_waste  config/calibration/food_waste.yaml  "${FOOD_WASTE_TARGETS[@]}"  -- "$@"
+    record_step food_demand config/calibration/food_demand.yaml "${FOOD_DEMAND_TARGETS[@]}" -- "$@"
+    record_step cost        config/calibration/cost.yaml        "${COST_TARGETS[@]}"        -- "$@"
+    record_step stability   config/calibration/stability.yaml   "${STABILITY_TARGETS[@]}"   -- "$@"
     ;;
   --check|check)
     echo "[calibrate] Checking staleness (no execution) ..."
@@ -298,7 +343,7 @@ case "$cmd" in
     ;;
   *)
     echo "[calibrate] Unknown subcommand: $cmd" >&2
-    echo "Usage: tools/calibrate [--base <config>] [all|feed|food_waste|food_demand|cost|stability|--check]" >&2
+    echo "Usage: tools/calibrate [--base <config>] [all|feed|food_waste|food_demand|cost|stability|--check|--record]" >&2
     exit 2
     ;;
 esac

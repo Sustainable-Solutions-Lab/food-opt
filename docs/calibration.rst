@@ -143,6 +143,7 @@ Everything is wrapped by ``tools/calibrate``:
    tools/calibrate cost
    tools/calibrate stability
    tools/calibrate --check      # per-step staleness + provenance, no execution
+   tools/calibrate --record     # re-stamp the set as it stands, no execution
    tools/calibrate --base config/<name>.yaml [all|<step>|--check]
                                 # calibrate a dedicated set for another config
 
@@ -199,8 +200,8 @@ A config with different structural assumptions has three options:
 
 Solve-time keys (GHG price, health valuation, the deviation-penalty
 block, scenario overrides, ...) never invalidate a set; the check fires
-only on structural changes. Code changes are not captured by the stamp:
-``tools/calibrate --check`` (Snakemake staleness) covers those.
+only on structural changes. Input and code changes are not captured by the
+stamp: ``tools/calibrate --check`` covers those.
 
 Consuming the calibrated values
 -------------------------------
@@ -506,8 +507,36 @@ answer run
 
    tools/calibrate --check
 
-which performs a Snakemake dry-run against each calibration target and
-reports ``[up-to-date]`` / ``[STALE]`` per step.
-
+which reports ``[up-to-date]`` / ``[STALE]`` per step, listing what moved.
 Set ``SMK_SKIP_CALIBRATION_HINT=1`` to silence the reminder in scripted
 contexts.
+
+A step is stale when re-running it would change its artefacts, which depends
+only on inputs from *outside* the artefact set. ``tools/calibrate`` therefore
+writes a ``fingerprint.yaml`` next to the artefacts, recording SHA-256 digests
+of
+
+* every external leaf of the step's Snakemake DAG (curated and bundled data,
+  manually downloaded sources, the ``build_model`` package),
+* the rule files and scripts the DAG runs,
+* the step config, hashed after a YAML round-trip so comment and formatting
+  edits do not register,
+* the artefacts the step wrote, so one edited or checked out behind the
+  chain's back is reported rather than silently trusted.
+
+The DAG is rebuilt on each check, so a dependency that a rule or code change
+adds or drops is picked up straight away. Because the fingerprint ignores the
+artefact set's own contents, re-running one step never marks its successors
+stale, and mtime changes alone (a ``git checkout``, a ``touch``) never do
+either.
+
+Editing any rule file or script in a step's DAG marks it stale, including
+changes that cannot affect the result. When you know a code change is inert,
+re-stamp the set without solving:
+
+.. code-block:: bash
+
+   tools/calibrate --record
+
+This asserts that the artefacts on disk are current, so only use it when they
+demonstrably are.

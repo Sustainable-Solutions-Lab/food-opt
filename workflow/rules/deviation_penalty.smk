@@ -20,7 +20,15 @@ if _dp_cal_cfg["generate"]:
         input:
             # Health inputs only when health is enabled (the solve prices health
             # only then); omitted otherwise so no IHME GBD data is required.
-            unpack(lambda w: health_input_paths(name) if health_required() else {}),
+            # The Broyden iteration solves in-process rather than through
+            # solve_model, so the artefacts those solves read are declared here
+            # as well.
+            unpack(
+                lambda w: {
+                    **(health_input_paths(name) if health_required() else {}),
+                    **calibration_artefact_inputs(config),
+                }
+            ),
             model=f"<results>/{name}/build/model.nc",
             baseline_diet=f"<processing>/{name}/baseline_diet.csv",
             m49="data/curated/M49-codes.csv",
