@@ -17,8 +17,6 @@ name: "water_validation_2020"
 scenarios:
   default: {}
 
-planning_horizon: 2020
-
 validation:
   use_actual_yields: true
   use_actual_production: true
@@ -52,18 +50,15 @@ solving:
   solver: "gurobi"
   threads: 2
 
-# The water paper uses the FBS-derived baseline diet and its own calibration
-# artefact set (fit against the FBS diet; regenerate with
-# `tools/calibrate --base <this config>` after structural changes).
-diet:
-  source: fbs
-
 food_demand_calibration:
   demand_headroom: 0.05
 
+# The water studies use their own calibration artefact set, fit against the
+# water-study structure (regenerate with `tools/calibrate --base <this config>`
+# after structural changes).
 calibration:
-  source: fbs-water
-  # The fbs-water set is fit at the study resolution (T=4); this monthly
+  source: water
+  # The water set is fit at the study resolution (T=4); this monthly
   # diagnostic differs from the stamp only in water.temporal_resolution.
   # It probes seasonal water fidelity, not calibrated cost or L1 levels.
   accept_provenance_mismatch: true

@@ -69,8 +69,11 @@ health:
 water_scarcity:
   nonrenewable_cf: 100
 
+# The water studies use their own calibration artefact set, fit against the
+# water-study structure (regenerate with `tools/calibrate --base <this config>`
+# after structural changes).
 calibration:
-  source: fbs-water
+  source: water
 
 scenarios:
   # Consumer-value calibration anchor (fixed diet, no piecewise, no prices).
@@ -293,12 +296,6 @@ water:
   temporal_resolution: 4
   supply:
     scarcity_tiers: true
-
-# The water paper uses the FBS-derived baseline diet and its own calibration
-# artefact set (fit against the FBS diet; regenerate with
-# `tools/calibrate --base <this config>` after structural changes).
-diet:
-  source: fbs
 
 food_demand_calibration:
   demand_headroom: 0.05
