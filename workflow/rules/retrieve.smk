@@ -832,7 +832,8 @@ MIRCA_OS_BASE_CROPS = [row["mirca_crop"].strip() for row in _mirca_mapping_rows]
 # GLADE-mapped base crop from the concordance plus the calendar-only
 # supplement, expanded into MIRCA-OS's subcrop naming (Rice1/2/3, Wheat1/2,
 # else the base label). Shared with water.smk's calendar input function so the
-# extraction rule below provably produces what build_mirca_crop_calendar needs.
+# extraction rule below provably produces what the sparse calendar preparation
+# needs.
 MIRCA_SUBCROP_CYCLES = {"Rice": 3, "Wheat": 2}
 with open("data/curated/mirca_os_calendar_supplement.csv") as _mirca_supplement_file:
     _mirca_calendar_bases = [
@@ -953,8 +954,8 @@ rule extract_mirca_os_subcrop_monthly:
 
     The subcrop-resolved monthly product preserves subcrop identity
     (Rice1/2/3, Wheat1/2, ...). The irrigated grids of every calendar crop
-    feed build_mirca_crop_calendar; Rice2/3 (both systems) additionally feed
-    the multi-cropping derivation's repeated-cycle detection.
+    feed the sparse calendar preparation; Rice2/3 (both systems) additionally
+    feed the multi-cropping derivation's repeated-cycle detection.
     """
     input:
         rar="data/downloads/mirca_os/Monthly_Growing_Area_Grids.rar",

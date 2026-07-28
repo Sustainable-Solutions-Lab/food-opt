@@ -127,8 +127,14 @@ Data Preparation Rules
   * **Script**: ``workflow/scripts/process_huang_irrigation_water.py``
   * **Purpose**: Present-day withdrawal alternative, selected by ``water.data.availability``
 
+**prepare_mirca_os_calendar**
+  * **Input**: MIRCA-OS 2015 monthly irrigated growing-area NetCDF grids
+  * **Output**: ``processing/shared/mirca_os/calendar_2015_ir.npz``
+  * **Script**: ``workflow/scripts/prepare_mirca_os_calendar.py``
+  * **Purpose**: Pack the sparse nonzero cells once for reuse by every configuration
+
 **build_mirca_crop_calendar**
-  * **Input**: MIRCA-OS 2015 monthly irrigated growing-area grids, crop concordance and calendar supplement, WaterGAP monthly demand, crop yields, regions
+  * **Input**: Shared packed MIRCA-OS calendar, crop concordance and calendar supplement, WaterGAP monthly demand, crop yields, regions
   * **Output**: ``processing/{name}/water/mirca_crop_calendar.csv``
   * **Script**: ``workflow/scripts/build_mirca_crop_calendar.py``
   * **Purpose**: Observed per-(region, crop) monthly irrigation demand shares, retimed by iterative proportional fitting so region-month totals follow WaterGAP while each crop's annual total and observed season are preserved

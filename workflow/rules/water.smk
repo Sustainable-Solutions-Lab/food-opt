@@ -173,8 +173,8 @@ def mirca_calendar_grids(w):
 
     One entry per subcrop label in ``MIRCA_OS_CALENDAR_SUBCROPS`` (the
     concordance plus the calendar-only supplement, expanded to MIRCA's subcrop
-    naming in retrieve.smk), keyed ``nc_{subcrop}`` for
-    ``build_mirca_crop_calendar``.
+    naming in retrieve.smk), keyed ``nc_{subcrop}`` for the shared sparse
+    calendar preparation.
     """
     return {
         f"nc_{label}": (
@@ -182,6 +182,23 @@ def mirca_calendar_grids(w):
         )
         for label in MIRCA_OS_CALENDAR_SUBCROPS
     }
+
+
+rule prepare_mirca_os_calendar:
+    """Pack the sparse monthly MIRCA grids once for reuse by every config."""
+    input:
+        unpack(mirca_calendar_grids),
+    output:
+        "<processing>/shared/mirca_os/calendar_2015_ir.npz",
+    resources:
+        runtime="2m",
+        mem_mb=1500,
+    log:
+        "<logs>/shared/prepare_mirca_os_calendar.log",
+    benchmark:
+        "<benchmarks>/shared/prepare_mirca_os_calendar.tsv"
+    script:
+        "../scripts/prepare_mirca_os_calendar.py"
 
 
 # Observed irrigated crop calendar: per (region, crop) monthly water-demand
@@ -195,7 +212,7 @@ def mirca_calendar_grids(w):
 # calendar with uniform within-season weighting.
 rule build_mirca_crop_calendar:
     input:
-        unpack(mirca_calendar_grids),
+        calendar="<processing>/shared/mirca_os/calendar_2015_ir.npz",
         mapping="data/curated/mirca_os_crop_mapping.csv",
         supplement="data/curated/mirca_os_calendar_supplement.csv",
         demand="<processing>/{name}/water/watergap/region_watergap_demand.csv",
@@ -206,8 +223,8 @@ rule build_mirca_crop_calendar:
     group:
         "prep"
     resources:
-        runtime="10m",
-        mem_mb=3000,
+        runtime="2m",
+        mem_mb=700,
     log:
         "<logs>/{name}/build_mirca_crop_calendar.log",
     benchmark:

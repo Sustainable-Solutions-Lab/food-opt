@@ -233,7 +233,7 @@ WaterGAP 2.2e
 MIRCA-OS v2
 ~~~~~~~~~~~
 
-**Provider**: Kebede, Nagpal, Krueger, Grafton, Siebert & others (2025)
+**Provider**: Kebede, Oluoch, Siebert & others (2025)
 
 **Description**: Global gridded monthly irrigated and rainfed cropped-area dataset (an open-source update of MIRCA2000), 5-arcmin, for 23 crop classes and the years 2000-2020. The model selects the release nearest ``baseline_year`` from 2010, 2015, and 2020 (ties select the earlier year). Its annual harvested-area grids count every harvested cycle, while the maximum-monthly-cropped-area grids provide the AEI-capped physical field footprint. The ``Rice1/2/3`` subcrop grids identify repeated same-crop cycles.
 
@@ -247,11 +247,17 @@ MIRCA-OS v2
 
 **License**: Creative Commons Attribution 4.0 International (CC BY 4.0)
 
-**Citation**: Kebede, T. A., et al. (2025). *A global open-source dataset of monthly irrigated and rainfed cropped areas (MIRCA-OS) for the 21st century*. Scientific Data 12, 208. https://doi.org/10.1038/s41597-025-04313-4
+**Citation**: Kebede, E. A., et al. (2025). *A global open-source dataset of monthly irrigated and rainfed cropped areas (MIRCA-OS) for the 21st century*. Scientific Data 12, 208. https://doi.org/10.1038/s41597-024-04313-w
 
 **Retrieval**: The per-file HydroShare endpoint 500s for this resource, so the grid archives are fetched as members of the whole-resource BagIt zip via partial HTTP-range extraction (``download_mirca_os_bag_member.py``); the nested RAR5 archives are unpacked in one batch per product and year with ``bsdtar`` (``extract_mirca_os_*`` rules). The v2 archive ships only ``ir`` and ``rf`` footprint layers despite its README mentioning a ``tot`` layer. The derivation uses each layer with the matching water supply.
 
-**Usage**: Source of the observed multiple-cropping baseline (see :doc:`crop_production`), derived by the config-specific ``derive_mirca_multicropping`` rule. The MIRCA-OS-to-GLADE crop concordance is in ``data/curated/mirca_os_crop_mapping.csv``; the fixed candidate sequence catalog is in ``data/curated/mirca_os_multicropping_combinations.yaml``.
+**Usage**: Source of the observed multiple-cropping baseline (see
+:doc:`crop_production`) and observed irrigated demand calendar (see
+:doc:`water`). The monthly calendar grids are converted to an untracked shared
+sparse artefact under ``processing/shared/mirca_os/``; the original downloaded
+files remain unchanged. The MIRCA-OS-to-GLADE crop concordance is in
+``data/curated/mirca_os_crop_mapping.csv``; the fixed candidate sequence catalog
+is in ``data/curated/mirca_os_multicropping_combinations.yaml``.
 
 FAOSTAT Prices (PP)
 ~~~~~~~~~~~~~~~~~~~~

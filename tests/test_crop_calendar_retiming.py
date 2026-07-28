@@ -10,10 +10,63 @@ monthly irrigation requirement (build_mirca_crop_calendar).
 import numpy as np
 import pandas as pd
 import pytest
+import xarray as xr
 
-from workflow.scripts.build_mirca_crop_calendar import retime_shares_to_demand
+from workflow.scripts.build_mirca_crop_calendar import (
+    aggregate_packed_crop_by_region,
+    retime_shares_to_demand,
+)
+from workflow.scripts.prepare_mirca_os_calendar import prepare_calendar
 
 MONTHS = list(range(1, 13))
+
+
+def test_sparse_calendar_preserves_subcrop_sum_and_replaces_nan(monkeypatch, tmp_path):
+    arrays = [
+        np.zeros((12, 2, 2), dtype=np.float32),
+        np.zeros((12, 2, 2), dtype=np.float32),
+    ]
+    arrays[0][0] = [[1.0, np.nan], [3.0, 4.0]]
+    arrays[1][0] = [[0.5, 2.0], [np.nan, 1.0]]
+    datasets = [
+        xr.Dataset(
+            {"harvested_area": (("month", "latitude", "longitude"), values)},
+            coords={
+                "month": np.arange(1, 13),
+                "latitude": [0.5, -0.5],
+                "longitude": [0.5, 1.5],
+            },
+        )
+        for values in arrays
+    ]
+    for dataset in datasets:
+        dataset["spatial_ref"] = 0
+        dataset["spatial_ref"].attrs["crs_wkt"] = "EPSG:4326"
+    monkeypatch.setattr(
+        xr,
+        "open_dataset",
+        lambda path: datasets[int(str(path).removeprefix("crop").removesuffix(".nc"))],
+    )
+
+    packed_path = tmp_path / "calendar.npz"
+    prepare_calendar(
+        {"Crop1": "crop0.nc", "Crop2": "crop1.nc"},
+        packed_path,
+    )
+    with np.load(packed_path, allow_pickle=False) as packed:
+        actual = aggregate_packed_crop_by_region(
+            packed,
+            [0, 1],
+            np.empty((2, 2), dtype=np.float64),
+            np.array(["r1"]),
+            np.array([0, 0, 0, 0]),
+            np.array([0, 1, 2, 3]),
+            np.ones(4),
+            np.empty(4),
+        )
+
+    assert actual.loc[0, "b0_sum"] == 11.5
+    assert (actual.loc[0, [f"b{i}_sum" for i in range(1, 12)]] == 0.0).all()
 
 
 def _shares(region, crop, profile):

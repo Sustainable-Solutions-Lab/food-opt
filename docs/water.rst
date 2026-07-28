@@ -281,6 +281,9 @@ irrigated growing-area grids to per-(region, crop) monthly demand shares. A
 calendar-only supplement mapping (``mirca_os_calendar_supplement.csv``) adds the
 MIRCA classes excluded from the multi-cropping concordance (sugar cane, pulses,
 fodder) so those large irrigators are also placed by observed timing.
+The source NetCDF grids are packed once into a shared sparse artefact before
+aggregation; their values and subcrop ordering are retained exactly, while
+every configuration avoids decoding the same dense global grids again.
 
 Growing-*area* months are still not requirement months: within a season the net
 irrigation requirement follows evapotranspiration minus effective precipitation

@@ -86,6 +86,11 @@ introduce breaking changes to configuration and outputs.
 
 ### Changed
 
+- MIRCA-OS monthly calendar grids are now packed into one shared sparse
+  preprocessing artefact and reuse exact region-cell coverage across crops.
+  Repeated configuration builds avoid decoding the same dense global NetCDF
+  grids, substantially reducing calendar build time and peak memory without
+  changing its output.
 - Spatial preprocessing and model construction now reuse region/class cell
   mappings, bound raster cache memory, and vectorize repeated aggregation and
   crop-link operations. This substantially reduces the time and peak memory

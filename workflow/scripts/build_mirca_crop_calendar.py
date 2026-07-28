@@ -40,8 +40,9 @@ shift within its rabi window but never into the monsoon.
 
 Sub-crops of the same class (``Wheat1`` + ``Wheat2``, ``Rice1..3``) are
 summed: all cycles of a crop feed the same regional water buses, so only the
-summed monthly profile matters. The summed grids are aggregated to model
-regions (coverage-weighted, exact_extract) and normalised into monthly
+summed monthly profile matters. The source grids are packed once into a shared
+sparse artefact. Exact region/cell coverage is computed once per configuration
+and reused across crops, then the regional totals are normalised into monthly
 shares. Only irrigated grids are used -- rainfed links carry no water.
 A calendar-only supplement mapping adds MIRCA classes excluded from the
 multi-cropping concordance (sugar cane, pulses, fodder) so that the large
@@ -64,21 +65,18 @@ from pathlib import Path
 
 from exactextract import exact_extract
 from exactextract.raster import NumPyRasterSource
-import geopandas as gpd
 import numpy as np
+from osgeo import ogr
 import pandas as pd
-import xarray as xr
+
+ogr.UseExceptions()
 
 logger = logging.getLogger(__name__)
 
 OUTPUT_COLUMNS = ["region", "crop", "month", "share", "area_ha"]
 
-# exactextract's NumPyRasterSource retains, at the C++ level, the numpy array it
-# is handed, and that memory is never reclaimed even after the source is GC'd.
-# Because this module wraps a fresh full-grid stack for every MIRCA crop, that
-# leak would accumulate to many GB. Reusing a single buffer per grid shape means
-# only one array is ever retained -- copying the transient stack into the buffer
-# lets the transient be freed normally.
+# Reuse one float64 full-grid buffer across MIRCA crops. This bounds peak memory
+# and preserves float64 accumulation for Rice1..3 and Wheat1+2.
 _EXTRACT_BUFFERS: dict[tuple[int, ...], np.ndarray] = {}
 
 
@@ -91,84 +89,71 @@ def get_extract_buffer(shape: tuple[int, ...]) -> np.ndarray:
     return buffer
 
 
-def aggregate_raster_stack_by_region(
-    stack: np.ndarray,
-    regions_gdf: gpd.GeoDataFrame,
+def region_coverage_entries(
+    grid: np.ndarray,
+    regions: str | Path,
     xmin: float,
     ymin: float,
     xmax: float,
     ymax: float,
-    crs_wkt: str | None,
-    stat: str = "sum",
-) -> pd.DataFrame:
-    """Aggregate a (band, H, W) raster stack by regions in one exact_extract call.
-
-    All bands share one grid, so exact_extract computes each region's cell
-    coverage fractions once and reuses them across bands -- roughly a
-    band-count speedup over per-band calls. The stack is copied into a reused
-    per-shape buffer (see ``_EXTRACT_BUFFERS``).
-
-    Returns a DataFrame with ``region`` and one ``b{i}_{stat}`` column per band.
-    """
-    buffer = get_extract_buffer(stack.shape)
-    if stack is not buffer:
-        buffer[:] = stack
-    sources = [
-        NumPyRasterSource(
-            buffer[i],
-            xmin=xmin,
-            ymin=ymin,
-            xmax=xmax,
-            ymax=ymax,
-            nodata=np.nan,
-            name=f"b{i}",
-            srs_wkt=crs_wkt,
-        )
-        for i in range(stack.shape[0])
-    ]
-    return exact_extract(
-        sources,
-        regions_gdf,
-        [stat],
+    crs_wkt: str,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Extract exact region/cell coverage once for the common MIRCA grid."""
+    source = NumPyRasterSource(
+        grid,
+        xmin=xmin,
+        ymin=ymin,
+        xmax=xmax,
+        ymax=ymax,
+        nodata=np.nan,
+        srs_wkt=crs_wkt,
+    )
+    extracted = exact_extract(
+        source,
+        regions,
+        ["cell_id", "coverage"],
         include_cols=["region"],
         output="pandas",
     )
+    lengths = extracted["cell_id"].map(len).to_numpy()
+    region_rows = np.repeat(np.arange(len(extracted)), lengths)
+    cell_ids = np.concatenate(extracted["cell_id"].to_numpy()).astype(np.int64)
+    coverage = np.concatenate(extracted["coverage"].to_numpy()).astype(np.float64)
+    return extracted["region"].to_numpy(), region_rows, cell_ids, coverage
 
 
-def load_crop_monthly_area(paths: list[str]) -> tuple[np.ndarray, tuple]:
-    """Sum a crop's sub-crop monthly growing-area grids into one (12, H, W).
-
-    Returns the summed array (ha per cell-month, NaN treated as zero) and the
-    grid bounds ``(xmin, ymin, xmax, ymax)``. All grids must share the MIRCA-OS
-    5-arcmin north-up layout. The sum is accumulated directly in the shared
-    exact_extract buffer to avoid holding a second full-grid copy.
-    """
-    total = None
-    bounds = None
-    for path in paths:
-        ds = xr.open_dataset(path)
-        da = ds["harvested_area"]  # (month, latitude, longitude), ha
-        lat = ds["latitude"].values.astype(float)
-        lon = ds["longitude"].values.astype(float)
-        if lat[0] < lat[-1]:
-            raise ValueError(f"Expected north-up latitude axis in {path}")
-        arr = np.nan_to_num(da.values, nan=0.0, copy=False)
-        ds.close()
-        if total is None:
-            total = get_extract_buffer(arr.shape)
-            total[:] = arr
-            res = float(abs(lon[1] - lon[0]))
-            bounds = (
-                float(lon.min()) - res / 2,
-                float(lat.min()) - res / 2,
-                float(lon.max()) + res / 2,
-                float(lat.max()) + res / 2,
-            )
-        else:
-            if arr.shape != total.shape:
-                raise ValueError(f"Grid shape mismatch in {path}")
-            total += arr
-    return total, bounds
+def aggregate_packed_crop_by_region(
+    packed: np.lib.npyio.NpzFile,
+    label_indices: list[int],
+    grid: np.ndarray,
+    region_names: np.ndarray,
+    region_rows: np.ndarray,
+    region_cell_ids: np.ndarray,
+    coverage: np.ndarray,
+    extract_values: np.ndarray,
+) -> pd.DataFrame:
+    """Aggregate packed subcrop areas with one reusable monthly grid."""
+    subcrops = [
+        (
+            packed[f"cell_ids_{i}"],
+            packed[f"monthly_area_{i}"],
+        )
+        for i in label_indices
+    ]
+    flat = grid.ravel()
+    data: dict[str, np.ndarray] = {"region": region_names}
+    for month in range(12):
+        grid.fill(0.0)
+        for cell_ids, monthly_area in subcrops:
+            flat[cell_ids] += monthly_area[month]
+        np.take(flat, region_cell_ids, out=extract_values)
+        extract_values *= coverage
+        data[f"b{month}_sum"] = np.bincount(
+            region_rows,
+            weights=extract_values,
+            minlength=len(region_names),
+        )
+    return pd.DataFrame(data)
 
 
 def monthly_shares(
@@ -315,15 +300,10 @@ if __name__ == "__main__":
     mapping_path = inp.pop("mapping")
     supplement_path = inp.pop("supplement")
     demand_path = inp.pop("demand")
+    calendar_path = inp.pop("calendar")
     yield_files = snakemake.input.crop_yields  # type: ignore[name-defined]
     inp.pop("crop_yields", None)
     output = Path(snakemake.output[0])  # type: ignore[name-defined]
-
-    # Remaining inputs are the monthly irrigated grids, keyed "nc_{label}"
-    # (label = MIRCA base crop + optional sub-crop digit, e.g. "nc_Wheat1").
-    nc_paths = {
-        key[len("nc_") :]: path for key, path in inp.items() if key.startswith("nc_")
-    }
 
     mapping = pd.concat(
         [
@@ -339,9 +319,25 @@ if __name__ == "__main__":
 
     # Group sub-crop labels under their MIRCA base crop by stripping the
     # trailing cycle digit ("Wheat1" -> "Wheat").
-    label_base = {label: label.rstrip("0123456789").strip() for label in nc_paths}
-
-    regions_gdf = gpd.read_file(regions_path)[["region", "geometry"]].reset_index()
+    packed = np.load(calendar_path, allow_pickle=False)
+    packed_labels = packed["labels"].astype(str).tolist()
+    label_base = {label: label.rstrip("0123456789").strip() for label in packed_labels}
+    label_indices = {label: i for i, label in enumerate(packed_labels)}
+    height, width = packed["shape"].astype(int)
+    xmin, ymin, xmax, ymax = packed["bounds"].astype(float)
+    crs_wkt = str(packed["crs_wkt"].item())
+    grid = get_extract_buffer((height, width))
+    grid.fill(0.0)
+    region_names, region_rows, region_cell_ids, coverage = region_coverage_entries(
+        grid,
+        regions_path,
+        xmin,
+        ymin,
+        xmax,
+        ymax,
+        crs_wkt,
+    )
+    extract_values = np.empty(len(region_cell_ids), dtype=np.float64)
 
     base_area: dict[str, pd.DataFrame] = {}
     records = []
@@ -353,11 +349,15 @@ if __name__ == "__main__":
                 f"'{row.mirca_crop}' (GLADE '{row.glade_crop}')"
             )
         if row.mirca_crop not in base_area:
-            monthly, (xmin, ymin, xmax, ymax) = load_crop_monthly_area(
-                [nc_paths[lb] for lb in labels]
-            )
-            stats = aggregate_raster_stack_by_region(
-                monthly, regions_gdf, xmin, ymin, xmax, ymax, None
+            stats = aggregate_packed_crop_by_region(
+                packed,
+                [label_indices[label] for label in labels],
+                grid,
+                region_names,
+                region_rows,
+                region_cell_ids,
+                coverage,
+                extract_values,
             )
             long = stats.melt(id_vars="region", var_name="band", value_name="area_ha")
             long["month"] = (
@@ -376,6 +376,7 @@ if __name__ == "__main__":
         records.append(
             crop_frame[["region", "crop", "month", "area_ha", "weight_divisor"]]
         )
+    packed.close()
 
     monthly_area = (
         pd.concat(records, ignore_index=True)
