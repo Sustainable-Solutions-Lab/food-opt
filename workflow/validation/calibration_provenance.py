@@ -47,6 +47,8 @@ PROVENANCE_EXEMPT_PREFIXES = {
     "downloads",
     "credentials",
     "calibration",
+    "remote_solve",
+    "solving.inline_analysis",
     # Validation-mode switches: the artefacts are consumed by regular and
     # validation-mode solves alike (the calibration chain itself runs in
     # validation mode).
@@ -55,6 +57,7 @@ PROVENANCE_EXEMPT_PREFIXES = {
     # horizon by design.
     "planning_horizon",
     # Post-solve analysis only.
+    "plotting",
     "sensitivity_analysis",
     # Calibration application/generation machinery. Fit-relevant knobs in
     # these sections (e.g. food_loss_waste_calibration.food_groups,

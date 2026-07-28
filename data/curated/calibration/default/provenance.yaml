@@ -199,6 +199,7 @@ structural_config:
   - rendered-fat
   biomass.enforce_baseline_demand: true
   biomass.enforce_fiber_demand: true
+  biomass.marginal_values_usd_per_tonne: 0
   byproducts:
   - beet-pulp
   - wheat-bran
@@ -902,6 +903,21 @@ structural_config:
   - sugar
   - stimulants
   - animal_fat
+  food_groups.max_per_capita.animal_fat: 50
+  food_groups.max_per_capita.dairy: 2865
+  food_groups.max_per_capita.eggs: 213
+  food_groups.max_per_capita.fruits: 658
+  food_groups.max_per_capita.grain: 1403
+  food_groups.max_per_capita.legumes: 300
+  food_groups.max_per_capita.nuts_seeds: 79
+  food_groups.max_per_capita.oil: 155
+  food_groups.max_per_capita.poultry: 241
+  food_groups.max_per_capita.red_meat: 285
+  food_groups.max_per_capita.starchy_vegetable: 1221
+  food_groups.max_per_capita.stimulants: 50
+  food_groups.max_per_capita.sugar: 133
+  food_groups.max_per_capita.vegetables: 785
+  food_groups.max_per_capita.whole_grains: 300
   food_loss_waste_calibration.food_groups:
   - vegetables
   - fruits
