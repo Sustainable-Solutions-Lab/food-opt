@@ -17,41 +17,12 @@ import logging
 from pathlib import Path
 
 import pandas as pd
-import pycountry
 
+from workflow.scripts.ihme import country_name_to_iso3
 from workflow.scripts.logging_config import setup_script_logging
 
 # Logger will be configured in __main__ block
 logger = logging.getLogger(__name__)
-
-# Manual overrides for country names that pycountry can't match
-COUNTRY_NAME_OVERRIDES = {
-    "Bolivia (Plurinational State of)": "BOL",
-    "Bonaire, Saint Eustatius and Saba": "BES",
-    "Cabo Verde": "CPV",
-    "Côte d'Ivoire": "CIV",
-    "Democratic People's Republic of Korea": "PRK",
-    "Democratic Republic of the Congo": "COD",
-    "French Guiana": "GUF",  # Use French data for French Guiana
-    "Iran (Islamic Republic of)": "IRN",
-    "Lao People's Democratic Republic": "LAO",
-    "Micronesia (Federated States of)": "FSM",
-    "Niger": "NER",  # pycountry fuzzy search confuses with Nigeria (NGA)
-    "Republic of Korea": "KOR",
-    "Republic of Moldova": "MDA",
-    "Republic of the Congo": "COG",
-    "Saint Barthélemy": "BLM",
-    "Saint Martin (French part)": "MAF",
-    "Sint Maarten (Dutch part)": "SXM",
-    "The former Yugoslav Republic of Macedonia": "MKD",
-    "Türkiye": "TUR",
-    "United Kingdom of Great Britain and Northern Ireland": "GBR",
-    "United Republic of Tanzania": "TZA",
-    "United States of America": "USA",
-    "United States Virgin Islands": "VIR",
-    "Venezuela (Bolivarian Republic of)": "VEN",
-    "Viet Nam": "VNM",
-}
 
 # Map IHME cause names to model cause codes. The model's "Stroke" cause is
 # restricted to ischemic stroke (see prepare_relative_risks.CAUSE_MAP).
@@ -91,23 +62,6 @@ AGE_MAP = {
     "95 plus": "95+",
     "All ages": "all-a",
 }
-
-
-def map_country_name_to_iso3(name: str) -> str | None:
-    """Map IHME country name to ISO3 code using pycountry + manual overrides."""
-    # Check manual overrides first
-    if name in COUNTRY_NAME_OVERRIDES:
-        return COUNTRY_NAME_OVERRIDES[name]
-
-    # Try pycountry fuzzy search
-    try:
-        matches = pycountry.countries.search_fuzzy(name)
-        if matches:
-            return matches[0].alpha_3
-    except LookupError:
-        pass
-
-    return None
 
 
 def main() -> None:
@@ -158,7 +112,7 @@ def main() -> None:
     # Map country names to ISO3 (cache unique values to avoid repeated fuzzy searches)
     logger.info("Mapping country names to ISO3 codes...")
     unique_countries = df["location_name"].unique()
-    country_map = {name: map_country_name_to_iso3(name) for name in unique_countries}
+    country_map = {name: country_name_to_iso3(name) for name in unique_countries}
     df["country_iso3"] = df["location_name"].map(country_map)
 
     unmapped = df[df["country_iso3"].isna()]["location_name"].unique()

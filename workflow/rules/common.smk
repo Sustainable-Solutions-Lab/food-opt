@@ -7,7 +7,6 @@ Common configuration variables and helper functions shared across Snakemake rule
 
 This file should be included first in the main Snakefile, before any other rule files.
 """
-import copy
 import csv
 import hashlib
 import json
@@ -22,6 +21,7 @@ from workflow.scripts.solve_namespace import (
     _is_solve_time_key,
     _leaf_keys,
     deviation_penalty_uses_calibrated,
+    get_effective_config as _get_effective_config,
     health_input_paths,
     resolve_gbd_anchoring,
     resolve_pathvars,
@@ -45,15 +45,6 @@ if (
     )
 
 
-def _recursive_update(target, source):
-    for key, value in source.items():
-        if isinstance(value, dict) and key in target and isinstance(target[key], dict):
-            _recursive_update(target[key], value)
-        else:
-            target[key] = value
-    return target
-
-
 def load_scenario_defs():
     """Load scenario definitions from the config's `scenarios` key."""
     global _SCENARIO_CACHE
@@ -70,14 +61,7 @@ def list_scenarios():
 
 def get_effective_config(scenario_name):
     """Return the configuration with scenario overrides applied."""
-    # Start with a deep copy of the global config to avoid mutating it
-    # We convert config to dict because it might be a Config object
-    eff_config = copy.deepcopy(dict(config))
-
-    if scenario_name:
-        _recursive_update(eff_config, load_scenario_defs()[scenario_name])
-
-    return eff_config
+    return _get_effective_config(dict(config), scenario_name, load_scenario_defs())
 
 
 def health_required():

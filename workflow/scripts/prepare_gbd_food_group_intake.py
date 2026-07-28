@@ -55,40 +55,11 @@ import logging
 from pathlib import Path
 
 import pandas as pd
-import pycountry
 
+from workflow.scripts.ihme import country_name_to_iso3
 from workflow.scripts.logging_config import setup_script_logging
 
 logger = logging.getLogger(__name__)
-
-# Reuse country name overrides from prepare_gbd_mortality.py
-COUNTRY_NAME_OVERRIDES = {
-    "Bolivia (Plurinational State of)": "BOL",
-    "Bonaire, Saint Eustatius and Saba": "BES",
-    "Cabo Verde": "CPV",
-    "Côte d'Ivoire": "CIV",
-    "Democratic People's Republic of Korea": "PRK",
-    "Democratic Republic of the Congo": "COD",
-    "French Guiana": "GUF",
-    "Iran (Islamic Republic of)": "IRN",
-    "Lao People's Democratic Republic": "LAO",
-    "Micronesia (Federated States of)": "FSM",
-    "Niger": "NER",
-    "Republic of Korea": "KOR",
-    "Republic of Moldova": "MDA",
-    "Republic of the Congo": "COG",
-    "Saint Barthélemy": "BLM",
-    "Saint Martin (French part)": "MAF",
-    "Sint Maarten (Dutch part)": "SXM",
-    "The former Yugoslav Republic of Macedonia": "MKD",
-    "Türkiye": "TUR",
-    "United Kingdom of Great Britain and Northern Ireland": "GBR",
-    "United Republic of Tanzania": "TZA",
-    "United States of America": "USA",
-    "United States Virgin Islands": "VIR",
-    "Venezuela (Bolivarian Republic of)": "VEN",
-    "Viet Nam": "VNM",
-}
 
 # Map GBD 2023 risk factor file tokens to model food group names.
 # The token is the part of the filename between "..._DIET_" and the
@@ -137,19 +108,6 @@ ADULT_AGE_ID_TO_LABEL = {
 }
 
 
-def map_country_name_to_iso3(name: str) -> str | None:
-    """Map GBD location name to ISO3 code using pycountry + manual overrides."""
-    if name in COUNTRY_NAME_OVERRIDES:
-        return COUNTRY_NAME_OVERRIDES[name]
-    try:
-        matches = pycountry.countries.search_fuzzy(name)
-        if matches:
-            return matches[0].alpha_3
-    except LookupError:
-        pass
-    return None
-
-
 def _wmean(values: pd.Series, weights: pd.Series) -> float:
     """Population-weighted mean, ignoring zero/NaN total weight."""
     total = float(weights.sum())
@@ -186,7 +144,7 @@ def build_national_location_map(death_rates_path: str) -> dict[int, str]:
     ).drop_duplicates()
     loc_to_iso3: dict[int, str] = {}
     for location_id, location_name in ref.itertuples(index=False):
-        iso3 = map_country_name_to_iso3(location_name)
+        iso3 = country_name_to_iso3(location_name)
         if iso3 is not None:
             loc_to_iso3[int(location_id)] = iso3
     logger.info(

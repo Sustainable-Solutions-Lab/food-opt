@@ -293,8 +293,7 @@ def get_effective_config(
     eff = copy.deepcopy(base_config)
     if not scenario_name:
         return eff
-    if scenario_name in scenario_defs:
-        _recursive_update(eff, scenario_defs[scenario_name])
+    _recursive_update(eff, scenario_defs[scenario_name])
     return eff
 
 

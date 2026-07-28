@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from workflow.scripts.solve_namespace import (
+    get_effective_config,
     validate_scenario_config_schemas,
     validate_scenario_overrides,
 )
@@ -84,3 +85,18 @@ class TestValidateScenarioConfigSchemas:
         defs = {f"gsa_{i}": {"emissions": {"ghg_price": float(i)}} for i in range(50)}
         validate_scenario_config_schemas(base_config, defs, ".")
         assert len(calls) == 1
+
+
+def test_get_effective_config_applies_nested_overrides_without_mutating_base() -> None:
+    base = {"solving": {"solver": "highs", "threads": 1}}
+    scenarios = {"parallel": {"solving": {"threads": 4}}}
+
+    effective = get_effective_config(base, "parallel", scenarios)
+
+    assert effective == {"solving": {"solver": "highs", "threads": 4}}
+    assert base["solving"]["threads"] == 1
+
+
+def test_get_effective_config_rejects_unknown_scenario() -> None:
+    with pytest.raises(KeyError, match="missing"):
+        get_effective_config({}, "missing", {})
