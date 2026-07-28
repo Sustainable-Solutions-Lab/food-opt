@@ -174,7 +174,6 @@ def scenario_override_hash(scenario_name):
 # Extract configuration name and relevant config sections
 name = config["name"]
 gaez_cfg = config["data"]["gaez"]
-grazing_cfg = config.get("grazing", {})
 
 # Load GAEZ crop code mapping from CSV
 with open("data/curated/gaez_crop_code_mapping.csv", newline="") as _gaez_mapping_file:

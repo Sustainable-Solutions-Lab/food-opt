@@ -9,6 +9,7 @@ description: |
   Based on config/default.yaml structure.
 type: object
 required:
+  - scenarios
   - planning_horizon
   - baseline_year
   - currency_base_year
@@ -62,6 +63,8 @@ required:
   - deviation_penalty
   - solving
   - remote_solve
+  - sensitivity
+  - sensitivity_analysis
   - plotting
 additionalProperties: false
 
@@ -171,6 +174,7 @@ properties:
       - min_crop_yield_t_per_ha
       - min_grassland_yield_t_per_ha
       - min_link_area_mha
+      - min_water_capacity_mm3
       - min_water_requirement_m3_per_ha
       - min_co2_coefficient_tco2_per_ha
       - min_cost_correction_bnusd
@@ -1141,6 +1145,8 @@ properties:
       - source
       - baseline_age
       - anchor_groups_to_gbd
+      - fbs_override_foods
+      - nhanes
       - source_basis
       - fbs
       - gdd_ia
@@ -1318,12 +1324,14 @@ properties:
       - region_clusters
       - breakpoint_rel_tol
       - log_rr_points
+      - intake_age_min
       - value_per_yll
       - risk_factors
       - causes
       - risk_cause_map
       - gbd_rei_id
       - gbd_cause_id
+      - alternative_rr
       - clustering
     additionalProperties: false
     properties:
@@ -2074,7 +2082,7 @@ properties:
 
   solving:
     type: object
-    required: [solver, io_api, threads, calculate_fixed_duals, options_gurobi, options_highs, time_limit, runtime, mem_mb, inline_analysis]
+    required: [solver, io_api, threads, calculate_fixed_duals, options_gurobi, options_highs, export_for_tuning, time_limit, runtime, mem_mb, inline_analysis]
     additionalProperties: false
     properties:
       solver:
