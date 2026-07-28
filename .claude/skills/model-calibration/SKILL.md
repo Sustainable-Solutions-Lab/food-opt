@@ -110,10 +110,19 @@ tools/calibrate --check
 ```
 
 This runs a Snakemake dry-run per step and reports `[up-to-date]` or
-`[STALE]`. Cheap and authoritative. `tools/smk` also prints a one-line
-mtime-based reminder on every invocation, but treat that as advisory --
-`git pull` touches mtimes and produces false positives. The
-`--check` output is the source of truth.
+`[STALE]`. `tools/smk` also prints a one-line mtime-based reminder on
+every invocation, but treat that as advisory -- `git pull` touches
+mtimes and produces false positives.
+
+`--check` is more informative but is still mtime-based, and the steps
+write into a directory they all read from, so it oscillates: re-running
+any step rewrites its artefacts (often byte-for-byte identical) and the
+later steps immediately report `[STALE]`. A freshly completed full chain
+frequently still shows one or more steps stale. Treat `[STALE]` as "worth
+investigating", not "the set is wrong". The decisive test is to re-run
+the step and diff its artefacts -- if they come back identical, the flag
+was bookkeeping. Don't chase `--check` to all-green by re-running steps
+in a loop; it does not converge.
 
 Silence the mtime hint in scripted contexts with `SMK_SKIP_CALIBRATION_HINT=1`.
 
