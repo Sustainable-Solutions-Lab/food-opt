@@ -74,6 +74,33 @@ class TestValidateScenarioConfigSchemas:
         with pytest.raises(ValueError, match="stale"):
             validate_scenario_config_schemas(base_config, defs, ".")
 
+    @pytest.mark.parametrize(
+        "override",
+        [
+            {"solving": {"inline_analysis": True}},
+            {"remote_solve": {"enabled": True}},
+            {"plotting": {"comparison_scenarios": "all"}},
+            {"food_groups": {"max_per_capita": {"grain": 100.0}}},
+            {"biomass": {"marginal_values_usd_per_tonne": 100.0}},
+        ],
+    )
+    def test_rejects_parse_or_build_time_override(self, override):
+        with pytest.raises(ValueError, match="structural key"):
+            validate_scenario_overrides({"ignored": override})
+
+    def test_accepts_solver_resource_override(self):
+        validate_scenario_overrides(
+            {
+                "parallel": {
+                    "solving": {
+                        "threads": 4,
+                        "runtime": 20,
+                        "mem_mb": 8000,
+                    }
+                }
+            }
+        )
+
     def test_validates_one_representative_per_structure(self, base_config, monkeypatch):
         """Thousands of same-template samples must cost one validation."""
         import workflow.validation.config_schema as cs

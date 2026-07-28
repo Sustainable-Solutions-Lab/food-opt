@@ -163,9 +163,9 @@ if config["solving"]["inline_analysis"]:
                 "max_feed_fraction_by_region"
             ],
             countries=config["countries"],
-            export_for_tuning=lambda w: get_effective_config(w.scenario)[
-                "solving"
-            ].get("export_for_tuning", False),
+            export_for_tuning=lambda w: get_effective_config(w.scenario)["solving"][
+                "export_for_tuning"
+            ],
             netcdf=lambda w: get_effective_config(w.scenario)["netcdf"],
             scenario_hash=lambda w: scenario_override_hash(w.scenario),
             # --- analysis params ---
