@@ -57,23 +57,17 @@ from workflow.scripts.snakemake_utils import load_solved_network
 from workflow.scripts.solve_namespace import ANALYSIS_OUTPUT_NAMES
 
 
-def write_empty_outputs(output) -> None:
-    """Write empty Parquet files for all declared outputs.
+def analysis_output_paths(output) -> dict[str, str]:
+    """Return the canonical analysis output paths from a namespace."""
+    return {name: str(getattr(output, name)) for name in ANALYSIS_OUTPUT_NAMES}
 
-    Parameters
-    ----------
-    output
-        Snakemake output object (or any object whose non-underscore string
-        attributes ending in ``.parquet`` should be created as empty files).
-    """
-    for attr in dir(output):
-        if attr.startswith("_"):
-            continue
-        path = getattr(output, attr, None)
-        if isinstance(path, str) and path.endswith(".parquet"):
-            p = Path(path)
-            p.parent.mkdir(parents=True, exist_ok=True)
-            pd.DataFrame().to_parquet(p)
+
+def write_empty_outputs(output) -> None:
+    """Write empty Parquet files for all canonical analysis outputs."""
+    for path in analysis_output_paths(output).values():
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame().to_parquet(p)
 
 
 def run_analysis(
@@ -239,6 +233,34 @@ def run_analysis(
     logger.info("Wrote all analysis outputs to %s", output_dir)
 
 
+def run_analysis_from_namespace(smk, n: pypsa.Network, logger: logging.Logger) -> None:
+    """Run analysis using the shared Snakemake/manifest namespace contract."""
+    health_enabled = bool(smk.params.health_enabled)
+    run_analysis(
+        n,
+        output_paths=analysis_output_paths(smk.output),
+        food_groups_path=smk.input.food_groups,
+        m49_codes_path=smk.input.m49,
+        population_path=smk.input.population,
+        ghg_price=float(smk.params.ghg_price),
+        ch4_gwp=float(smk.params.ch4_gwp),
+        n2o_gwp=float(smk.params.n2o_gwp),
+        value_per_yll=float(smk.params.health_value_per_yll),
+        health_risk_factors=list(smk.params.health_risk_factors),
+        logger=logger,
+        health_enabled=health_enabled,
+        risk_breakpoints_path=(
+            smk.input.health_risk_breakpoints if health_enabled else None
+        ),
+        health_cluster_cause_path=(
+            smk.input.health_cluster_cause if health_enabled else None
+        ),
+        health_cause_log_path=(smk.input.health_cause_log if health_enabled else None),
+        health_clusters_path=smk.input.health_clusters if health_enabled else None,
+        tmrel_path=smk.input.health_tmrel if health_enabled else None,
+    )
+
+
 def main() -> None:
     """Snakemake entry point: load solved network and run analysis."""
     logger = setup_script_logging(snakemake.log[0])
@@ -253,7 +275,7 @@ def main() -> None:
 
     try:
         n = load_solved_network(snakemake.input.network)
-    except (KeyError, Exception) as e:
+    except Exception as e:
         logger.warning(
             "Failed to load network (%s) — likely an unsolved model. "
             "Writing empty outputs.",
@@ -271,43 +293,7 @@ def main() -> None:
 
     logger.info("Loaded network with %d links", len(n.links))
 
-    # Build output_paths dict from snakemake.output
-    output_paths = {
-        attr: getattr(snakemake.output, attr)
-        for attr in dir(snakemake.output)
-        if not attr.startswith("_")
-        and isinstance(getattr(snakemake.output, attr), str)
-        and getattr(snakemake.output, attr).endswith(".parquet")
-    }
-
-    health_enabled = bool(snakemake.params.health_enabled)
-    run_analysis(
-        n,
-        output_paths=output_paths,
-        food_groups_path=snakemake.input.food_groups,
-        m49_codes_path=snakemake.input.m49_codes,
-        population_path=snakemake.input.population,
-        ghg_price=float(snakemake.params.ghg_price),
-        ch4_gwp=float(snakemake.params.ch4_gwp),
-        n2o_gwp=float(snakemake.params.n2o_gwp),
-        value_per_yll=float(snakemake.params.value_per_yll),
-        health_risk_factors=list(snakemake.params.health_risk_factors),
-        logger=logger,
-        health_enabled=health_enabled,
-        risk_breakpoints_path=(
-            snakemake.input.health_risk_breakpoints if health_enabled else None
-        ),
-        health_cluster_cause_path=(
-            snakemake.input.health_cluster_cause if health_enabled else None
-        ),
-        health_cause_log_path=(
-            snakemake.input.health_cause_log if health_enabled else None
-        ),
-        health_clusters_path=(
-            snakemake.input.health_clusters if health_enabled else None
-        ),
-        tmrel_path=snakemake.input.health_tmrel if health_enabled else None,
-    )
+    run_analysis_from_namespace(snakemake, n, logger)
 
 
 if __name__ == "__main__":

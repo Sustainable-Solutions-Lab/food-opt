@@ -13,7 +13,10 @@ Enabled via ``solving.inline_analysis: true`` in config.
 
 import logging
 
-from workflow.scripts.analysis.analyze_model import run_analysis, write_empty_outputs
+from workflow.scripts.analysis.analyze_model import (
+    run_analysis_from_namespace,
+    write_empty_outputs,
+)
 from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.solve_model.core import _ShadowPriceLogFilter, run_solve
 
@@ -30,43 +33,7 @@ def main() -> None:
         write_empty_outputs(snakemake.output)
         return
 
-    # Phase 2: Analyze (using in-memory solved network)
-    output_paths = {
-        attr: getattr(snakemake.output, attr)
-        for attr in dir(snakemake.output)
-        if not attr.startswith("_")
-        and isinstance(getattr(snakemake.output, attr), str)
-        and getattr(snakemake.output, attr).endswith(".parquet")
-    }
-
-    health_enabled = bool(snakemake.params.health_enabled)
-    run_analysis(
-        n,
-        output_paths=output_paths,
-        food_groups_path=snakemake.input.food_groups,
-        m49_codes_path=snakemake.input.m49,
-        population_path=snakemake.input.population,
-        ghg_price=float(snakemake.params.ghg_price),
-        ch4_gwp=float(snakemake.params.ch4_gwp),
-        n2o_gwp=float(snakemake.params.n2o_gwp),
-        value_per_yll=float(snakemake.params.health_value_per_yll),
-        health_risk_factors=list(snakemake.params.health_risk_factors),
-        logger=logger,
-        health_enabled=health_enabled,
-        risk_breakpoints_path=(
-            snakemake.input.health_risk_breakpoints if health_enabled else None
-        ),
-        health_cluster_cause_path=(
-            snakemake.input.health_cluster_cause if health_enabled else None
-        ),
-        health_cause_log_path=(
-            snakemake.input.health_cause_log if health_enabled else None
-        ),
-        health_clusters_path=(
-            snakemake.input.health_clusters if health_enabled else None
-        ),
-        tmrel_path=snakemake.input.health_tmrel if health_enabled else None,
-    )
+    run_analysis_from_namespace(snakemake, n, logger)
 
     logger.info("Solve-and-analyze complete.")
 

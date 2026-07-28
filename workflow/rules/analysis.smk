@@ -204,7 +204,7 @@ else:
             ),
             network="<results>/{name}/solved/model_scen-{scenario}.nc",
             food_groups="data/curated/food_groups.csv",
-            m49_codes="data/curated/M49-codes.csv",
+            m49="data/curated/M49-codes.csv",
             population="<processing>/{name}/population.csv",
             analysis_scripts=_ANALYSIS_SCRIPTS,
         params:
@@ -216,7 +216,7 @@ else:
             health_enabled=lambda w: get_effective_config(w.scenario)["health"][
                 "enabled"
             ],
-            value_per_yll=lambda w: get_effective_config(w.scenario)["health"][
+            health_value_per_yll=lambda w: get_effective_config(w.scenario)["health"][
                 "value_per_yll"
             ],
             health_risk_factors=config["health"]["risk_factors"],
