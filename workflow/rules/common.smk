@@ -70,15 +70,12 @@ def list_scenarios():
 
 def get_effective_config(scenario_name):
     """Return the configuration with scenario overrides applied."""
-    scenario_defs = load_scenario_defs()
-
     # Start with a deep copy of the global config to avoid mutating it
     # We convert config to dict because it might be a Config object
     eff_config = copy.deepcopy(dict(config))
 
-    if scenario_name and scenario_name in scenario_defs:
-        overrides = scenario_defs[scenario_name]
-        _recursive_update(eff_config, overrides)
+    if scenario_name:
+        _recursive_update(eff_config, load_scenario_defs()[scenario_name])
 
     return eff_config
 
