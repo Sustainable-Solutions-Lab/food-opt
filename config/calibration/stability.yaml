@@ -24,14 +24,11 @@
 # another calibration config cannot overwrite this step's intermediates.
 name: "calibration"
 
-planning_horizon: 2020
-baseline_year: 2020
-
 # Pin the calibration regime explicitly: the main solve inherits these
 # values (the baseline solve is always forced to 0/0 in the script so that
 # consumer values reflect raw revealed preferences).
 emissions:
-  ghg_price: 0
+  ghg_pricing_enabled: false
 health:
   enabled: false
   value_per_yll: 0

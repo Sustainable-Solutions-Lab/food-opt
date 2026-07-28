@@ -86,6 +86,22 @@ introduce breaking changes to configuration and outputs.
 
 ### Changed
 
+- `planning_horizon` now defaults to 2020, matching `baseline_year`, so an
+  unmodified run solves the observed year the calibration artefacts are fit
+  against. Configs that previously relied on the 2030 default (including
+  `gsa.yaml`, `gsa_fixed_diet.yaml` and `example.yaml`) now solve at 2020
+  population and GDP levels; set `planning_horizon: 2030` explicitly to keep
+  projecting demand forward. The calibration, validation, tutorial and
+  documentation configs no longer restate the year, as it now matches the
+  default.
+- Cost calibration is fit against the base config's water model. It
+  previously pinned `water.data.availability: current_use` regardless of the
+  configuration it was calibrating, so every artefact set carried cost
+  corrections fit under a different water system than the one they were
+  applied in, while `provenance.yaml` recorded the base config's setting. The
+  shipped cost corrections shift by 3-12%; configurations that resolve water
+  seasonally with AWARE scarcity tiers, where the water system actually binds,
+  shift by around 30%.
 - MIRCA-OS monthly calendar grids are now packed into one shared sparse
   preprocessing artefact and reuse exact region-cell coverage across crops.
   Repeated configuration builds avoid decoding the same dense global NetCDF
@@ -226,6 +242,13 @@ introduce breaking changes to configuration and outputs.
   and `mlp`.
 
 ### Fixed
+
+- The feed calibration step no longer consumes the food-waste calibration
+  artefact, which is produced by a later step in the chain. Feed was
+  effectively fit against whichever vintage happened to be on disk, a full
+  chain could never reach a fixed point, and `tools/calibrate --check`
+  reported the feed step permanently stale. Feed-side artefacts move by
+  0.1-0.2%.
 
 - Fixed a GAEZ data artefact where a handful of cells carry a negative net
   irrigation requirement, which flipped those crop links into spurious water

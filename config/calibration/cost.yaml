@@ -61,10 +61,6 @@ scenarios:
         enabled: false
     food_utility_piecewise:
       enabled: false
-    emissions:
-      ghg_price: 0
-    health:
-      value_per_yll: 0
 
   # Step 2: Calibration solve with tight production stability
   cost_calibration:
@@ -91,13 +87,6 @@ scenarios:
         enabled: false
     food_utility_piecewise:
       enabled: true
-    emissions:
-      ghg_price: 0
-    health:
-      value_per_yll: 0
-
-planning_horizon: 2020
-baseline_year: 2020
 
 # Enable piecewise utility at base level (blocks get built from baseline)
 food_utility_piecewise:
@@ -125,16 +114,16 @@ validation:
   # too high. See docs/costs.rst.
   slack_marginal_cost: 7.5
 
-water:
-  data:
-    availability: "current_use"
-
 # NB: diet.anchor_groups_to_gbd is pinned to the base config's resolved value
 # by tools/calibrate (via a config overlay), so disabling health here for
 # solver performance does not change the baseline diet the artefacts are fit
 # against.
 health:
   enabled: false
+  value_per_yll: 0
+
+emissions:
+  ghg_pricing_enabled: false
 
 solving:
   solver: gurobi

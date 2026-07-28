@@ -19,7 +19,10 @@ scenarios:
 # Temporal configuration
 #
 # planning_horizon: Target year for optimization. Controls population
-#   projections (UN WPP) and GDP clustering (IMF WEO).
+#   projections (UN WPP) and GDP clustering (IMF WEO). Defaults to
+#   baseline_year, so an unmodified run solves the observed year that the
+#   calibration artefacts are fit against; raise it to project demand
+#   forward.
 #
 # baseline_year: Reference year for observed baseline data. Controls FAOSTAT
 #   production, GDD-IA dietary intake, GBD health data, ESA CCI land cover,
@@ -33,7 +36,7 @@ scenarios:
 #     - GBD dietary risk exposure: latest available is 2019
 #
 # currency_base_year: Base year for inflation-adjusted USD values.
-planning_horizon: 2030
+planning_horizon: 2020
 baseline_year: 2020
 currency_base_year: 2024
 

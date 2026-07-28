@@ -37,8 +37,6 @@ scenarios:
   # scenario's food-bus slack reveals the GDD-vs-supply gap.
   food_waste_uncal: {}
 
-planning_horizon: 2020
-
 # Mirrors validation.yaml: production and consumption are pinned to
 # baseline so slack on food buses reflects supply/demand mismatch only.
 validation:

@@ -80,7 +80,7 @@ properties:
     type: integer
     minimum: 2020
     maximum: 2100
-    description: "Target year for optimization. Controls population projections (UN WPP) and GDP clustering (IMF WEO)."
+    description: "Target year for optimization. Controls population projections (UN WPP) and GDP clustering (IMF WEO). Defaults to baseline_year."
 
   baseline_year:
     type: integer

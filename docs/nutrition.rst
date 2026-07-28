@@ -176,7 +176,7 @@ The ``prepare_population`` rule (``workflow/scripts/prepare_population.py``):
 2. **Filter**:
 
    * Countries in ``config['countries']``
-   * Planning horizon year (``config['planning_horizon']``, e.g., 2030)
+   * Planning horizon year (``config['planning_horizon']``, 2020 by default)
    * Medium variant projection
 
 3. **Aggregate**: Sum population by country (converts thousands → persons)

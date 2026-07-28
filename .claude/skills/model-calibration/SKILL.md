@@ -45,9 +45,14 @@ companion: when to run, how to run, what to expect, what to watch out for.
 | cost | `config/calibration/cost.yaml` | `crop_cost.csv`, `grassland_cost.csv`, `animal_cost.csv` | Additive production-cost corrections from stability-constraint duals |
 | stability | `config/calibration/stability.yaml` | `deviation_penalty.yaml` | The L1 penalty triple over the configured components (default: land + feed) that gives ~5% deviation on each axis |
 
-The order is strict (next section explains why). All five configs share
-`name: "calibration"` so the expensive upstream processing under
-`processing/calibration/` is built once and reused across the chain.
+The order is strict (next section explains why). The five configs each
+carry `name: "calibration"`, but `tools/calibrate` overrides it per step
+with `name: calibration-<source>-<step>`, so each step gets its own
+processing tree. That isolation is deliberate -- the steps disable
+different calibration blocks, so a shared tree would thrash `build_model`
+-- but it means the identical upstream prep is rebuilt five times
+(~100 s and ~250 MB per step, so roughly 40% of chain wall-clock and
+1.25 GB on disk for a full run).
 
 ## Strict dependency order
 
@@ -84,7 +89,7 @@ Gurobi. HiGHS is too slow here. Override with `CALIBRATE_PIXI_ENV=<env>`.
 With `--base`, the base config must declare its own `calibration.source`
 (refusing to overwrite the shared `default` set); a fresh set is seeded
 from `default` and regenerated in order, and the `all` chain uses
-`name: calibration-<source>` so processing trees don't thrash. After any
+`name: calibration-<source>-<step>` so processing trees don't thrash. After any
 successful run the set is (re)stamped with `provenance.yaml`.
 
 Pass extra flags through positionally:
@@ -145,17 +150,31 @@ diagnosing a silently miscalibrated downstream solve.
 
 ## Realistic runtime (local, gurobi)
 
-From `benchmarks/calibration/*.tsv` on this workstation:
+End-to-end wall-clock of `tools/calibrate ... all`, measured on this
+workstation at `-j8` with the shared `data/` and `processing/shared/`
+trees already populated. Each step's time includes rebuilding its own
+processing tree (see above), which is why no step comes in under a
+minute even though the solves themselves are seconds.
 
-| Step | Solves | Wall-clock (approx) |
-|---|---|---|
-| feed | 1 validation solve + extract | ~30 s |
-| food_waste | 1 validation solve + extract | ~30 s |
-| food_demand | 1 validation solve + extract | ~30 s |
-| cost | 2 paired solves (hard stability) + extract | ~2.5 min |
-| stability (warm start) | 0-1 Broyden iterations | ~1.5 min |
-| stability (cold start) | 3-5 Broyden iterations | ~5-8 min |
-| **full chain** | | **~5 min warm, ~10 min cold** |
+| Step | Solves | `default` set | water study (750 regions, T=4) |
+|---|---|---|---|
+| feed | 1 validation solve + extract | 96 s | 145 s |
+| food_waste | 1 validation solve + extract | 100 s | 145 s |
+| food_demand | 1 validation solve + extract | 91 s | 151 s |
+| cost | 2 paired solves (hard stability) + extract | 153 s | 198 s |
+| stability | Broyden iterations | 193 s (1 iter) | 551 s (5 iters) |
+| **full chain** | | **10.6 min** | **19.9 min** |
+
+Of each step's time, only a small part is the solve. On the water study:
+`build_model` is 16-18 s and a validation solve 23 s (cost's paired
+solves 35 s each); the Broyden loop is the one genuinely long stage at
+422 s for 5 iterations. Everything else is the per-step processing-tree
+rebuild.
+
+Stability dominates the variance: warm-starting from an existing
+`deviation_penalty.yaml` converged in 1 iteration on the `default` set,
+while the water set needed 5 from a seeded start. Budget 3-9 minutes for
+that step alone.
 
 These are unusually fast because every calibration config disables the
 health objective (`value_per_yll: 0`), which makes the problem a pure LP.
@@ -164,11 +183,10 @@ approximation of log/exp products that introduces integer variables --
 turning the problem into a MILP and slowing each solve noticeably.
 Don't extrapolate these numbers to default-config solves.
 
-These exclude the one-time upstream processing build for the shared
-`processing/calibration/` tree. If that tree isn't already built (fresh
-clone, deep model change), expect an extra 10-30 minutes on the first
-step depending on what has to be rebuilt and whether retrieval rules
-fire (those need network access).
+They also assume the shared upstream data is already on disk. On a fresh
+clone or after a deep model change, add the one-time build of the shared
+prep -- 10-30 minutes depending on what has to be rebuilt and whether
+retrieval rules fire (those need network access).
 
 HPC offloading isn't worthwhile -- the feed/food/cost steps are single
 solves with significant local prereqs, and stability is inherently
@@ -177,9 +195,9 @@ sequential (each Broyden iteration depends on the previous solve).
 ## Output landing zones
 
 - `data/curated/calibration/<source>/*` -- one artefact set per base config, plus its `provenance.yaml` stamp; the `default` and `gbd-anchored` sets are **git-tracked**. Commit a set together as a refresh; mixed-vintage artefacts are the most common cause of confusing downstream solves.
-- `processing/calibration/*` (or `processing/calibration-<source>/*` for non-default bases) -- shared upstream prep, NOT committed.
-- `results/calibration/*` -- per-iteration solve logs, NOT committed.
-- `results/calibration/calibration/deviation_penalty_trace.csv` -- per-iter Broyden trace (per-component lambda, achieved deviations, residual norm). Inspect when stability behaves oddly.
+- `processing/calibration-<source>-<step>/*` -- one upstream prep tree per step (~250 MB each), NOT committed.
+- `results/calibration-<source>-<step>/*` -- per-iteration solve logs, NOT committed.
+- `results/calibration-<source>-stability/calibration/deviation_penalty_trace.csv` -- per-iter Broyden trace (per-component lambda, achieved deviations, residual norm). Inspect when stability behaves oddly.
 
 ## Artefact sets and provenance
 
@@ -236,10 +254,11 @@ scenario.
    supply/demand gap the calibration chain failed to close.
 2. **Compare per-group / per-food / per-feed-category slack** against the
    previously expected post-calibration baseline. The food_waste and
-   food_demand intermediates (`processing/calibration/food_waste_uncal*`,
-   `processing/calibration/food_demand_uncal*`) from the previous
-   calibration run are the natural reference for what the gap looked like
-   before the change.
+   food_demand intermediates
+   (`processing/calibration-<source>-food_waste/food_waste_uncal*`,
+   `processing/calibration-<source>-food_demand/food_demand_uncal*`) from
+   the previous calibration run are the natural reference for what the gap
+   looked like before the change.
 3. **A food group with >5 % net slack, or a feed category with a
    shortage that wasn't there before, is the prime suspect.** Trace the
    upstream change before touching the calibration chain.
@@ -254,11 +273,27 @@ historical centre once the chain absorbs its gaps cleanly.
 
 ### Other gotchas
 
-- **The `name: "calibration"` shared prefix is intentional.** All five
-  configs share `name: "calibration"` so `processing/calibration/` is
-  built once. The downside: committing a calibration artefact requires
-  either all five to be consistent or a careful re-run from the step
-  where inconsistency starts. Don't commit them piecemeal.
+- **Commit an artefact set whole.** The five steps write into one
+  directory but each is fit against the others, so a set is only
+  meaningful as a single vintage. Committing one artefact requires either
+  all five to be consistent or a careful re-run from the step where
+  inconsistency starts. Don't commit them piecemeal.
+
+- **Each step must disable the calibrations of every *later* step.** The
+  chain is a single forward pass, not an iteration to a fixed point, so a
+  step that consumes a successor's artefact is fit against whatever
+  vintage happens to be on disk -- and `tools/calibrate --check` then
+  reports that step permanently `[STALE]`, advising a re-run that
+  restarts the cycle forever. The disable blocks in the step configs form
+  a lower triangle (feed disables the other four, food_waste the last
+  three, and so on); preserve it when adding a calibration.
+
+- **Step configs must not override structural model keys.** Anything a
+  step config pins that isn't calibration machinery, the validation
+  regime, or a solver budget silently defeats the point of a per-base
+  artefact set, because `provenance.yaml` stamps the *base* config. A
+  `water.data.availability` pin in `cost.yaml` did exactly this and moved
+  cost corrections by up to 30% on water-resolving configs.
 
 - **Sentinel `"calibrated"` fails loudly when the yaml is stale or
   missing.** `deviation_penalty.{land,feed,diet}.l1_cost: "calibrated"`
@@ -323,5 +358,5 @@ tools/smk --configfile config/validation.yaml -- \
 cat data/curated/calibration/default/deviation_penalty.yaml
 
 # Per-iter Broyden trace (after a stability run)
-cat results/calibration/calibration/deviation_penalty_trace.csv
+cat results/calibration-default-stability/calibration/deviation_penalty_trace.csv
 ```

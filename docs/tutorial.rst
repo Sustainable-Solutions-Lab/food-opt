@@ -49,8 +49,8 @@ A few things to note:
   solve in minutes. The full-resolution default is 750; values below 200
   fail the per-country clustering step because there are more countries in
   the default list than regions.
-* ``planning_horizon`` and ``baseline_year`` are both 2020, aligning the
-  model with the most recent year for which GDD-IA dietary data exist.
+* ``planning_horizon`` and ``baseline_year`` both default to 2020, aligning
+  the model with the most recent year for which GDD-IA dietary data exist.
 * The ``scenarios:`` block defines three scenarios that each set
   ``validation.enforce_baseline_diet: true``. That flag forces consumption
   per food group to equal the observed 2020 diet in every country.

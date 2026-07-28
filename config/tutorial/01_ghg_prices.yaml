@@ -25,10 +25,6 @@ aggregation:
   regions:
     target_count: 200
 
-# Match observed 2020 data so the fixed-diet baseline is well defined.
-planning_horizon: 2020
-baseline_year: 2020
-
 scenarios:
   # No carbon price. All scenarios below share enforce_baseline_diet=true, so
   # consumption is held at the observed 2020 diet and only production shifts.

@@ -30,8 +30,6 @@ the 2020 baseline by enabling several flags:
 
 .. code-block:: yaml
 
-   planning_horizon: 2020
-
    validation:
      use_actual_yields: true          # Use observed yields instead of potential
      use_actual_production: true      # Fix harvested areas to observed values

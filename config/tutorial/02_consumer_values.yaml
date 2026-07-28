@@ -34,9 +34,6 @@ aggregation:
   regions:
     target_count: 200
 
-planning_horizon: 2020
-baseline_year: 2020
-
 # Enable the piecewise food-utility curve globally. It is switched off for the
 # baseline scenario below so that scenario can fix consumption instead.
 food_utility_piecewise:

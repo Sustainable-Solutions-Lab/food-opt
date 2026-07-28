@@ -12,8 +12,6 @@ name: "validation"
 scenarios:
   default: {}
 
-planning_horizon: 2020
-
 validation:
   use_actual_yields: true
   use_actual_production: true

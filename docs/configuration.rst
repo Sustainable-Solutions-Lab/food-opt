@@ -21,7 +21,7 @@ Instead of modifying the default configuration file, it is recommended to explor
 
    # config/my_scenario.yaml
    name: "my_scenario"           # Scenario name → results/my_scenario/
-   planning_horizon: 2040        # Override the default 2030 horizon
+   planning_horizon: 2040        # Project demand forward from the 2020 default
    land:
      regional_limit: 0.6         # Tighten land availability
      slack_marginal_cost: 1e10   # Optional: raise slack penalty during validation
@@ -283,7 +283,7 @@ Scenario Metadata
    :start-after: # --- section: scenario_metadata ---
    :end-before: # --- section: downloads ---
 
-* **planning_horizon**: Target year for optimization (default: 2030). Currently determined only which (projected) population levels to use.
+* **planning_horizon**: Target year for optimization (default: 2020, matching ``baseline_year``). Currently determines only which (projected) population levels to use; raise it to project demand forward.
 * **currency_base_year**: Base year for inflation-adjusted USD values (default: 2024). All cost data is automatically converted to real USD in this base year using CPI adjustments. See :doc:`crop_production` (Production Costs section) for details on cost modeling.
 
 Download Options

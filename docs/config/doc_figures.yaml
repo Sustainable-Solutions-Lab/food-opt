@@ -62,9 +62,6 @@ scenarios:
     <<: *ghg_base
     emissions: {ghg_price: 500}
 
-planning_horizon: 2020
-baseline_year: 2020
-
 # Enable piecewise utility at base level (blocks get built from baseline)
 food_utility_piecewise:
   enabled: true
