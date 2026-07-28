@@ -9,6 +9,7 @@ description: |
   Based on config/default.yaml structure.
 type: object
 required:
+  - name
   - scenarios
   - planning_horizon
   - baseline_year
@@ -72,7 +73,7 @@ properties:
   name:
     type: string
     pattern: "^[a-zA-Z0-9_-]+$"
-    description: "Optional config name identifier (overrides default)"
+    description: "Config name used for processing and result directories"
 
   scenarios:
     type: object

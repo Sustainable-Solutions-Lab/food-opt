@@ -7,7 +7,7 @@
 
 def validate_sensitivity_generator(config: dict, _project_root=None) -> None:
     """Ensure sensitivity generators have unique prefixes."""
-    scenario_defs = config.get("scenarios") or {}
+    scenario_defs = config["scenarios"]
 
     sensitivity_generators = [
         generator

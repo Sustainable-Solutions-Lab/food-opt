@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 def validate_health_map(config: dict, project_root: Path) -> None:
-    health = config.get("health", {})
+    health = config["health"]
     risks = set(health.get("risk_factors", []))
     causes = set(health.get("causes", []))
     risk_cause_map: dict[str, list[str]] = health.get("risk_cause_map", {})
@@ -41,7 +41,7 @@ def validate_health_map(config: dict, project_root: Path) -> None:
     # Every risk factor needs a per-capita consumption cap: it both bounds the
     # food-group store (e_nom_max) and sets the upper end of the Stage 1 intake
     # breakpoint domain in prepare_health_costs.
-    max_per_capita = set(config.get("food_groups", {}).get("max_per_capita", {}))
+    max_per_capita = set(config["food_groups"]["max_per_capita"])
     missing_caps = risks - max_per_capita
     if missing_caps:
         raise ValueError(

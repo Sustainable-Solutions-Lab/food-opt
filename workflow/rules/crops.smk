@@ -224,7 +224,7 @@ rule build_crop_yields_cropgrids:
     wildcard_constraints:
         crop=(
             "|".join(config["cropgrids_crops"])
-            if config.get("cropgrids_crops")
+            if config["cropgrids_crops"]
             else "__never__"
         ),
     group:
@@ -890,7 +890,7 @@ rule prepare_fiber_baseline:
 if config["cost_calibration"]["generate"]:
 
     _cal_scenario = config["cost_calibration"]["scenario"]
-    _cal_name = config.get("name", "default")
+    _cal_name = config["name"]
 
     rule extract_cost_calibration:
         input:

@@ -17,7 +17,7 @@ def validate_crop_groups(config: dict, project_root: Path) -> None:
     """
     all_crops = set(config["crops"])
     # Non-food crops and grassland can also appear on production maps
-    all_crops.update(config.get("non_food_crops", []))
+    all_crops.update(config["non_food_crops"])
     all_crops.add("grassland")
 
     group_cfg = config["plotting"]["crop_groups"]

@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: CC-BY-4.0
 
 # Default configuration - override in project-specific configs
+name: "default"
+
 # --- section: scenario_metadata ---
 scenarios:
   # Each key represents a named scenario that can be activated via the

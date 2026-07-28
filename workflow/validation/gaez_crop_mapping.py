@@ -40,7 +40,7 @@ def validate_gaez_crop_mapping(config: dict, project_root: Path) -> None:
 
     # Crops sourced from CROPGRIDS bypass GAEZ entirely and have no mapping
     # row by design (enforced by validate_cropgrids_crops).
-    cropgrids_crops = set(config.get("cropgrids_crops") or [])
+    cropgrids_crops = set(config["cropgrids_crops"])
     config_crops = set(config["crops"]) - cropgrids_crops
     mapped_crops = set(df["crop_name"].unique())
 

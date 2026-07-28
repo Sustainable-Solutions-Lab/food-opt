@@ -245,7 +245,7 @@ def _sensitivity_generator_group(gen):
 
 def _sensitivity_generator(wildcards):
     """Return the sensitivity generator whose group matches the wildcard."""
-    raw_defs = config.get("scenarios") or {}
+    raw_defs = config["scenarios"]
     group = wildcards.group
 
     generators = [
@@ -358,8 +358,7 @@ def _sensitivity_scenario_inputs(wildcards):
 def _sensitivity_method_config(wildcards):
     """Return the method-specific config dict from sensitivity_analysis.methods."""
     method = wildcards.method
-    sa_cfg = config.get("sensitivity_analysis", {})
-    methods = sa_cfg.get("methods", {})
+    methods = config["sensitivity_analysis"]["methods"]
     if method not in methods:
         raise ValueError(
             f"Unknown sensitivity method '{method}'. "

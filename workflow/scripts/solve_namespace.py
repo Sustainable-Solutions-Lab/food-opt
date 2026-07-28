@@ -320,12 +320,12 @@ def resolve_pathvars(path: str, path_roots: dict[str, str]) -> str:
 
 def default_path_roots(config: dict) -> dict[str, str]:
     """Resolve the standard four path roots from a config dict."""
-    paths_cfg = config.get("paths", {}) or {}
+    paths_cfg = config["paths"]
     return {
-        "results": resolve_path_root(paths_cfg.get("results_root", "results")),
-        "processing": resolve_path_root(paths_cfg.get("processing_root", "processing")),
-        "logs": resolve_path_root(paths_cfg.get("logs_root", "logs")),
-        "benchmarks": resolve_path_root(paths_cfg.get("benchmarks_root", "benchmarks")),
+        "results": resolve_path_root(paths_cfg["results_root"]),
+        "processing": resolve_path_root(paths_cfg["processing_root"]),
+        "logs": resolve_path_root(paths_cfg["logs_root"]),
+        "benchmarks": resolve_path_root(paths_cfg["benchmarks_root"]),
     }
 
 

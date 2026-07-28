@@ -49,7 +49,7 @@ def load_scenario_defs():
     """Load scenario definitions from the config's `scenarios` key."""
     global _SCENARIO_CACHE
     if _SCENARIO_CACHE is None:
-        raw_defs = config.get("scenarios") or {}
+        raw_defs = config["scenarios"]
         _SCENARIO_CACHE = expand_scenario_defs(raw_defs)
     return _SCENARIO_CACHE
 
@@ -233,7 +233,7 @@ def gaez_crops(crops=None):
     crops bypass GAEZ entirely and must not appear in those input lists.
     """
     base = list(crops) if crops is not None else list(config["crops"])
-    cropgrids_set = set(config.get("cropgrids_crops") or [])
+    cropgrids_set = set(config["cropgrids_crops"])
     return [c for c in base if c not in cropgrids_set]
 
 
@@ -249,7 +249,7 @@ def irrigated_crops():
         base = list(config["crops"])
     else:
         base = list(irr_cfg)
-    cropgrids_set = set(config.get("cropgrids_crops") or [])
+    cropgrids_set = set(config["cropgrids_crops"])
     return [c for c in base if c not in cropgrids_set]
 
 
@@ -260,7 +260,7 @@ def gaez_path(kind: str, water_supply: str, crop: str) -> str:
     water_supply: "i" (irrigated) or "r" (rainfed)
     crop: crop name (e.g., "wheat")
     """
-    cropgrids_set = set(config.get("cropgrids_crops") or [])
+    cropgrids_set = set(config["cropgrids_crops"])
     if crop in cropgrids_set:
         raise ValueError(
             f"gaez_path() called for CROPGRIDS-backed crop '{crop}'; this "

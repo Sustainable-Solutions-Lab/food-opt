@@ -95,6 +95,9 @@ introduce breaking changes to configuration and outputs.
   re-stamps a set without solving, for when a code change provably cannot move
   the artefacts.
 
+- `config/default.yaml` now has the canonical name `default`. All shipped
+  configuration fields are validated as required; workflow code no longer
+  supplies hidden fallback values for missing keys.
 - `planning_horizon` now defaults to 2020, matching `baseline_year`, so an
   unmodified run solves the observed year the calibration artefacts are fit
   against. Configs that previously relied on the 2030 default (including

@@ -229,7 +229,7 @@ if __name__ == "__main__":
     else:
         expected_irrigated_crops = set(map(str, irrigation_cfg))
     # CROPGRIDS-backed crops are rainfed-only by construction.
-    cropgrids_crops = set(snakemake.config.get("cropgrids_crops") or [])  # type: ignore[index]
+    cropgrids_crops = set(snakemake.config["cropgrids_crops"])  # type: ignore[index]
     expected_irrigated_crops -= cropgrids_crops
 
     # Read yields data and harvested area for each crop and water supply.

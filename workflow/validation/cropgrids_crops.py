@@ -35,7 +35,7 @@ def validate_cropgrids_crops(config: dict, project_root: Path) -> None:
        reserved for GAEZ-backed crops, and a stray entry would otherwise
        feed the GAEZ download rules.
     """
-    cropgrids_crops = list(config.get("cropgrids_crops") or [])
+    cropgrids_crops = list(config["cropgrids_crops"])
     if not cropgrids_crops:
         return
 
