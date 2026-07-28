@@ -128,7 +128,7 @@ basis, so no further conversion is needed when reading
   before the conversion.
 
 GBD exposure is converted to the model basis at load time via
-``diet.source_basis`` and ``diet.weight_conversion`` (cooked→dry for
+``diet.source_basis`` and ``weight_conversion`` (cooked→dry for
 ``whole_grains`` and ``legumes`` at 0.45 and 0.40; cooked→fresh for
 ``red_meat`` at 1.43). NHANES values are intake-based and pass through
 unchanged.
@@ -470,7 +470,7 @@ source (or NHANES for the USA).
 GBD exposure is converted to the model's basis at load time, per
 food-group, using ``diet.source_basis`` plus per-(source, country,
 food_group) overrides from ``data/curated/diet_source_basis_overrides.csv``
-and the conversion tables in ``diet.weight_conversion``. The script also
+and the conversion tables in ``weight_conversion``. The script also
 logs cross-validation metrics: median and range of the source/GBD ratio
 across countries for every risk group, and GBD's milk exposure as a
 cross-check on the dairy total.
@@ -766,12 +766,12 @@ Downstream Uses
   ``config.validation.enforce_baseline_diet`` is true, the solver adds
   per-food, per-country equality constraints on food consumption links.
 * **Within-group ratio fixing**: when
-  ``config.food_groups.fix_within_group_ratios`` is true, foods within
+  ``config.food_groups.fix_within_group_ratios.enabled`` is true, foods within
   each group are constrained to keep their baseline proportions while
   group totals may vary.
 * **Piecewise consumer utility calibration**: baseline per-food
   consumption and baseline food-equality duals together calibrate
-  ``results/{name}/consumer_values/utility_blocks.csv``
+  ``results/{name}/consumer_values/{baseline_scenario}/utility_blocks.csv``
   (:doc:`consumer_values`).
 * **Health impact assessment**: baseline consumption feeds the
   population-attributable fraction calculation (:doc:`health`).
@@ -841,7 +841,7 @@ Workflow Integration
   (default ``"All ages"``).
 * ``config.diet.fbs_override_foods`` — foods anchored to FBS supply.
   See :ref:`Why animal products use FBS <animal-source-selection>`.
-* ``config.diet.source_basis`` and ``config.diet.weight_conversion`` —
+* ``config.diet.source_basis`` and ``config.weight_conversion`` —
   per-source native bases and conversion tables.
 * ``config.diet.gdd_ia.cooked_to_raw`` — per-group cooked→raw inflation
   factors for GDD-IA (currently ``red_meat: 1.43``).

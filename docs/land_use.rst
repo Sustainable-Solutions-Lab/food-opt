@@ -339,8 +339,9 @@ Land Slack
 Validation runs that pin observed harvested area may encounter land-class mismatches. To maintain feasibility without globally loosening land limits, each land bus can receive a ``land_slack`` generator:
 
 - Controlled by ``validation.land_slack: true``
-- Marginal cost set by ``land.slack_marginal_cost`` (USD per Mha)
-- Default ~5000 USD/ha ensures slack activates only as a last resort
+- Marginal cost set by ``validation.slack_marginal_cost`` (bn USD per Mha)
+- The default 50 bn USD/Mha (50,000 USD/ha) ensures slack activates only as a
+  last resort
 
 Multi-Cropping Land Correction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

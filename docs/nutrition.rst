@@ -146,14 +146,13 @@ to a per-country store instead of a nutrient mass:
    with operator chosen from ``min``/``max``/``equal`` in the config.
    As with macronutrients, an ``equal`` bound silences ``min``/``max``
    for that group.
-4. **Per-country equality from the baseline diet.** When the diet
-   module is configured to anchor a group to current per-country
-   consumption (``diet.enforce_baseline`` or an equality CSV), the
+4. **Per-country equality from an explicit source.** When
+   ``food_groups.equal_by_country_source`` names an equality CSV, the
    solver builds a ``per_country_equal`` mapping
    ``{group: {country: g/person/day}}`` from the baseline diet and
    feeds it to ``add_food_group_constraints``. The equality RHS then
    uses the country-specific value instead of a global one — useful
-   when the goal is *to hold today's group mix fixed and let the model
+   when the goal is *to hold a country's group mix fixed and let the model
    choose within-group composition*.
 
 This setup keeps dietary diversity decoupled from macronutrient
