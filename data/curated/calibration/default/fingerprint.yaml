@@ -12,11 +12,11 @@ steps:
     code:
       workflow/rules/animals.smk: fa07f649a53263c151e1799f63b40c66fba42ee7858a97d51ff988c406ba0024
       workflow/rules/consumer_values.smk: 4f3fb2650b690a41b45443b322745b698910abae3cb013f70e0eea8e54ba6290
-      workflow/rules/crops.smk: 6413ed1571fe2db7bbac9d45db8a27d51a1c2955a86b4629f43cf70da1a048b0
+      workflow/rules/crops.smk: 8d7d87b61959819ae9a753126767a71a10d7463af7963bffd423fa4560f470d1
       workflow/rules/diet.smk: 15db54cf636dca37bea0343c2bb236ead24ffe238dc2a843b391bbd43bfacb12
       workflow/rules/geography.smk: 54b113f5647787bacea8d2a2f45298a24c605a84ced48630abece8b2dc887943
       workflow/rules/luc.smk: e64fb669c0d6c40299d47c995dbb9f04a71f4d99d8edcd1fe9ce3ed700639257
-      workflow/rules/model.smk: 0e52481f84031711f0706a8c54a7e1038063e24320e52609a1fd832a977aaffd
+      workflow/rules/model.smk: 3a0e06937f52f250e4a5a60c8805f222ff9ad1563a125d839c53c962a847e7bb
       workflow/rules/retrieve.smk: ecd9eb633974cd575b7a879348c763f844b3f66cdedc785c7d28977ac541a577
       workflow/rules/water.smk: 9fe3fc69051df02bab7dde53d2057b2b64142c7212741f8a45bc0171447c951d
       workflow/scripts/aggregate_class_areas.py: 93e9a52eec4dac86eeff03fa7e574ad4bdd91bb4049f715a321850f327aba92e
@@ -28,7 +28,7 @@ steps:
       workflow/scripts/build_fdd_area_shares.py: b6e084b1779636547c41dada16d570ec0f98d5dc34f3d4e948e6e3943e32034a
       workflow/scripts/build_feed_to_animal_products.py: 1eb41eaf6149524bd6c324ba39356ee09cbebe62bd97bf2e7e4520e1b14e3ba3
       workflow/scripts/build_fodder_yield_corrections.py: eef62e7237a89f1f8b962893ed031758fd6abcc1b1c71140bc0c16e92e3fc568
-      workflow/scripts/build_frt_area_attribution.py: f91f51757808594f87d6a3151fd228b453181586bd342930b9749a4c21973bc8
+      workflow/scripts/build_frt_area_attribution.py: 9e85a1c3352270e6463212d24ecff579e5e8378c7969a22823dd5e59b16b422b
       workflow/scripts/build_grassland_yields.py: 38ed635e8e162d59f33fa15ba0c649046a047ae37136203de3db2fc72b135a2d
       workflow/scripts/build_grazing_only_land.py: 9880aea4ffe4886ba68fdbc283b009ea984cbb0fb3159754c721b02beb3eec99
       workflow/scripts/build_harvested_area.py: b6abc0557ed3c68948380d920ec77102f35e47b4712f4701a40677d15c972a98
@@ -37,16 +37,16 @@ steps:
       workflow/scripts/build_luc_grid.py: d8a8af444d2267b1dab55f6719bf3ade019a6410e15ed3b7888cb76d7c7061d6
       workflow/scripts/build_luicube_grassland_yields.py: 01d2865e3c1878fc4795075680197b161f4cb50259a2fb7f8cdcb1e3deaf2191
       workflow/scripts/build_mirca_crop_calendar.py: f44617c319c76f4e1f3d68f6d2dee14866804e498d478797e2d63612d9515e4e
-      workflow/scripts/build_model.py: 3294bfeb27cefb28ad3406f3fc40ff05400ddc6746f9944742d16c6a97c2b16d
+      workflow/scripts/build_model.py: 2d814e24e2cdd28365f44b6eea31f259ea42cea90bbf58579b4bd624a2cbd4e9
       workflow/scripts/build_multi_cropping.py: 6130469e316fb795e66d87fc3f9af6b8086878abba8dfe31c9b587c87478cc21
       workflow/scripts/build_ooc_olive_area_share.py: 3c5d202eabc9cd997d3dc4989e9e86e672230ce2d139cc7d96a3f5ccf459bbd5
       workflow/scripts/build_reforestation_mask.py: c373bb1564782ff1400d5fd717a87e67501241c5a9e09b644ea0e199a82aefa1
       workflow/scripts/build_region_class_cell_mapping.py: c8a2971f2cd7d3d46107f7c6af1a1d8bc22eacec1cca80a6a58ec04da508ad74
       workflow/scripts/build_region_water_aware.py: 9d6a8e8f1bf23d51d52d802c905c6460539874505546cec68d32f08a00ec2be1
-      workflow/scripts/build_region_watergap.py: 93451ae9ac67fac05fe205ca5009d0854f29012893997ed50db919ddb29ed5c5
+      workflow/scripts/build_region_watergap.py: 93024ff5d92eb74703d67f1216fd8b3f5a1f4721ae010f1d148c72036e93a4ea
       workflow/scripts/build_regions.py: 08a1f3c0247bdbe4600f2b1596396a352ff6c459496566e7e24da5b2f83558a7
       workflow/scripts/build_yield_calibration.py: 1225a0d55add24ce44acc86cde5dd3335ed9d0a233ba6025bfc8c0e5afc8375d
-      workflow/scripts/calculate_manure_emissions.py: c35ee707e5cfda0bc1cd0aa06f31c834f118b914b47dc6478a37222f10589f94
+      workflow/scripts/calculate_manure_emissions.py: 4f39f5370dcf931d4648bf7c0727a807ec7bc8fbb80561dae4ff5afa08834591
       workflow/scripts/calibrate_food_utility_blocks.py: e20676cd1b44c4504df3c9856131fa234088b1fd77c9f242144483f6f58ad330
       workflow/scripts/categorize_feeds.py: 575b37f430e4fbf54b8477be96f5069ce6522fa1882c2f024b9b9a25a8540140
       workflow/scripts/compose_water_supply.py: c1fc61844079219f2381664b44b6a917f51ecbc07bb08e1318702985deaf9231
@@ -60,7 +60,7 @@ steps:
       workflow/scripts/download_luicube_raster.py: 7883a5a73c9c18f6afbbabe62044494657e69b49469ae7c97b4df18f8a584b2c
       workflow/scripts/download_mirca_os_bag_member.py: e869f4ec2f87a03b65d7c6f875d6ad393dcce647789ba7fc0f1c2d2fa2e48049
       workflow/scripts/download_soilgrids_ocs.py: bcb361c0ada72cd6264685eb36b2efabc1a03bc25c93918c37da8da7fe049d58
-      workflow/scripts/estimate_baseline_diet.py: 87047e7cb0db1f5ab7460eeecfacea52c7ef36802669e0aff5b8c62079e589e9
+      workflow/scripts/estimate_baseline_diet.py: d9df39a6cc46b41da12059f5c38929a62e4b53301149488f89ce704cb5440336
       workflow/scripts/extract_consumer_values.py: eba7d4bd3d10632fc5fbcbc46f65acd5775f2bb74ca3aa3f5d6ff15113c3dd97
       workflow/scripts/extract_cost_calibration.py: f7475beca73108a5f6ef63f1c284625e996abc9dadf9efc981c92e2f259d3f23
       workflow/scripts/extract_mirca_os_archive.py: 687fe1d413ea063d585cc526ff53ce7d91c1df90e1d1ec898bfc62d19890647c
@@ -70,7 +70,7 @@ steps:
       workflow/scripts/prepare_banana_plantain_production.py: 214cd243b0932ee9da96cf24bdd8c7c10e05c94e27c303758cc2770e0d166e3a
       workflow/scripts/prepare_biofuel_baseline.py: de7fa63ca68961a1334e74af63b6e23a1360fcf810fa3a815e901e89cc8710ce
       workflow/scripts/prepare_fao_edible_portion.py: cb71097d23dbe14d077c2a74fbd28bd13fcf039529979cd1af64db2c184a5c0e
-      workflow/scripts/prepare_faostat_animal_production.py: d163e7bfb272e9b542f16dcc11ebfffae4476fbe08f9bbfcb64479b2d869ac06
+      workflow/scripts/prepare_faostat_animal_production.py: 38980d9bf9324ae01664c63104026aa4b3589f71f5bc592ae8f3bbe96cde9c2a
       workflow/scripts/prepare_faostat_crop_costs.py: be66f2aad20af7c88085b3c24e59ce2e26cfcee25b202fd96f3a47666d65ad1b
       workflow/scripts/prepare_faostat_crop_production.py: f446a0f22d865d6dfb7aaab643ea245932169769070b7a72ab16c98b09bf7435
       workflow/scripts/prepare_faostat_fbs_items.py: 87446f863e0e26e06b863cabcaafda362fb033f86b522b519922f86b5f80bb05
@@ -110,7 +110,6 @@ steps:
       data/bundled/gleam3/production.csv: eb85e82ba9a61c71c6cd33ab36c00b5d844f2550e1caa45b6b250410adc6f2b5
       data/curated/M49-codes.csv: 10ae52e639e62f07ce992ead08536167d0c8aa9f467870dbfcfbf465ef3aa9be
       data/curated/biogas_crop_demand.csv: 8371d2ef0d3170f4ee145b0b0fd7a1ab4e63eec87febb78ca5574866b58cff71
-      data/curated/calibration/default/deviation_penalty.yaml: a20304c2ecfc7d1109d43aaded46fd650bdc5524f43e6d6365b56fc225faeca0
       data/curated/calibration/default/exogenous_feed.csv: 3ebcac7797beb398a9ff227f700cab0f1e01fef27d361696d1c2b05c274cb39d
       data/curated/calibration/default/exogenous_forage.csv: d806b2e98968a5d0e3b8618d3882152102f11e4ce62a4de233b8560e7e1aeccc
       data/curated/calibration/default/fodder_conversion.csv: f46d89574830cefba376f9fdb86c0ae4462bdaf9889dcc25d8c15b0da1524458
@@ -156,19 +155,29 @@ steps:
       data/curated/usda_animal_cost_sources.csv: 7a27f0ad2e7dc08a10e3264e9aefc7ebfaa1ea360e3b198cb368738d995faf6a
       data/curated/wirsenius_feed_energy_requirements.csv: f6961ea48f00dcd793d0b61d2939c907fe87b03ab5f28f643073252a8306455c
       data/curated/yield_unit_conversions.csv: c1905886711b3b079bfd2761029070b874efd72f16ea5aac1f708e24d42d089f
+      workflow/scripts/build_model/__init__.py: 79735b7695e60ebf84e52bd91374505a357e4492f2bf80936bb00f76ffc4a7f7
       workflow/scripts/build_model/animals.py: 030c2dd4b459fb856e7dc34c9dd74fe9245a340eca9055b19a6d6bf01a910f29
-      workflow/scripts/build_model/biomass.py: 78059ea9d2fb953c5890dfb789b4215373a095a087d3e888cff1fa75d04e034f
+      workflow/scripts/build_model/biomass.py: 39bdbf6eb4d76e95cf9ce1a31a77c2b1382c1cb63dc728d5ac6f416393520f38
+      workflow/scripts/build_model/commodity_costs.py: 97a4c3aa148355adac88d7a45462158f55a7322a0c351babd0a243bd941eb0e2
       workflow/scripts/build_model/crops.py: 4b8638d8902b0a688d0ab55df3e3625d0953f3b4ac63886ddae50b3bf47b4610
       workflow/scripts/build_model/food.py: 9e53b6c847202a2192ea0e014746e62a9a5f88eedffc5a48833fc4186ef65ae9
-      workflow/scripts/build_model/grassland.py: c3ee3ae3149137e8ab427f0b5584251b9c49baac821e92f318cca816df171f48
+      workflow/scripts/build_model/grassland.py: bf39536ad916a0c7a47d72fe2de4171fd256e483b81ac552d4403fe0123036da
       workflow/scripts/build_model/health.py: 5ddc8cbae98992f67140db787946a0f9fd9ae15ad683592b4f81b4bf6a2df702
       workflow/scripts/build_model/infrastructure.py: b792d568d0f199699f5d53bc6f175138a899e41a71f86b5d72a037de1130785c
-      workflow/scripts/build_model/land.py: 160b8d97dfaaadcaeef4bc8efa3ebcd55ea8ad0aaf9469cc1387b4b0687f4422
+      workflow/scripts/build_model/irrigation.py: 3d1d6216069eb7854046266a68b202b1f4c981395c499f8d05ab04c22f5645c2
+      workflow/scripts/build_model/land.py: 8b1958b5791ec671df4621d873b2476d7aee69f3418b6c601b1036bdde87d11b
       workflow/scripts/build_model/nutrition.py: e94986ded9c4569cc1f3b264c352a1f7f7f72d0c3b107f2aed2ad5f44e1b875c
       workflow/scripts/build_model/primary_resources.py: 133c60f613ad9d758063511607d068a9e7fba04a726cc9fb714e83d9b6ae882c
-      workflow/scripts/build_model/trade.py: 0fa403447f9f3013fb9efd35f48b7d33044d9a5abca1bc2fe2c05460f077992a
+      workflow/scripts/build_model/trade.py: ef2649814994573c476eb02258b8d20b8393a5e9087906360c74cfa1412904a5
       workflow/scripts/build_model/utils.py: 46fee1344183d1d2fa798b0d92ac63f3aba5989c462d0b92946bf8a83fcbee43
       workflow/scripts/constants.py: ab1f55cfb14ae63171047643c634101962abdeab3b410624ad47570871268296
+      workflow/scripts/solve_model/__init__.py: 23fb1fde8c5d964c8fda94020ff41ce9fdeefd04f6334a1ab3e7e755c93af04c
+      workflow/scripts/solve_model/core.py: 71cd673487e6475fa128fdd448e1a251d89ee1ebfc4b882f021a447acb71fd74
+      workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
+      workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
+      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
+      workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
     missing_inputs: []
   feed:
     artefacts:
@@ -178,11 +187,11 @@ steps:
       data/curated/calibration/default/grassland_yield.csv: 7e2c656be823646dd9325400e3c7612388b2ff336cdaa9fbcd7831553f05eb79
     code:
       workflow/rules/animals.smk: fa07f649a53263c151e1799f63b40c66fba42ee7858a97d51ff988c406ba0024
-      workflow/rules/crops.smk: 6413ed1571fe2db7bbac9d45db8a27d51a1c2955a86b4629f43cf70da1a048b0
+      workflow/rules/crops.smk: 8d7d87b61959819ae9a753126767a71a10d7463af7963bffd423fa4560f470d1
       workflow/rules/diet.smk: 15db54cf636dca37bea0343c2bb236ead24ffe238dc2a843b391bbd43bfacb12
       workflow/rules/geography.smk: 54b113f5647787bacea8d2a2f45298a24c605a84ced48630abece8b2dc887943
       workflow/rules/luc.smk: e64fb669c0d6c40299d47c995dbb9f04a71f4d99d8edcd1fe9ce3ed700639257
-      workflow/rules/model.smk: 0e52481f84031711f0706a8c54a7e1038063e24320e52609a1fd832a977aaffd
+      workflow/rules/model.smk: 3a0e06937f52f250e4a5a60c8805f222ff9ad1563a125d839c53c962a847e7bb
       workflow/rules/retrieve.smk: ecd9eb633974cd575b7a879348c763f844b3f66cdedc785c7d28977ac541a577
       workflow/rules/water.smk: 9fe3fc69051df02bab7dde53d2057b2b64142c7212741f8a45bc0171447c951d
       workflow/scripts/aggregate_class_areas.py: 93e9a52eec4dac86eeff03fa7e574ad4bdd91bb4049f715a321850f327aba92e
@@ -194,7 +203,7 @@ steps:
       workflow/scripts/build_fdd_area_shares.py: b6e084b1779636547c41dada16d570ec0f98d5dc34f3d4e948e6e3943e32034a
       workflow/scripts/build_feed_to_animal_products.py: 1eb41eaf6149524bd6c324ba39356ee09cbebe62bd97bf2e7e4520e1b14e3ba3
       workflow/scripts/build_fodder_yield_corrections.py: eef62e7237a89f1f8b962893ed031758fd6abcc1b1c71140bc0c16e92e3fc568
-      workflow/scripts/build_frt_area_attribution.py: f91f51757808594f87d6a3151fd228b453181586bd342930b9749a4c21973bc8
+      workflow/scripts/build_frt_area_attribution.py: 9e85a1c3352270e6463212d24ecff579e5e8378c7969a22823dd5e59b16b422b
       workflow/scripts/build_grassland_yields.py: 38ed635e8e162d59f33fa15ba0c649046a047ae37136203de3db2fc72b135a2d
       workflow/scripts/build_grazing_only_land.py: 9880aea4ffe4886ba68fdbc283b009ea984cbb0fb3159754c721b02beb3eec99
       workflow/scripts/build_harvested_area.py: b6abc0557ed3c68948380d920ec77102f35e47b4712f4701a40677d15c972a98
@@ -203,16 +212,16 @@ steps:
       workflow/scripts/build_luc_grid.py: d8a8af444d2267b1dab55f6719bf3ade019a6410e15ed3b7888cb76d7c7061d6
       workflow/scripts/build_luicube_grassland_yields.py: 01d2865e3c1878fc4795075680197b161f4cb50259a2fb7f8cdcb1e3deaf2191
       workflow/scripts/build_mirca_crop_calendar.py: f44617c319c76f4e1f3d68f6d2dee14866804e498d478797e2d63612d9515e4e
-      workflow/scripts/build_model.py: 3294bfeb27cefb28ad3406f3fc40ff05400ddc6746f9944742d16c6a97c2b16d
+      workflow/scripts/build_model.py: 2d814e24e2cdd28365f44b6eea31f259ea42cea90bbf58579b4bd624a2cbd4e9
       workflow/scripts/build_multi_cropping.py: 6130469e316fb795e66d87fc3f9af6b8086878abba8dfe31c9b587c87478cc21
       workflow/scripts/build_ooc_olive_area_share.py: 3c5d202eabc9cd997d3dc4989e9e86e672230ce2d139cc7d96a3f5ccf459bbd5
       workflow/scripts/build_reforestation_mask.py: c373bb1564782ff1400d5fd717a87e67501241c5a9e09b644ea0e199a82aefa1
       workflow/scripts/build_region_class_cell_mapping.py: c8a2971f2cd7d3d46107f7c6af1a1d8bc22eacec1cca80a6a58ec04da508ad74
       workflow/scripts/build_region_water_aware.py: 9d6a8e8f1bf23d51d52d802c905c6460539874505546cec68d32f08a00ec2be1
-      workflow/scripts/build_region_watergap.py: 93451ae9ac67fac05fe205ca5009d0854f29012893997ed50db919ddb29ed5c5
+      workflow/scripts/build_region_watergap.py: 93024ff5d92eb74703d67f1216fd8b3f5a1f4721ae010f1d148c72036e93a4ea
       workflow/scripts/build_regions.py: 08a1f3c0247bdbe4600f2b1596396a352ff6c459496566e7e24da5b2f83558a7
       workflow/scripts/build_yield_calibration.py: 1225a0d55add24ce44acc86cde5dd3335ed9d0a233ba6025bfc8c0e5afc8375d
-      workflow/scripts/calculate_manure_emissions.py: c35ee707e5cfda0bc1cd0aa06f31c834f118b914b47dc6478a37222f10589f94
+      workflow/scripts/calculate_manure_emissions.py: 4f39f5370dcf931d4648bf7c0727a807ec7bc8fbb80561dae4ff5afa08834591
       workflow/scripts/categorize_feeds.py: 575b37f430e4fbf54b8477be96f5069ce6522fa1882c2f024b9b9a25a8540140
       workflow/scripts/compose_water_supply.py: c1fc61844079219f2381664b44b6a917f51ecbc07bb08e1318702985deaf9231
       workflow/scripts/compute_exogenous_feed_calibration.py: e72a80a835bbf1cca799f46e861ceef67c0e03a2fdaebc4ded10d31b55d4a5bd
@@ -227,7 +236,7 @@ steps:
       workflow/scripts/download_luicube_raster.py: 7883a5a73c9c18f6afbbabe62044494657e69b49469ae7c97b4df18f8a584b2c
       workflow/scripts/download_mirca_os_bag_member.py: e869f4ec2f87a03b65d7c6f875d6ad393dcce647789ba7fc0f1c2d2fa2e48049
       workflow/scripts/download_soilgrids_ocs.py: bcb361c0ada72cd6264685eb36b2efabc1a03bc25c93918c37da8da7fe049d58
-      workflow/scripts/estimate_baseline_diet.py: 87047e7cb0db1f5ab7460eeecfacea52c7ef36802669e0aff5b8c62079e589e9
+      workflow/scripts/estimate_baseline_diet.py: d9df39a6cc46b41da12059f5c38929a62e4b53301149488f89ce704cb5440336
       workflow/scripts/extract_mirca_os_archive.py: 687fe1d413ea063d585cc526ff53ce7d91c1df90e1d1ec898bfc62d19890647c
       workflow/scripts/merge_animal_costs.py: db83828da2fad888f0bae49e3a4d19ebc8315e27d2edcd0c6fde579b736de57c
       workflow/scripts/merge_dietary_sources.py: b647708a56e5d7c9359f78c644020e3b67e37f50d699004fc8462ed5700031a4
@@ -235,7 +244,7 @@ steps:
       workflow/scripts/prepare_banana_plantain_production.py: 214cd243b0932ee9da96cf24bdd8c7c10e05c94e27c303758cc2770e0d166e3a
       workflow/scripts/prepare_biofuel_baseline.py: de7fa63ca68961a1334e74af63b6e23a1360fcf810fa3a815e901e89cc8710ce
       workflow/scripts/prepare_fao_edible_portion.py: cb71097d23dbe14d077c2a74fbd28bd13fcf039529979cd1af64db2c184a5c0e
-      workflow/scripts/prepare_faostat_animal_production.py: d163e7bfb272e9b542f16dcc11ebfffae4476fbe08f9bbfcb64479b2d869ac06
+      workflow/scripts/prepare_faostat_animal_production.py: 38980d9bf9324ae01664c63104026aa4b3589f71f5bc592ae8f3bbe96cde9c2a
       workflow/scripts/prepare_faostat_crop_costs.py: be66f2aad20af7c88085b3c24e59ce2e26cfcee25b202fd96f3a47666d65ad1b
       workflow/scripts/prepare_faostat_crop_production.py: f446a0f22d865d6dfb7aaab643ea245932169769070b7a72ab16c98b09bf7435
       workflow/scripts/prepare_faostat_fbs_items.py: 87446f863e0e26e06b863cabcaafda362fb033f86b522b519922f86b5f80bb05
@@ -266,7 +275,7 @@ steps:
       workflow/scripts/solve_model.py: 8b13b5a820ba69e4385dcc0b4f576744d9759485a642ca43282c7b65861fe5cb
       workflow/scripts/validate_baseline_diet.py: 6d54d506a2d8382321c849d77698098429019e0f089f969c43ee2848becc05f4
     config_files:
-      config/calibration/feed.yaml: dc76da31efdef7eb308b665b728b847c756883b1a3d478721baacfa3ffe64488
+      config/calibration/feed.yaml: e89dbae29b5006642970dd73044e8c1278c6c7cc434118128fe0782cdead31f2
     inputs:
       data/bundled/doi_10_5061_dryad_2rbnzs7qh__v20250311/FUBC_1_to_9_data.csv: 3b5dc29b6e2f6844807f2983c1596c28a127f48a67f7deec7e36f6a49c0b17f3
       data/bundled/gleam3/feed_items_categories.xlsx: b2f5f6a8dd86648c6b1a34100dfb6531aacc1c65865d2e8c4eac3a384776de9a
@@ -275,7 +284,6 @@ steps:
       data/bundled/gleam3/production.csv: eb85e82ba9a61c71c6cd33ab36c00b5d844f2550e1caa45b6b250410adc6f2b5
       data/curated/M49-codes.csv: 10ae52e639e62f07ce992ead08536167d0c8aa9f467870dbfcfbf465ef3aa9be
       data/curated/biogas_crop_demand.csv: 8371d2ef0d3170f4ee145b0b0fd7a1ab4e63eec87febb78ca5574866b58cff71
-      data/curated/calibration/default/deviation_penalty.yaml: a20304c2ecfc7d1109d43aaded46fd650bdc5524f43e6d6365b56fc225faeca0
       data/curated/country_mottet_region.csv: 8c41e8d0a8ad7ec8cd89b9c9cdbb72b6870fb8e9b59dd6ba6e49be468c5651a3
       data/curated/country_wirsenius_region.csv: 73ae37e68c61286b0312b04b0d1dbc661322d8be5c5e5e66754fff1c9dcfac6e
       data/curated/crop_moisture_content.csv: b9e6ac4455fdbb6c28f211a291d2cde59439b7e2215d987e104544cc9eeebfe7
@@ -315,30 +323,40 @@ steps:
       data/curated/usda_animal_cost_sources.csv: 7a27f0ad2e7dc08a10e3264e9aefc7ebfaa1ea360e3b198cb368738d995faf6a
       data/curated/wirsenius_feed_energy_requirements.csv: f6961ea48f00dcd793d0b61d2939c907fe87b03ab5f28f643073252a8306455c
       data/curated/yield_unit_conversions.csv: c1905886711b3b079bfd2761029070b874efd72f16ea5aac1f708e24d42d089f
+      workflow/scripts/build_model/__init__.py: 79735b7695e60ebf84e52bd91374505a357e4492f2bf80936bb00f76ffc4a7f7
       workflow/scripts/build_model/animals.py: 030c2dd4b459fb856e7dc34c9dd74fe9245a340eca9055b19a6d6bf01a910f29
-      workflow/scripts/build_model/biomass.py: 78059ea9d2fb953c5890dfb789b4215373a095a087d3e888cff1fa75d04e034f
+      workflow/scripts/build_model/biomass.py: 39bdbf6eb4d76e95cf9ce1a31a77c2b1382c1cb63dc728d5ac6f416393520f38
+      workflow/scripts/build_model/commodity_costs.py: 97a4c3aa148355adac88d7a45462158f55a7322a0c351babd0a243bd941eb0e2
       workflow/scripts/build_model/crops.py: 4b8638d8902b0a688d0ab55df3e3625d0953f3b4ac63886ddae50b3bf47b4610
       workflow/scripts/build_model/food.py: 9e53b6c847202a2192ea0e014746e62a9a5f88eedffc5a48833fc4186ef65ae9
-      workflow/scripts/build_model/grassland.py: c3ee3ae3149137e8ab427f0b5584251b9c49baac821e92f318cca816df171f48
+      workflow/scripts/build_model/grassland.py: bf39536ad916a0c7a47d72fe2de4171fd256e483b81ac552d4403fe0123036da
       workflow/scripts/build_model/health.py: 5ddc8cbae98992f67140db787946a0f9fd9ae15ad683592b4f81b4bf6a2df702
       workflow/scripts/build_model/infrastructure.py: b792d568d0f199699f5d53bc6f175138a899e41a71f86b5d72a037de1130785c
-      workflow/scripts/build_model/land.py: 160b8d97dfaaadcaeef4bc8efa3ebcd55ea8ad0aaf9469cc1387b4b0687f4422
+      workflow/scripts/build_model/irrigation.py: 3d1d6216069eb7854046266a68b202b1f4c981395c499f8d05ab04c22f5645c2
+      workflow/scripts/build_model/land.py: 8b1958b5791ec671df4621d873b2476d7aee69f3418b6c601b1036bdde87d11b
       workflow/scripts/build_model/nutrition.py: e94986ded9c4569cc1f3b264c352a1f7f7f72d0c3b107f2aed2ad5f44e1b875c
       workflow/scripts/build_model/primary_resources.py: 133c60f613ad9d758063511607d068a9e7fba04a726cc9fb714e83d9b6ae882c
-      workflow/scripts/build_model/trade.py: 0fa403447f9f3013fb9efd35f48b7d33044d9a5abca1bc2fe2c05460f077992a
+      workflow/scripts/build_model/trade.py: ef2649814994573c476eb02258b8d20b8393a5e9087906360c74cfa1412904a5
       workflow/scripts/build_model/utils.py: 46fee1344183d1d2fa798b0d92ac63f3aba5989c462d0b92946bf8a83fcbee43
       workflow/scripts/constants.py: ab1f55cfb14ae63171047643c634101962abdeab3b410624ad47570871268296
+      workflow/scripts/solve_model/__init__.py: 23fb1fde8c5d964c8fda94020ff41ce9fdeefd04f6334a1ab3e7e755c93af04c
+      workflow/scripts/solve_model/core.py: 71cd673487e6475fa128fdd448e1a251d89ee1ebfc4b882f021a447acb71fd74
+      workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
+      workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
+      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
+      workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
     missing_inputs: []
   food_demand:
     artefacts:
       data/curated/calibration/default/food_demand.csv: a7cc72a127b566e59057cf2cdc9a8595b79a00dfa0503a29fb55b0afa350c6e5
     code:
       workflow/rules/animals.smk: fa07f649a53263c151e1799f63b40c66fba42ee7858a97d51ff988c406ba0024
-      workflow/rules/crops.smk: 6413ed1571fe2db7bbac9d45db8a27d51a1c2955a86b4629f43cf70da1a048b0
+      workflow/rules/crops.smk: 8d7d87b61959819ae9a753126767a71a10d7463af7963bffd423fa4560f470d1
       workflow/rules/diet.smk: 15db54cf636dca37bea0343c2bb236ead24ffe238dc2a843b391bbd43bfacb12
       workflow/rules/geography.smk: 54b113f5647787bacea8d2a2f45298a24c605a84ced48630abece8b2dc887943
       workflow/rules/luc.smk: e64fb669c0d6c40299d47c995dbb9f04a71f4d99d8edcd1fe9ce3ed700639257
-      workflow/rules/model.smk: 0e52481f84031711f0706a8c54a7e1038063e24320e52609a1fd832a977aaffd
+      workflow/rules/model.smk: 3a0e06937f52f250e4a5a60c8805f222ff9ad1563a125d839c53c962a847e7bb
       workflow/rules/retrieve.smk: ecd9eb633974cd575b7a879348c763f844b3f66cdedc785c7d28977ac541a577
       workflow/rules/water.smk: 9fe3fc69051df02bab7dde53d2057b2b64142c7212741f8a45bc0171447c951d
       workflow/scripts/aggregate_class_areas.py: 93e9a52eec4dac86eeff03fa7e574ad4bdd91bb4049f715a321850f327aba92e
@@ -350,7 +368,7 @@ steps:
       workflow/scripts/build_fdd_area_shares.py: b6e084b1779636547c41dada16d570ec0f98d5dc34f3d4e948e6e3943e32034a
       workflow/scripts/build_feed_to_animal_products.py: 1eb41eaf6149524bd6c324ba39356ee09cbebe62bd97bf2e7e4520e1b14e3ba3
       workflow/scripts/build_fodder_yield_corrections.py: eef62e7237a89f1f8b962893ed031758fd6abcc1b1c71140bc0c16e92e3fc568
-      workflow/scripts/build_frt_area_attribution.py: f91f51757808594f87d6a3151fd228b453181586bd342930b9749a4c21973bc8
+      workflow/scripts/build_frt_area_attribution.py: 9e85a1c3352270e6463212d24ecff579e5e8378c7969a22823dd5e59b16b422b
       workflow/scripts/build_grassland_yields.py: 38ed635e8e162d59f33fa15ba0c649046a047ae37136203de3db2fc72b135a2d
       workflow/scripts/build_grazing_only_land.py: 9880aea4ffe4886ba68fdbc283b009ea984cbb0fb3159754c721b02beb3eec99
       workflow/scripts/build_harvested_area.py: b6abc0557ed3c68948380d920ec77102f35e47b4712f4701a40677d15c972a98
@@ -359,16 +377,16 @@ steps:
       workflow/scripts/build_luc_grid.py: d8a8af444d2267b1dab55f6719bf3ade019a6410e15ed3b7888cb76d7c7061d6
       workflow/scripts/build_luicube_grassland_yields.py: 01d2865e3c1878fc4795075680197b161f4cb50259a2fb7f8cdcb1e3deaf2191
       workflow/scripts/build_mirca_crop_calendar.py: f44617c319c76f4e1f3d68f6d2dee14866804e498d478797e2d63612d9515e4e
-      workflow/scripts/build_model.py: 3294bfeb27cefb28ad3406f3fc40ff05400ddc6746f9944742d16c6a97c2b16d
+      workflow/scripts/build_model.py: 2d814e24e2cdd28365f44b6eea31f259ea42cea90bbf58579b4bd624a2cbd4e9
       workflow/scripts/build_multi_cropping.py: 6130469e316fb795e66d87fc3f9af6b8086878abba8dfe31c9b587c87478cc21
       workflow/scripts/build_ooc_olive_area_share.py: 3c5d202eabc9cd997d3dc4989e9e86e672230ce2d139cc7d96a3f5ccf459bbd5
       workflow/scripts/build_reforestation_mask.py: c373bb1564782ff1400d5fd717a87e67501241c5a9e09b644ea0e199a82aefa1
       workflow/scripts/build_region_class_cell_mapping.py: c8a2971f2cd7d3d46107f7c6af1a1d8bc22eacec1cca80a6a58ec04da508ad74
       workflow/scripts/build_region_water_aware.py: 9d6a8e8f1bf23d51d52d802c905c6460539874505546cec68d32f08a00ec2be1
-      workflow/scripts/build_region_watergap.py: 93451ae9ac67fac05fe205ca5009d0854f29012893997ed50db919ddb29ed5c5
+      workflow/scripts/build_region_watergap.py: 93024ff5d92eb74703d67f1216fd8b3f5a1f4721ae010f1d148c72036e93a4ea
       workflow/scripts/build_regions.py: 08a1f3c0247bdbe4600f2b1596396a352ff6c459496566e7e24da5b2f83558a7
       workflow/scripts/build_yield_calibration.py: 1225a0d55add24ce44acc86cde5dd3335ed9d0a233ba6025bfc8c0e5afc8375d
-      workflow/scripts/calculate_manure_emissions.py: c35ee707e5cfda0bc1cd0aa06f31c834f118b914b47dc6478a37222f10589f94
+      workflow/scripts/calculate_manure_emissions.py: 4f39f5370dcf931d4648bf7c0727a807ec7bc8fbb80561dae4ff5afa08834591
       workflow/scripts/categorize_feeds.py: 575b37f430e4fbf54b8477be96f5069ce6522fa1882c2f024b9b9a25a8540140
       workflow/scripts/compose_water_supply.py: c1fc61844079219f2381664b44b6a917f51ecbc07bb08e1318702985deaf9231
       workflow/scripts/compute_food_demand_calibration.py: b231f34617c676c5df60abe4c418388b84a3d41acfd78313804489be9017172e
@@ -382,7 +400,7 @@ steps:
       workflow/scripts/download_luicube_raster.py: 7883a5a73c9c18f6afbbabe62044494657e69b49469ae7c97b4df18f8a584b2c
       workflow/scripts/download_mirca_os_bag_member.py: e869f4ec2f87a03b65d7c6f875d6ad393dcce647789ba7fc0f1c2d2fa2e48049
       workflow/scripts/download_soilgrids_ocs.py: bcb361c0ada72cd6264685eb36b2efabc1a03bc25c93918c37da8da7fe049d58
-      workflow/scripts/estimate_baseline_diet.py: 87047e7cb0db1f5ab7460eeecfacea52c7ef36802669e0aff5b8c62079e589e9
+      workflow/scripts/estimate_baseline_diet.py: d9df39a6cc46b41da12059f5c38929a62e4b53301149488f89ce704cb5440336
       workflow/scripts/extract_mirca_os_archive.py: 687fe1d413ea063d585cc526ff53ce7d91c1df90e1d1ec898bfc62d19890647c
       workflow/scripts/merge_animal_costs.py: db83828da2fad888f0bae49e3a4d19ebc8315e27d2edcd0c6fde579b736de57c
       workflow/scripts/merge_dietary_sources.py: b647708a56e5d7c9359f78c644020e3b67e37f50d699004fc8462ed5700031a4
@@ -390,7 +408,7 @@ steps:
       workflow/scripts/prepare_banana_plantain_production.py: 214cd243b0932ee9da96cf24bdd8c7c10e05c94e27c303758cc2770e0d166e3a
       workflow/scripts/prepare_biofuel_baseline.py: de7fa63ca68961a1334e74af63b6e23a1360fcf810fa3a815e901e89cc8710ce
       workflow/scripts/prepare_fao_edible_portion.py: cb71097d23dbe14d077c2a74fbd28bd13fcf039529979cd1af64db2c184a5c0e
-      workflow/scripts/prepare_faostat_animal_production.py: d163e7bfb272e9b542f16dcc11ebfffae4476fbe08f9bbfcb64479b2d869ac06
+      workflow/scripts/prepare_faostat_animal_production.py: 38980d9bf9324ae01664c63104026aa4b3589f71f5bc592ae8f3bbe96cde9c2a
       workflow/scripts/prepare_faostat_crop_costs.py: be66f2aad20af7c88085b3c24e59ce2e26cfcee25b202fd96f3a47666d65ad1b
       workflow/scripts/prepare_faostat_crop_production.py: f446a0f22d865d6dfb7aaab643ea245932169769070b7a72ab16c98b09bf7435
       workflow/scripts/prepare_faostat_fbs_items.py: 87446f863e0e26e06b863cabcaafda362fb033f86b522b519922f86b5f80bb05
@@ -421,7 +439,7 @@ steps:
       workflow/scripts/solve_model.py: 8b13b5a820ba69e4385dcc0b4f576744d9759485a642ca43282c7b65861fe5cb
       workflow/scripts/validate_baseline_diet.py: 6d54d506a2d8382321c849d77698098429019e0f089f969c43ee2848becc05f4
     config_files:
-      config/calibration/food_demand.yaml: 75f8d91dc73aece4621d940b183457348b3c513218d06fa00e40af2b6729769a
+      config/calibration/food_demand.yaml: 54f0d3a49b41661adaf73d854fb176b69a0ffa1a85af66dbd09de25f8f74ab20
     inputs:
       data/bundled/doi_10_5061_dryad_2rbnzs7qh__v20250311/FUBC_1_to_9_data.csv: 3b5dc29b6e2f6844807f2983c1596c28a127f48a67f7deec7e36f6a49c0b17f3
       data/bundled/gleam3/feed_items_categories.xlsx: b2f5f6a8dd86648c6b1a34100dfb6531aacc1c65865d2e8c4eac3a384776de9a
@@ -430,7 +448,6 @@ steps:
       data/bundled/gleam3/production.csv: eb85e82ba9a61c71c6cd33ab36c00b5d844f2550e1caa45b6b250410adc6f2b5
       data/curated/M49-codes.csv: 10ae52e639e62f07ce992ead08536167d0c8aa9f467870dbfcfbf465ef3aa9be
       data/curated/biogas_crop_demand.csv: 8371d2ef0d3170f4ee145b0b0fd7a1ab4e63eec87febb78ca5574866b58cff71
-      data/curated/calibration/default/deviation_penalty.yaml: a20304c2ecfc7d1109d43aaded46fd650bdc5524f43e6d6365b56fc225faeca0
       data/curated/calibration/default/exogenous_feed.csv: 3ebcac7797beb398a9ff227f700cab0f1e01fef27d361696d1c2b05c274cb39d
       data/curated/calibration/default/exogenous_forage.csv: d806b2e98968a5d0e3b8618d3882152102f11e4ce62a4de233b8560e7e1aeccc
       data/curated/calibration/default/fodder_conversion.csv: f46d89574830cefba376f9fdb86c0ae4462bdaf9889dcc25d8c15b0da1524458
@@ -475,30 +492,40 @@ steps:
       data/curated/usda_animal_cost_sources.csv: 7a27f0ad2e7dc08a10e3264e9aefc7ebfaa1ea360e3b198cb368738d995faf6a
       data/curated/wirsenius_feed_energy_requirements.csv: f6961ea48f00dcd793d0b61d2939c907fe87b03ab5f28f643073252a8306455c
       data/curated/yield_unit_conversions.csv: c1905886711b3b079bfd2761029070b874efd72f16ea5aac1f708e24d42d089f
+      workflow/scripts/build_model/__init__.py: 79735b7695e60ebf84e52bd91374505a357e4492f2bf80936bb00f76ffc4a7f7
       workflow/scripts/build_model/animals.py: 030c2dd4b459fb856e7dc34c9dd74fe9245a340eca9055b19a6d6bf01a910f29
-      workflow/scripts/build_model/biomass.py: 78059ea9d2fb953c5890dfb789b4215373a095a087d3e888cff1fa75d04e034f
+      workflow/scripts/build_model/biomass.py: 39bdbf6eb4d76e95cf9ce1a31a77c2b1382c1cb63dc728d5ac6f416393520f38
+      workflow/scripts/build_model/commodity_costs.py: 97a4c3aa148355adac88d7a45462158f55a7322a0c351babd0a243bd941eb0e2
       workflow/scripts/build_model/crops.py: 4b8638d8902b0a688d0ab55df3e3625d0953f3b4ac63886ddae50b3bf47b4610
       workflow/scripts/build_model/food.py: 9e53b6c847202a2192ea0e014746e62a9a5f88eedffc5a48833fc4186ef65ae9
-      workflow/scripts/build_model/grassland.py: c3ee3ae3149137e8ab427f0b5584251b9c49baac821e92f318cca816df171f48
+      workflow/scripts/build_model/grassland.py: bf39536ad916a0c7a47d72fe2de4171fd256e483b81ac552d4403fe0123036da
       workflow/scripts/build_model/health.py: 5ddc8cbae98992f67140db787946a0f9fd9ae15ad683592b4f81b4bf6a2df702
       workflow/scripts/build_model/infrastructure.py: b792d568d0f199699f5d53bc6f175138a899e41a71f86b5d72a037de1130785c
-      workflow/scripts/build_model/land.py: 160b8d97dfaaadcaeef4bc8efa3ebcd55ea8ad0aaf9469cc1387b4b0687f4422
+      workflow/scripts/build_model/irrigation.py: 3d1d6216069eb7854046266a68b202b1f4c981395c499f8d05ab04c22f5645c2
+      workflow/scripts/build_model/land.py: 8b1958b5791ec671df4621d873b2476d7aee69f3418b6c601b1036bdde87d11b
       workflow/scripts/build_model/nutrition.py: e94986ded9c4569cc1f3b264c352a1f7f7f72d0c3b107f2aed2ad5f44e1b875c
       workflow/scripts/build_model/primary_resources.py: 133c60f613ad9d758063511607d068a9e7fba04a726cc9fb714e83d9b6ae882c
-      workflow/scripts/build_model/trade.py: 0fa403447f9f3013fb9efd35f48b7d33044d9a5abca1bc2fe2c05460f077992a
+      workflow/scripts/build_model/trade.py: ef2649814994573c476eb02258b8d20b8393a5e9087906360c74cfa1412904a5
       workflow/scripts/build_model/utils.py: 46fee1344183d1d2fa798b0d92ac63f3aba5989c462d0b92946bf8a83fcbee43
       workflow/scripts/constants.py: ab1f55cfb14ae63171047643c634101962abdeab3b410624ad47570871268296
+      workflow/scripts/solve_model/__init__.py: 23fb1fde8c5d964c8fda94020ff41ce9fdeefd04f6334a1ab3e7e755c93af04c
+      workflow/scripts/solve_model/core.py: 71cd673487e6475fa128fdd448e1a251d89ee1ebfc4b882f021a447acb71fd74
+      workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
+      workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
+      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
+      workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
     missing_inputs: []
   food_waste:
     artefacts:
       data/curated/calibration/default/food_waste.yaml: 4ef037a0318401bc676f7ed65affedf80edcfdaf60ce2edcba54308810376b77
     code:
       workflow/rules/animals.smk: fa07f649a53263c151e1799f63b40c66fba42ee7858a97d51ff988c406ba0024
-      workflow/rules/crops.smk: 6413ed1571fe2db7bbac9d45db8a27d51a1c2955a86b4629f43cf70da1a048b0
+      workflow/rules/crops.smk: 8d7d87b61959819ae9a753126767a71a10d7463af7963bffd423fa4560f470d1
       workflow/rules/diet.smk: 15db54cf636dca37bea0343c2bb236ead24ffe238dc2a843b391bbd43bfacb12
       workflow/rules/geography.smk: 54b113f5647787bacea8d2a2f45298a24c605a84ced48630abece8b2dc887943
       workflow/rules/luc.smk: e64fb669c0d6c40299d47c995dbb9f04a71f4d99d8edcd1fe9ce3ed700639257
-      workflow/rules/model.smk: 0e52481f84031711f0706a8c54a7e1038063e24320e52609a1fd832a977aaffd
+      workflow/rules/model.smk: 3a0e06937f52f250e4a5a60c8805f222ff9ad1563a125d839c53c962a847e7bb
       workflow/rules/retrieve.smk: ecd9eb633974cd575b7a879348c763f844b3f66cdedc785c7d28977ac541a577
       workflow/rules/water.smk: 9fe3fc69051df02bab7dde53d2057b2b64142c7212741f8a45bc0171447c951d
       workflow/scripts/aggregate_class_areas.py: 93e9a52eec4dac86eeff03fa7e574ad4bdd91bb4049f715a321850f327aba92e
@@ -510,7 +537,7 @@ steps:
       workflow/scripts/build_fdd_area_shares.py: b6e084b1779636547c41dada16d570ec0f98d5dc34f3d4e948e6e3943e32034a
       workflow/scripts/build_feed_to_animal_products.py: 1eb41eaf6149524bd6c324ba39356ee09cbebe62bd97bf2e7e4520e1b14e3ba3
       workflow/scripts/build_fodder_yield_corrections.py: eef62e7237a89f1f8b962893ed031758fd6abcc1b1c71140bc0c16e92e3fc568
-      workflow/scripts/build_frt_area_attribution.py: f91f51757808594f87d6a3151fd228b453181586bd342930b9749a4c21973bc8
+      workflow/scripts/build_frt_area_attribution.py: 9e85a1c3352270e6463212d24ecff579e5e8378c7969a22823dd5e59b16b422b
       workflow/scripts/build_grassland_yields.py: 38ed635e8e162d59f33fa15ba0c649046a047ae37136203de3db2fc72b135a2d
       workflow/scripts/build_grazing_only_land.py: 9880aea4ffe4886ba68fdbc283b009ea984cbb0fb3159754c721b02beb3eec99
       workflow/scripts/build_harvested_area.py: b6abc0557ed3c68948380d920ec77102f35e47b4712f4701a40677d15c972a98
@@ -519,16 +546,16 @@ steps:
       workflow/scripts/build_luc_grid.py: d8a8af444d2267b1dab55f6719bf3ade019a6410e15ed3b7888cb76d7c7061d6
       workflow/scripts/build_luicube_grassland_yields.py: 01d2865e3c1878fc4795075680197b161f4cb50259a2fb7f8cdcb1e3deaf2191
       workflow/scripts/build_mirca_crop_calendar.py: f44617c319c76f4e1f3d68f6d2dee14866804e498d478797e2d63612d9515e4e
-      workflow/scripts/build_model.py: 3294bfeb27cefb28ad3406f3fc40ff05400ddc6746f9944742d16c6a97c2b16d
+      workflow/scripts/build_model.py: 2d814e24e2cdd28365f44b6eea31f259ea42cea90bbf58579b4bd624a2cbd4e9
       workflow/scripts/build_multi_cropping.py: 6130469e316fb795e66d87fc3f9af6b8086878abba8dfe31c9b587c87478cc21
       workflow/scripts/build_ooc_olive_area_share.py: 3c5d202eabc9cd997d3dc4989e9e86e672230ce2d139cc7d96a3f5ccf459bbd5
       workflow/scripts/build_reforestation_mask.py: c373bb1564782ff1400d5fd717a87e67501241c5a9e09b644ea0e199a82aefa1
       workflow/scripts/build_region_class_cell_mapping.py: c8a2971f2cd7d3d46107f7c6af1a1d8bc22eacec1cca80a6a58ec04da508ad74
       workflow/scripts/build_region_water_aware.py: 9d6a8e8f1bf23d51d52d802c905c6460539874505546cec68d32f08a00ec2be1
-      workflow/scripts/build_region_watergap.py: 93451ae9ac67fac05fe205ca5009d0854f29012893997ed50db919ddb29ed5c5
+      workflow/scripts/build_region_watergap.py: 93024ff5d92eb74703d67f1216fd8b3f5a1f4721ae010f1d148c72036e93a4ea
       workflow/scripts/build_regions.py: 08a1f3c0247bdbe4600f2b1596396a352ff6c459496566e7e24da5b2f83558a7
       workflow/scripts/build_yield_calibration.py: 1225a0d55add24ce44acc86cde5dd3335ed9d0a233ba6025bfc8c0e5afc8375d
-      workflow/scripts/calculate_manure_emissions.py: c35ee707e5cfda0bc1cd0aa06f31c834f118b914b47dc6478a37222f10589f94
+      workflow/scripts/calculate_manure_emissions.py: 4f39f5370dcf931d4648bf7c0727a807ec7bc8fbb80561dae4ff5afa08834591
       workflow/scripts/categorize_feeds.py: 575b37f430e4fbf54b8477be96f5069ce6522fa1882c2f024b9b9a25a8540140
       workflow/scripts/compose_water_supply.py: c1fc61844079219f2381664b44b6a917f51ecbc07bb08e1318702985deaf9231
       workflow/scripts/compute_food_waste_calibration.py: 5973b801374e00d03362fd1b2fb7df684ea28b2c0c069a1c4c51a9b93923da98
@@ -542,7 +569,7 @@ steps:
       workflow/scripts/download_luicube_raster.py: 7883a5a73c9c18f6afbbabe62044494657e69b49469ae7c97b4df18f8a584b2c
       workflow/scripts/download_mirca_os_bag_member.py: e869f4ec2f87a03b65d7c6f875d6ad393dcce647789ba7fc0f1c2d2fa2e48049
       workflow/scripts/download_soilgrids_ocs.py: bcb361c0ada72cd6264685eb36b2efabc1a03bc25c93918c37da8da7fe049d58
-      workflow/scripts/estimate_baseline_diet.py: 87047e7cb0db1f5ab7460eeecfacea52c7ef36802669e0aff5b8c62079e589e9
+      workflow/scripts/estimate_baseline_diet.py: d9df39a6cc46b41da12059f5c38929a62e4b53301149488f89ce704cb5440336
       workflow/scripts/extract_mirca_os_archive.py: 687fe1d413ea063d585cc526ff53ce7d91c1df90e1d1ec898bfc62d19890647c
       workflow/scripts/merge_animal_costs.py: db83828da2fad888f0bae49e3a4d19ebc8315e27d2edcd0c6fde579b736de57c
       workflow/scripts/merge_dietary_sources.py: b647708a56e5d7c9359f78c644020e3b67e37f50d699004fc8462ed5700031a4
@@ -550,7 +577,7 @@ steps:
       workflow/scripts/prepare_banana_plantain_production.py: 214cd243b0932ee9da96cf24bdd8c7c10e05c94e27c303758cc2770e0d166e3a
       workflow/scripts/prepare_biofuel_baseline.py: de7fa63ca68961a1334e74af63b6e23a1360fcf810fa3a815e901e89cc8710ce
       workflow/scripts/prepare_fao_edible_portion.py: cb71097d23dbe14d077c2a74fbd28bd13fcf039529979cd1af64db2c184a5c0e
-      workflow/scripts/prepare_faostat_animal_production.py: d163e7bfb272e9b542f16dcc11ebfffae4476fbe08f9bbfcb64479b2d869ac06
+      workflow/scripts/prepare_faostat_animal_production.py: 38980d9bf9324ae01664c63104026aa4b3589f71f5bc592ae8f3bbe96cde9c2a
       workflow/scripts/prepare_faostat_crop_costs.py: be66f2aad20af7c88085b3c24e59ce2e26cfcee25b202fd96f3a47666d65ad1b
       workflow/scripts/prepare_faostat_crop_production.py: f446a0f22d865d6dfb7aaab643ea245932169769070b7a72ab16c98b09bf7435
       workflow/scripts/prepare_faostat_fbs_items.py: 87446f863e0e26e06b863cabcaafda362fb033f86b522b519922f86b5f80bb05
@@ -581,7 +608,7 @@ steps:
       workflow/scripts/solve_model.py: 8b13b5a820ba69e4385dcc0b4f576744d9759485a642ca43282c7b65861fe5cb
       workflow/scripts/validate_baseline_diet.py: 6d54d506a2d8382321c849d77698098429019e0f089f969c43ee2848becc05f4
     config_files:
-      config/calibration/food_waste.yaml: d003b796f7a10db3f2cb4c8269d05e6a5c76aac0b17196e9c75dbf5c3a9755f7
+      config/calibration/food_waste.yaml: 552bcc07e6fe9dfdb7de83cc7d4c19f113a8a8b61e72bd4f8a1b080498059ba7
     inputs:
       data/bundled/doi_10_5061_dryad_2rbnzs7qh__v20250311/FUBC_1_to_9_data.csv: 3b5dc29b6e2f6844807f2983c1596c28a127f48a67f7deec7e36f6a49c0b17f3
       data/bundled/gleam3/feed_items_categories.xlsx: b2f5f6a8dd86648c6b1a34100dfb6531aacc1c65865d2e8c4eac3a384776de9a
@@ -590,7 +617,6 @@ steps:
       data/bundled/gleam3/production.csv: eb85e82ba9a61c71c6cd33ab36c00b5d844f2550e1caa45b6b250410adc6f2b5
       data/curated/M49-codes.csv: 10ae52e639e62f07ce992ead08536167d0c8aa9f467870dbfcfbf465ef3aa9be
       data/curated/biogas_crop_demand.csv: 8371d2ef0d3170f4ee145b0b0fd7a1ab4e63eec87febb78ca5574866b58cff71
-      data/curated/calibration/default/deviation_penalty.yaml: a20304c2ecfc7d1109d43aaded46fd650bdc5524f43e6d6365b56fc225faeca0
       data/curated/calibration/default/exogenous_feed.csv: 3ebcac7797beb398a9ff227f700cab0f1e01fef27d361696d1c2b05c274cb39d
       data/curated/calibration/default/exogenous_forage.csv: d806b2e98968a5d0e3b8618d3882152102f11e4ce62a4de233b8560e7e1aeccc
       data/curated/calibration/default/fodder_conversion.csv: f46d89574830cefba376f9fdb86c0ae4462bdaf9889dcc25d8c15b0da1524458
@@ -634,31 +660,41 @@ steps:
       data/curated/usda_animal_cost_sources.csv: 7a27f0ad2e7dc08a10e3264e9aefc7ebfaa1ea360e3b198cb368738d995faf6a
       data/curated/wirsenius_feed_energy_requirements.csv: f6961ea48f00dcd793d0b61d2939c907fe87b03ab5f28f643073252a8306455c
       data/curated/yield_unit_conversions.csv: c1905886711b3b079bfd2761029070b874efd72f16ea5aac1f708e24d42d089f
+      workflow/scripts/build_model/__init__.py: 79735b7695e60ebf84e52bd91374505a357e4492f2bf80936bb00f76ffc4a7f7
       workflow/scripts/build_model/animals.py: 030c2dd4b459fb856e7dc34c9dd74fe9245a340eca9055b19a6d6bf01a910f29
-      workflow/scripts/build_model/biomass.py: 78059ea9d2fb953c5890dfb789b4215373a095a087d3e888cff1fa75d04e034f
+      workflow/scripts/build_model/biomass.py: 39bdbf6eb4d76e95cf9ce1a31a77c2b1382c1cb63dc728d5ac6f416393520f38
+      workflow/scripts/build_model/commodity_costs.py: 97a4c3aa148355adac88d7a45462158f55a7322a0c351babd0a243bd941eb0e2
       workflow/scripts/build_model/crops.py: 4b8638d8902b0a688d0ab55df3e3625d0953f3b4ac63886ddae50b3bf47b4610
       workflow/scripts/build_model/food.py: 9e53b6c847202a2192ea0e014746e62a9a5f88eedffc5a48833fc4186ef65ae9
-      workflow/scripts/build_model/grassland.py: c3ee3ae3149137e8ab427f0b5584251b9c49baac821e92f318cca816df171f48
+      workflow/scripts/build_model/grassland.py: bf39536ad916a0c7a47d72fe2de4171fd256e483b81ac552d4403fe0123036da
       workflow/scripts/build_model/health.py: 5ddc8cbae98992f67140db787946a0f9fd9ae15ad683592b4f81b4bf6a2df702
       workflow/scripts/build_model/infrastructure.py: b792d568d0f199699f5d53bc6f175138a899e41a71f86b5d72a037de1130785c
-      workflow/scripts/build_model/land.py: 160b8d97dfaaadcaeef4bc8efa3ebcd55ea8ad0aaf9469cc1387b4b0687f4422
+      workflow/scripts/build_model/irrigation.py: 3d1d6216069eb7854046266a68b202b1f4c981395c499f8d05ab04c22f5645c2
+      workflow/scripts/build_model/land.py: 8b1958b5791ec671df4621d873b2476d7aee69f3418b6c601b1036bdde87d11b
       workflow/scripts/build_model/nutrition.py: e94986ded9c4569cc1f3b264c352a1f7f7f72d0c3b107f2aed2ad5f44e1b875c
       workflow/scripts/build_model/primary_resources.py: 133c60f613ad9d758063511607d068a9e7fba04a726cc9fb714e83d9b6ae882c
-      workflow/scripts/build_model/trade.py: 0fa403447f9f3013fb9efd35f48b7d33044d9a5abca1bc2fe2c05460f077992a
+      workflow/scripts/build_model/trade.py: ef2649814994573c476eb02258b8d20b8393a5e9087906360c74cfa1412904a5
       workflow/scripts/build_model/utils.py: 46fee1344183d1d2fa798b0d92ac63f3aba5989c462d0b92946bf8a83fcbee43
       workflow/scripts/constants.py: ab1f55cfb14ae63171047643c634101962abdeab3b410624ad47570871268296
+      workflow/scripts/solve_model/__init__.py: 23fb1fde8c5d964c8fda94020ff41ce9fdeefd04f6334a1ab3e7e755c93af04c
+      workflow/scripts/solve_model/core.py: 71cd673487e6475fa128fdd448e1a251d89ee1ebfc4b882f021a447acb71fd74
+      workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
+      workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
+      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
+      workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
     missing_inputs: []
   stability:
     artefacts:
-      data/curated/calibration/default/deviation_penalty.yaml: a20304c2ecfc7d1109d43aaded46fd650bdc5524f43e6d6365b56fc225faeca0
+      data/curated/calibration/default/deviation_penalty.yaml: 1e0b2fc1bc6e804471816f76a7e85ad3949f1dc34ab0ef1bc1f26d22a13febf0
     code:
       workflow/rules/animals.smk: fa07f649a53263c151e1799f63b40c66fba42ee7858a97d51ff988c406ba0024
-      workflow/rules/crops.smk: 6413ed1571fe2db7bbac9d45db8a27d51a1c2955a86b4629f43cf70da1a048b0
+      workflow/rules/crops.smk: 8d7d87b61959819ae9a753126767a71a10d7463af7963bffd423fa4560f470d1
       workflow/rules/deviation_penalty.smk: 4c6b2723520befa5a4bfc54e40ff5e93c27e2234a1762b6f63b311de3ed78209
       workflow/rules/diet.smk: 15db54cf636dca37bea0343c2bb236ead24ffe238dc2a843b391bbd43bfacb12
       workflow/rules/geography.smk: 54b113f5647787bacea8d2a2f45298a24c605a84ced48630abece8b2dc887943
       workflow/rules/luc.smk: e64fb669c0d6c40299d47c995dbb9f04a71f4d99d8edcd1fe9ce3ed700639257
-      workflow/rules/model.smk: 0e52481f84031711f0706a8c54a7e1038063e24320e52609a1fd832a977aaffd
+      workflow/rules/model.smk: 3a0e06937f52f250e4a5a60c8805f222ff9ad1563a125d839c53c962a847e7bb
       workflow/rules/retrieve.smk: ecd9eb633974cd575b7a879348c763f844b3f66cdedc785c7d28977ac541a577
       workflow/rules/water.smk: 9fe3fc69051df02bab7dde53d2057b2b64142c7212741f8a45bc0171447c951d
       workflow/scripts/aggregate_class_areas.py: 93e9a52eec4dac86eeff03fa7e574ad4bdd91bb4049f715a321850f327aba92e
@@ -670,7 +706,7 @@ steps:
       workflow/scripts/build_fdd_area_shares.py: b6e084b1779636547c41dada16d570ec0f98d5dc34f3d4e948e6e3943e32034a
       workflow/scripts/build_feed_to_animal_products.py: 1eb41eaf6149524bd6c324ba39356ee09cbebe62bd97bf2e7e4520e1b14e3ba3
       workflow/scripts/build_fodder_yield_corrections.py: eef62e7237a89f1f8b962893ed031758fd6abcc1b1c71140bc0c16e92e3fc568
-      workflow/scripts/build_frt_area_attribution.py: f91f51757808594f87d6a3151fd228b453181586bd342930b9749a4c21973bc8
+      workflow/scripts/build_frt_area_attribution.py: 9e85a1c3352270e6463212d24ecff579e5e8378c7969a22823dd5e59b16b422b
       workflow/scripts/build_grassland_yields.py: 38ed635e8e162d59f33fa15ba0c649046a047ae37136203de3db2fc72b135a2d
       workflow/scripts/build_grazing_only_land.py: 9880aea4ffe4886ba68fdbc283b009ea984cbb0fb3159754c721b02beb3eec99
       workflow/scripts/build_harvested_area.py: b6abc0557ed3c68948380d920ec77102f35e47b4712f4701a40677d15c972a98
@@ -679,17 +715,17 @@ steps:
       workflow/scripts/build_luc_grid.py: d8a8af444d2267b1dab55f6719bf3ade019a6410e15ed3b7888cb76d7c7061d6
       workflow/scripts/build_luicube_grassland_yields.py: 01d2865e3c1878fc4795075680197b161f4cb50259a2fb7f8cdcb1e3deaf2191
       workflow/scripts/build_mirca_crop_calendar.py: f44617c319c76f4e1f3d68f6d2dee14866804e498d478797e2d63612d9515e4e
-      workflow/scripts/build_model.py: 3294bfeb27cefb28ad3406f3fc40ff05400ddc6746f9944742d16c6a97c2b16d
+      workflow/scripts/build_model.py: 2d814e24e2cdd28365f44b6eea31f259ea42cea90bbf58579b4bd624a2cbd4e9
       workflow/scripts/build_multi_cropping.py: 6130469e316fb795e66d87fc3f9af6b8086878abba8dfe31c9b587c87478cc21
       workflow/scripts/build_ooc_olive_area_share.py: 3c5d202eabc9cd997d3dc4989e9e86e672230ce2d139cc7d96a3f5ccf459bbd5
       workflow/scripts/build_reforestation_mask.py: c373bb1564782ff1400d5fd717a87e67501241c5a9e09b644ea0e199a82aefa1
       workflow/scripts/build_region_class_cell_mapping.py: c8a2971f2cd7d3d46107f7c6af1a1d8bc22eacec1cca80a6a58ec04da508ad74
       workflow/scripts/build_region_water_aware.py: 9d6a8e8f1bf23d51d52d802c905c6460539874505546cec68d32f08a00ec2be1
-      workflow/scripts/build_region_watergap.py: 93451ae9ac67fac05fe205ca5009d0854f29012893997ed50db919ddb29ed5c5
+      workflow/scripts/build_region_watergap.py: 93024ff5d92eb74703d67f1216fd8b3f5a1f4721ae010f1d148c72036e93a4ea
       workflow/scripts/build_regions.py: 08a1f3c0247bdbe4600f2b1596396a352ff6c459496566e7e24da5b2f83558a7
       workflow/scripts/build_yield_calibration.py: 1225a0d55add24ce44acc86cde5dd3335ed9d0a233ba6025bfc8c0e5afc8375d
-      workflow/scripts/calculate_manure_emissions.py: c35ee707e5cfda0bc1cd0aa06f31c834f118b914b47dc6478a37222f10589f94
-      workflow/scripts/calibrate_deviation_penalty.py: ab82cb7c0d206581c7ed3a85c473a9063e5bb64c1072d26aec247789e7ee63eb
+      workflow/scripts/calculate_manure_emissions.py: 4f39f5370dcf931d4648bf7c0727a807ec7bc8fbb80561dae4ff5afa08834591
+      workflow/scripts/calibrate_deviation_penalty.py: fe674bb0ada6ca8676d202693b05cc7e6410380dd0c40634799d1a24852db02b
       workflow/scripts/categorize_feeds.py: 575b37f430e4fbf54b8477be96f5069ce6522fa1882c2f024b9b9a25a8540140
       workflow/scripts/compose_water_supply.py: c1fc61844079219f2381664b44b6a917f51ecbc07bb08e1318702985deaf9231
       workflow/scripts/compute_gleam3_feed_fractions.py: 83cc4268fe7f1762932ac63fc7f05ecedda9b03bcc1b502a69d85ec6779e6289
@@ -702,7 +738,7 @@ steps:
       workflow/scripts/download_luicube_raster.py: 7883a5a73c9c18f6afbbabe62044494657e69b49469ae7c97b4df18f8a584b2c
       workflow/scripts/download_mirca_os_bag_member.py: e869f4ec2f87a03b65d7c6f875d6ad393dcce647789ba7fc0f1c2d2fa2e48049
       workflow/scripts/download_soilgrids_ocs.py: bcb361c0ada72cd6264685eb36b2efabc1a03bc25c93918c37da8da7fe049d58
-      workflow/scripts/estimate_baseline_diet.py: 87047e7cb0db1f5ab7460eeecfacea52c7ef36802669e0aff5b8c62079e589e9
+      workflow/scripts/estimate_baseline_diet.py: d9df39a6cc46b41da12059f5c38929a62e4b53301149488f89ce704cb5440336
       workflow/scripts/extract_mirca_os_archive.py: 687fe1d413ea063d585cc526ff53ce7d91c1df90e1d1ec898bfc62d19890647c
       workflow/scripts/merge_animal_costs.py: db83828da2fad888f0bae49e3a4d19ebc8315e27d2edcd0c6fde579b736de57c
       workflow/scripts/merge_dietary_sources.py: b647708a56e5d7c9359f78c644020e3b67e37f50d699004fc8462ed5700031a4
@@ -710,7 +746,7 @@ steps:
       workflow/scripts/prepare_banana_plantain_production.py: 214cd243b0932ee9da96cf24bdd8c7c10e05c94e27c303758cc2770e0d166e3a
       workflow/scripts/prepare_biofuel_baseline.py: de7fa63ca68961a1334e74af63b6e23a1360fcf810fa3a815e901e89cc8710ce
       workflow/scripts/prepare_fao_edible_portion.py: cb71097d23dbe14d077c2a74fbd28bd13fcf039529979cd1af64db2c184a5c0e
-      workflow/scripts/prepare_faostat_animal_production.py: d163e7bfb272e9b542f16dcc11ebfffae4476fbe08f9bbfcb64479b2d869ac06
+      workflow/scripts/prepare_faostat_animal_production.py: 38980d9bf9324ae01664c63104026aa4b3589f71f5bc592ae8f3bbe96cde9c2a
       workflow/scripts/prepare_faostat_crop_costs.py: be66f2aad20af7c88085b3c24e59ce2e26cfcee25b202fd96f3a47666d65ad1b
       workflow/scripts/prepare_faostat_crop_production.py: f446a0f22d865d6dfb7aaab643ea245932169769070b7a72ab16c98b09bf7435
       workflow/scripts/prepare_faostat_fbs_items.py: 87446f863e0e26e06b863cabcaafda362fb033f86b522b519922f86b5f80bb05
@@ -798,17 +834,20 @@ steps:
       data/curated/usda_animal_cost_sources.csv: 7a27f0ad2e7dc08a10e3264e9aefc7ebfaa1ea360e3b198cb368738d995faf6a
       data/curated/wirsenius_feed_energy_requirements.csv: f6961ea48f00dcd793d0b61d2939c907fe87b03ab5f28f643073252a8306455c
       data/curated/yield_unit_conversions.csv: c1905886711b3b079bfd2761029070b874efd72f16ea5aac1f708e24d42d089f
+      workflow/scripts/build_model/__init__.py: 79735b7695e60ebf84e52bd91374505a357e4492f2bf80936bb00f76ffc4a7f7
       workflow/scripts/build_model/animals.py: 030c2dd4b459fb856e7dc34c9dd74fe9245a340eca9055b19a6d6bf01a910f29
-      workflow/scripts/build_model/biomass.py: 78059ea9d2fb953c5890dfb789b4215373a095a087d3e888cff1fa75d04e034f
+      workflow/scripts/build_model/biomass.py: 39bdbf6eb4d76e95cf9ce1a31a77c2b1382c1cb63dc728d5ac6f416393520f38
+      workflow/scripts/build_model/commodity_costs.py: 97a4c3aa148355adac88d7a45462158f55a7322a0c351babd0a243bd941eb0e2
       workflow/scripts/build_model/crops.py: 4b8638d8902b0a688d0ab55df3e3625d0953f3b4ac63886ddae50b3bf47b4610
       workflow/scripts/build_model/food.py: 9e53b6c847202a2192ea0e014746e62a9a5f88eedffc5a48833fc4186ef65ae9
-      workflow/scripts/build_model/grassland.py: c3ee3ae3149137e8ab427f0b5584251b9c49baac821e92f318cca816df171f48
+      workflow/scripts/build_model/grassland.py: bf39536ad916a0c7a47d72fe2de4171fd256e483b81ac552d4403fe0123036da
       workflow/scripts/build_model/health.py: 5ddc8cbae98992f67140db787946a0f9fd9ae15ad683592b4f81b4bf6a2df702
       workflow/scripts/build_model/infrastructure.py: b792d568d0f199699f5d53bc6f175138a899e41a71f86b5d72a037de1130785c
-      workflow/scripts/build_model/land.py: 160b8d97dfaaadcaeef4bc8efa3ebcd55ea8ad0aaf9469cc1387b4b0687f4422
+      workflow/scripts/build_model/irrigation.py: 3d1d6216069eb7854046266a68b202b1f4c981395c499f8d05ab04c22f5645c2
+      workflow/scripts/build_model/land.py: 8b1958b5791ec671df4621d873b2476d7aee69f3418b6c601b1036bdde87d11b
       workflow/scripts/build_model/nutrition.py: e94986ded9c4569cc1f3b264c352a1f7f7f72d0c3b107f2aed2ad5f44e1b875c
       workflow/scripts/build_model/primary_resources.py: 133c60f613ad9d758063511607d068a9e7fba04a726cc9fb714e83d9b6ae882c
-      workflow/scripts/build_model/trade.py: 0fa403447f9f3013fb9efd35f48b7d33044d9a5abca1bc2fe2c05460f077992a
+      workflow/scripts/build_model/trade.py: ef2649814994573c476eb02258b8d20b8393a5e9087906360c74cfa1412904a5
       workflow/scripts/build_model/utils.py: 46fee1344183d1d2fa798b0d92ac63f3aba5989c462d0b92946bf8a83fcbee43
       workflow/scripts/constants.py: ab1f55cfb14ae63171047643c634101962abdeab3b410624ad47570871268296
     missing_inputs: []

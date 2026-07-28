@@ -299,6 +299,14 @@ historical centre once the chain absorbs its gaps cleanly.
   a lower triangle (feed disables the other four, food_waste the last
   three, and so on); preserve it when adding a calibration.
 
+  The trap is that a step need not *enable* a successor's calibration to
+  depend on it -- inheriting `l1_cost: "calibrated"` from `default.yaml` is
+  enough. feed/food_waste/food_demand therefore set
+  `deviation_penalty.enabled: false` (production is pinned to actuals, so the
+  penalty has nothing to act on) and cost drives stability through hard
+  bounds. When adding a calibrated key to `default.yaml`, check what the
+  earlier step configs inherit.
+
 - **Step configs must not override structural model keys.** Anything a
   step config pins that isn't calibration machinery, the validation
   regime, or a solver budget silently defeats the point of a per-base
