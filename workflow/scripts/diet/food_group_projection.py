@@ -87,11 +87,11 @@ FRUITS_FRT_PROJECTION_FOODS: tuple[str, ...] = (
     "apple",
 )
 FRUITS_FRT_POOL_ITEM_CODES: tuple[int, ...] = (
-    2611,  # Oranges, Mandarines (explicit; previously routed to citrus only)
-    2612,  # Lemons, Limes (explicit; previously routed to citrus only)
-    2613,  # Grapefruit (explicit; previously routed to citrus only)
-    2614,  # Citrus, Other (explicit; previously routed to citrus only)
-    2617,  # Apples (explicit; previously routed to apple only)
+    2611,  # Oranges, Mandarines (explicit citrus allocation)
+    2612,  # Lemons, Limes (explicit citrus allocation)
+    2613,  # Grapefruit (explicit citrus allocation)
+    2614,  # Citrus, Other (explicit citrus allocation)
+    2617,  # Apples (explicit apple allocation)
     2618,  # Pineapples (residual)
     2619,  # Dates (residual)
     2625,  # Fruits, Other (residual covering mango, watermelon, etc.)

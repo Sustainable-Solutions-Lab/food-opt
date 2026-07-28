@@ -351,7 +351,7 @@ FAOSTAT Land Use (RL)
 
 **Retrieval**: Downloaded as bulk CSV (``Inputs_LandUse_E_All_Data_(Normalized).zip``), converted to Parquet, and processed by ``workflow/scripts/prepare_faostat_pasture_area.py``.
 
-**Usage**: Provides per-country permanent pasture area used to scale down satellite grassland area in ``build_model.py``, replacing the previous forage overlap subtraction approach.
+**Usage**: Provides per-country permanent pasture area used to scale down satellite grassland area in ``build_model.py``.
 
 FAOSTAT Food Balance Sheets (FBS)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1140,7 +1140,7 @@ Redistributing datasets via Zenodo
 ----------------------------------
 
 Some upstream datasets are free to use but sit behind an API key or registration
-wall (historically the Copernicus land cover data). Where the licence permits
+wall. Where the licence permits
 redistribution, GLADE mirrors the exact slice it needs to `Zenodo
 <https://zenodo.org/>`__ and downloads it during builds with a plain HTTP
 request. This removes the per-user credential, pins an immutable, citable

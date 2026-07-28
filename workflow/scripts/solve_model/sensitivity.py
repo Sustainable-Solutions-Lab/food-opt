@@ -68,9 +68,8 @@ def _output_port_columns(links: pd.DataFrame) -> list[tuple[str, str, str]]:
     number as a string, useful for deriving sibling columns like
     ``loss_multiplier{N}``.
 
-    This helper exists so the bus-iteration pattern (which used to be
-    duplicated across sensitivity scalers) reads consistently and the
-    bus1-vs-busN naming quirk is documented in one place.
+    This helper centralizes the bus1-vs-busN naming convention used by
+    sensitivity scalers.
     """
     pairs: list[tuple[int, str, str, str]] = []
     for col in links.columns:

@@ -509,9 +509,9 @@ numeric codes as:
 * 7 – triple cropping (≤2 wetland rice crops)
 * 8 – triple rice cropping (up to three wetland rice crops)
 
-Relay cropping opportunities mentioned for the C/F zones are intentionally ignored for now; we
-only construct sequential crop chains. This assumption is called out in the configuration and
-model framework documentation so users know the limitation.
+Relay cropping opportunities mentioned for the C/F zones are not modeled; we only construct
+sequential crop chains. This limitation is also noted in the configuration and model framework
+documentation.
 
 During ``build_model`` each (combination, region, resource class) creates a single
 rainfed or irrigated multi-output link (carrier ``crop_production_multi``) that:

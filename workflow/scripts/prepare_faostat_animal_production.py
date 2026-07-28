@@ -133,9 +133,8 @@ def main() -> None:
         )
 
     # Egg unit handling. Only hen eggs are mapped to the "eggs" model
-    # product (config/default.yaml), so the 60 g/egg conversion is a
-    # reasonable approximation for the legacy "1000 No" vintage. Current
-    # FAOSTAT QCL reports tonnes ("t") and the legacy branch is dormant.
+    # product (config/default.yaml). FAOSTAT may report egg production in
+    # tonnes ("t") or in thousands of eggs ("1000 No").
     egg_mask_raw = df["product"] == "eggs"
     if egg_mask_raw.any():
         if "Unit" not in df.columns:

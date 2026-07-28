@@ -5,16 +5,10 @@
 """Per-(country, modelled-fruit) target harvested area for the FRT pool.
 
 The FAO/GAEZ Module-VI ``FRT`` raster bundles ~45 QCL fruit + grape +
-tree-nut items at the cell level. Historically the model attributed FRT
-cell area to citrus/mango/watermelon via national crop-mix scalars, which
-silently placed e.g. citrus area in cells where GAEZ says citrus cannot
-grow; those cells were then dropped at build time, losing ~13 Mha of
-fruit area globally.
-
-This script replaces the country-share approach with a per-(country,
-modelled-fruit) **target area** table that downstream rules use together
-with a cell-level yield x suitability weighting to ensure
-agroecologically consistent placement.
+tree-nut items at the cell level. This script produces a per-(country,
+modelled-fruit) **target area** table that downstream rules combine with
+cell-level yield x suitability weighting for agroecologically consistent
+placement.
 
 For each country and baseline year:
 
@@ -90,8 +84,7 @@ TREE_NUT_ITEM_CODES: tuple[int, ...] = (
     234,  # Other nuts (excluding wild edible nuts and groundnuts), n.e.c.
 )
 
-# All FRT-pool QCL items (fruits + grapes + tree nuts). Mirrors
-# build_frt_kept_area_share.FRT_ITEM_CODES at the time this file replaced it.
+# All FRT-pool QCL items (fruits + grapes + tree nuts).
 FRT_FRUIT_ITEM_CODES: tuple[int, ...] = (
     # Melons, tropical and subtropical fruits
     567,  # Watermelons

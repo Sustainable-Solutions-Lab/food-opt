@@ -725,11 +725,9 @@ def build_within_group_shares(
     ].to_dict()
 
     # Fail fast if any pooled projection references an FBS code that the
-    # FBS fetch never pulled. This catches silent drift between
+    # FBS fetch never pulled. This catches drift between
     # ``POOL_PROJECTIONS`` here and the fetch list in
-    # ``prepare_faostat_fbs_items.py`` (which historically defaulted such
-    # codes to 0 supply and made entire pools — plantain, apples,
-    # pineapples, dates — silently vanish from the projection).
+    # ``prepare_faostat_fbs_items.py``.
     # Only validate sub-specs whose projection_foods intersect with the
     # included foods (the rest are no-ops anyway) so that downstream tests
     # can exercise subsets without supplying every code.

@@ -199,7 +199,7 @@ The key differences from Part 1:
   mutually exclusive — attempting to combine them raises a validation
   error.
 * The ``ghg_mid`` and ``ghg_high`` scenarios inherit the top-level
-  ``food_utility_piecewise`` settings and no longer set
+  ``food_utility_piecewise`` settings and do not set
   ``enforce_baseline_diet``, so consumption is free.
 
 The piecewise-utility parameters themselves are worth a brief look:

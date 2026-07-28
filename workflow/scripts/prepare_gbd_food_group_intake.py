@@ -42,7 +42,7 @@ Notes on aggregation:
       therefore reconstruct the 25+ exposure ourselves by
       population-weighting the adult 5-year buckets (25-29 .. 95+) using
       per-country age-bucket population for the reference year.
-    - Sex: the 2023 bulk files no longer ship an IHME-computed "Both"
+    - Sex: the 2023 bulk files do not ship an IHME-computed "Both"
       aggregate (only Male and Female), and our population table is not
       sex-split. We average the two sexes unweighted within each age
       bucket before age-weighting. Adult sex ratios are close to parity,

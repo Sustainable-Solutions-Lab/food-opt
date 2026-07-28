@@ -132,8 +132,8 @@ def average_mcf_over_climate_zones(
 ) -> pd.DataFrame:
     """Average MCF values across climate zones for each manure management system.
 
-    NOTE: This is a temporary simplification. Will be refined when climate zone
-    data is added to modeling regions.
+    Climate-zone variation is averaged because model regions do not carry
+    climate-zone detail.
 
     Parameters
     ----------
@@ -518,9 +518,8 @@ if __name__ == "__main__":
                 row["storage_n2o_ef"],
             )
 
-    # Expand to all countries (same values for now, will be refined later)
-    # NOTE: Emission factors are currently identical across countries
-    # Will be differentiated by climate zone and region in future
+    # Emission factors are shared across countries because the source data is
+    # not spatially resolved to model regions.
     country_emissions = []
     for country in countries:
         df = emissions.copy()

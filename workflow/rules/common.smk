@@ -76,14 +76,9 @@ def get_effective_config(scenario_name):
     # We convert config to dict because it might be a Config object
     eff_config = copy.deepcopy(dict(config))
 
-    if scenario_name:
-        if scenario_name not in scenario_defs:
-            # If scenario is not found, maybe raise warning or error?
-            # For now, we assume if it's not in cache, no overrides (or invalid scenario handled elsewhere)
-            pass
-        else:
-            overrides = scenario_defs[scenario_name]
-            _recursive_update(eff_config, overrides)
+    if scenario_name and scenario_name in scenario_defs:
+        overrides = scenario_defs[scenario_name]
+        _recursive_update(eff_config, overrides)
 
     return eff_config
 

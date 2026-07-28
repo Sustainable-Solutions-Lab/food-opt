@@ -10,7 +10,7 @@
 # one paired solve (baseline with `enforce_baseline_diet=true` to derive
 # consumer values, then main with piecewise utility active).
 #
-# Warm-starts from the previously calibrated YAML when one exists on disk;
+# Warm-starts from an existing calibrated YAML when one exists on disk;
 # otherwise uses the seed values in `deviation_penalty.calibration.seeds`.
 #
 # Usage:

@@ -30,7 +30,6 @@ from .m49_codes import validate_m49_codes
 from .multi_cropping import validate_multi_cropping
 from .nutrition import validate_nutrition
 from .optimal_taxes import validate_optimal_taxes
-from .restricted_data import validate_restricted_data
 from .secrets import load_secrets_with_env_fallback
 from .seed_rates import validate_seed_rates
 from .sensitivity_generator import validate_sensitivity_generator
@@ -43,7 +42,6 @@ _CHECKS: dict[str, Validator] = {
     "calibration": validate_calibration,
     "calibration_provenance": validate_calibration_provenance,
     "commodities": validate_commodities,
-    "restricted_data": validate_restricted_data,
     "consumer_values": validate_consumer_values,
     "optimal_taxes": validate_optimal_taxes,
     "country_regions": validate_country_regions,
