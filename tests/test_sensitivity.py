@@ -579,60 +579,6 @@ class TestApplyFoodWasteFactor:
         )
 
 
-class TestFoodLossWasteBundle:
-    def test_bundle_only_config(self, mock_network):
-        """food_loss_waste applies the same factor to both loss and waste."""
-        n = mock_network
-        orig_wheat = float(
-            n.links.static.loc["produce:wheat_rainfed:region1", "efficiency"]
-        )
-        orig_consume_eff = float(n.links.static.loc["consume:flour:USA", "efficiency"])
-
-        cfg = {"food_loss_waste": 1.5}
-        apply_sensitivity_factors(n, cfg)
-
-        # Loss side: wheat 10% loss -> 15%, mult 0.9 -> 0.85.
-        np.testing.assert_allclose(
-            n.links.static.loc["produce:wheat_rainfed:region1", "efficiency"],
-            _scaled_efficiency(orig_wheat, 0.9, 1.5),
-        )
-        # Waste side: 20% waste -> 30%, mult 0.8 -> 0.7.
-        np.testing.assert_allclose(
-            n.links.static.loc["consume:flour:USA", "flw_multiplier"], 0.7
-        )
-        np.testing.assert_allclose(
-            n.links.static.loc["consume:flour:USA", "efficiency"],
-            orig_consume_eff * (0.7 / 0.8),
-        )
-
-    def test_component_keys_override_bundle(self, mock_network):
-        """food_loss / food_waste override food_loss_waste when both set."""
-        n = mock_network
-        orig_wheat = float(
-            n.links.static.loc["produce:wheat_rainfed:region1", "efficiency"]
-        )
-        orig_consume_eff = float(n.links.static.loc["consume:flour:USA", "efficiency"])
-
-        # bundle=1.5 would scale both; explicit food_loss=2.0 overrides loss,
-        # food_waste falls through to the bundle value (1.5).
-        cfg = {"food_loss_waste": 1.5, "food_loss": 2.0}
-        apply_sensitivity_factors(n, cfg)
-
-        # Wheat: 10% loss * 2.0 -> 20%, mult 0.9 -> 0.8.
-        np.testing.assert_allclose(
-            n.links.static.loc["produce:wheat_rainfed:region1", "efficiency"],
-            _scaled_efficiency(orig_wheat, 0.9, 2.0),
-        )
-        # Waste uses bundle factor 1.5.
-        np.testing.assert_allclose(
-            n.links.static.loc["consume:flour:USA", "flw_multiplier"], 0.7
-        )
-        np.testing.assert_allclose(
-            n.links.static.loc["consume:flour:USA", "efficiency"],
-            orig_consume_eff * (0.7 / 0.8),
-        )
-
-
 class TestApplyFcrFactor:
     def test_scales_primary_and_coproduct_food_outputs(self, mock_network):
         """FCR scales every food-output bus on animal links (incl. co-products)."""

@@ -98,9 +98,7 @@ def _extract_shape(rr19: pd.DataFrame) -> dict[tuple[str, str, str], float]:
 
 
 def main() -> None:
-    rr19 = parse_gbd2019_rr_appendix(
-        pd.read_excel(GBD2019_RR_XLSX, header=None), ssb_sugar_per_gram=1.0
-    )
+    rr19 = parse_gbd2019_rr_appendix(pd.read_excel(GBD2019_RR_XLSX, header=None))
     shape = _extract_shape(rr19)
 
     rows = []

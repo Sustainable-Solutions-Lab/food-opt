@@ -639,7 +639,6 @@ structural_config:
   data.faostat.fbs_production_element_code: 5511
   data.faostat.qcl_production_element_code: 5510
   data.gaez.climate_model: GFDL-ESM4
-  data.gaez.climate_model_ensemble: ENSEMBLE
   data.gaez.climate_scenario: SSP126
   data.gaez.input_level: H
   data.gaez.period: FP2140
@@ -969,7 +968,6 @@ structural_config:
   - legumes
   - red_meat
   - whole_grains
-  health.ssb_sugar_g_per_100g: 5.7
   irrigation.irrigated_crops: all
   land.conversion_cost_forest_usd_per_ha: 8000
   land.conversion_cost_nonforest_usd_per_ha: 2000

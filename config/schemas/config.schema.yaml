@@ -1318,7 +1318,6 @@ properties:
       - region_clusters
       - breakpoint_rel_tol
       - log_rr_points
-      - ssb_sugar_g_per_100g
       - value_per_yll
       - risk_factors
       - causes
@@ -1355,10 +1354,6 @@ properties:
         type: integer
         minimum: 0
         description: "Lower bound (inclusive) of age buckets used for intake weighting"
-      ssb_sugar_g_per_100g:
-        type: number
-        minimum: 0
-        description: "g sugar per 100g sugar-sweetened beverage"
       value_per_yll:
         type: number
         minimum: 0
@@ -1504,7 +1499,6 @@ properties:
         type: object
         required:
           - climate_model
-          - climate_model_ensemble
           - period
           - climate_scenario
           - input_level
@@ -1516,9 +1510,6 @@ properties:
           climate_model:
             type: string
             description: "GAEZ v5 climate model (specific GCM)"
-          climate_model_ensemble:
-            type: string
-            description: "GAEZ v5 ensemble model"
           period:
             type: string
             pattern: "^(FP|HP)[0-9]{4}$"
@@ -2209,7 +2200,7 @@ properties:
   sensitivity_analysis:
     type: object
     description: "Configuration for surrogate-based sensitivity analysis methods"
-    required: [outputs, holdout_fraction, threads, default_surrogate, methods, sobol, discover_scenarios_on_disk]
+    required: [outputs, holdout_fraction, threads, methods, sobol, discover_scenarios_on_disk]
     additionalProperties: false
     properties:
       outputs:
@@ -2250,9 +2241,6 @@ properties:
         type: integer
         minimum: 1
         description: "Number of threads for sensitivity analysis (controls sklearn n_jobs and BLAS)"
-      default_surrogate:
-        type: string
-        description: "Surrogate method downstream consumers (e.g. uncertainty-band plots, notebooks) pick when no method is specified explicitly.  Must match a key under ``methods``."
       discover_scenarios_on_disk:
         type: boolean
         description: "If false (default), the surrogate-fit rule declares every scenario the generator promises so Snakemake drives the full solve→analyse→surrogate chain.  If true, the rule scans the analysis directory and fits the surrogate on whatever scenarios have complete outputs on disk; intended for cluster sweeps where solves run outside Snakemake.  Errors out if more than 50% of scenarios are missing."
@@ -2423,10 +2411,6 @@ properties:
             type: number
             minimum: 0
             description: "Factor for CO2 from land-use change"
-      food_loss_waste:
-        type: number
-        minimum: 0
-        description: "Bundle convenience key: applies the same multiplicative factor to both food_loss and food_waste. Per-component keys take precedence when both are set. factor=1.5 raises the underlying loss/waste fractions by 50%; factor=1.0 is a no-op."
       food_loss:
         type: number
         minimum: 0
