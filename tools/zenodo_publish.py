@@ -18,12 +18,38 @@ Requires a Zenodo personal access token with the ``deposit:write`` and
 https://zenodo.org/account/settings/applications/tokens/new/).
 """
 
+import os
 from pathlib import Path
 
 import requests
+import yaml
 
 ZENODO_BASE = "https://zenodo.org"
 ZENODO_SANDBOX_BASE = "https://sandbox.zenodo.org"
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def load_secret(env_var: str, *yaml_path: str) -> str | None:
+    """Return a secret from an env var, falling back to config/secrets.yaml.
+
+    ``yaml_path`` is the nested key path under the top-level ``credentials``
+    mapping, e.g. ``("zenodo", "token")``.
+    """
+    if value := os.getenv(env_var):
+        return value
+
+    secrets_file = PROJECT_ROOT / "config" / "secrets.yaml"
+    if not secrets_file.exists():
+        return None
+    with open(secrets_file) as handle:
+        secrets = yaml.safe_load(handle) or {}
+    node = secrets.get("credentials", {})
+    for key in yaml_path:
+        if not isinstance(node, dict):
+            return None
+        node = node.get(key)
+    return node if isinstance(node, str) else None
 
 
 def _raise_for_status(response: requests.Response) -> None:
@@ -65,6 +91,7 @@ def publish_dataset(
     metadata: dict,
     *,
     parent_record: str | None = None,
+    keep_existing: bool = False,
     sandbox: bool = False,
     publish: bool = True,
 ) -> dict:
@@ -83,6 +110,12 @@ def publish_dataset(
     parent_record
         If given, create a new version of this existing published record id
         (used to refresh a mirror). Otherwise create a brand-new deposition.
+    keep_existing
+        When versioning, keep inherited files that are not being re-uploaded
+        (only same-named files are replaced). Use this for records holding
+        several mirrored datasets, so refreshing one dataset does not require
+        re-uploading the others. When False, the new version contains exactly
+        ``files``.
     sandbox
         Target sandbox.zenodo.org instead of the production service.
     publish
@@ -123,9 +156,12 @@ def publish_dataset(
     deposition_id = deposition["id"]
     bucket_url = deposition["links"]["bucket"]
 
-    # When versioning, drop files inherited from the previous version so the new
-    # version contains exactly `files`.
+    # When versioning, drop inherited files that the new uploads replace --
+    # all of them unless keep_existing, in which case only same-named ones.
+    upload_names = {Path(f).name for f in files}
     for existing in deposition.get("files", []):
+        if keep_existing and existing["filename"] not in upload_names:
+            continue
         response = session.delete(
             f"{api}/deposit/depositions/{deposition_id}/files/{existing['id']}",
         )

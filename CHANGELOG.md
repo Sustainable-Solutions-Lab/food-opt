@@ -16,6 +16,14 @@ introduce breaking changes to configuration and outputs.
 ## [Unreleased]
 
 ### Added
+- FAOSTAT bulk data is now fetched from a pinned Zenodo mirror (the GLADE
+  input-data mirror, shared with the land-cover extract) instead of FAO's
+  unversioned bulk endpoints, so re-downloads can no longer silently change
+  the data vintage and fresh clones reproduce the calibrated baseline. The
+  record is pinned by the new `data.mirror.zenodo_record` config key (which
+  replaces `data.land_cover.zenodo_record` and participates in calibration
+  provenance, so a vintage bump forces recalibration); maintainers refresh
+  the mirror to a new FAO release with `tools/mirror_faostat.py`.
 
 - Multiple cropping is now anchored to an observed baseline derived from
   MIRCA-OS v2 (new automated data source), using the available 2010, 2015, or

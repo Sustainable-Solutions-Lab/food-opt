@@ -9,23 +9,22 @@ This is a MAINTAINER tool, not part of the build. It:
 1. downloads the ``satellite-land-cover`` dataset for a given year/version from
    the Copernicus Climate Data Store (needs an ECMWF/CDS token),
 2. extracts the ``lccs_class`` variable (the only one the model uses), and
-3. uploads the result to Zenodo under CC-BY-4.0 with the Copernicus attribution
-   required by the dataset licence.
+3. publishes a new version of the GLADE input-data mirror record on Zenodo
+   with the extract, keeping the record's other files (the FAOSTAT bulk zips)
+   untouched.
 
 Ordinary builds then fetch the file from Zenodo with no API key (see the
-``download_land_cover`` rule and ``config['data']['land_cover']['zenodo_record']``).
+``download_land_cover`` rule and ``config['data']['mirror']['zenodo_record']``).
 
 The 2016-onwards C3S land-cover maps are licensed CC-BY-4.0, which permits this
 redistribution provided the Copernicus attribution and source DOI are retained;
-both are embedded in the Zenodo deposition metadata below.
+both are embedded in the Zenodo deposition metadata (see
+tools/mirror_metadata.py).
 
 Run inside the project environment, e.g.::
 
-    # First publication (creates a new Zenodo record):
+    # Refresh / new data version (new version of the mirror record):
     pixi run -e dev python tools/mirror_land_cover.py
-
-    # Refresh / new data version (new version of an existing record):
-    pixi run -e dev python tools/mirror_land_cover.py --parent-record 1234567
 
     # Dry-run against the Zenodo sandbox, leaving an unpublished draft:
     pixi run -e dev python tools/mirror_land_cover.py --sandbox --no-publish
@@ -34,104 +33,35 @@ Credentials are read from environment variables (``ECMWF_DATASTORES_URL`` /
 ``ECMWF_DATASTORES_KEY`` / ``ZENODO_TOKEN``) or from ``config/secrets.yaml``
 (``credentials.ecmwf`` and ``credentials.zenodo``).
 
-After publishing, set ``config['data']['land_cover']['zenodo_record']`` in
-``config/default.yaml`` to the printed record id.
+After publishing, set ``config['data']['mirror']['zenodo_record']`` in
+``config/default.yaml`` to the printed record id. When the mirrored year or
+version changes, the old ``land_cover_lccs_class_*.nc`` is kept in the new
+record version (files are replaced by name); delete it in the Zenodo web UI
+before publishing if it should be dropped.
 """
 
 import argparse
-import os
 from pathlib import Path
 import sys
 
 import yaml
 
-# Source DOI of the Copernicus CDS land-cover dataset (all versions/years).
-SOURCE_DOI = "10.24381/cds.006f2c9a"
-
-# Attribution wording required by the Copernicus product licence (CC-BY-4.0).
-COPERNICUS_ATTRIBUTION = (
-    "Generated using Copernicus Climate Change Service information {year}. "
-    "Neither the European Commission nor ECMWF is responsible for any use that "
-    "may be made of the Copernicus information or data it contains."
-)
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def _load_secret(env_var: str, *yaml_path: str) -> str | None:
-    """Return a secret from an env var, falling back to config/secrets.yaml.
-
-    ``yaml_path`` is the nested key path under the top-level ``credentials``
-    mapping, e.g. ``("ecmwf", "key")``.
-    """
-    if value := os.getenv(env_var):
-        return value
-
-    secrets_file = PROJECT_ROOT / "config" / "secrets.yaml"
-    if not secrets_file.exists():
-        return None
-    with open(secrets_file) as handle:
-        secrets = yaml.safe_load(handle) or {}
-    node = secrets.get("credentials", {})
-    for key in yaml_path:
-        if not isinstance(node, dict):
-            return None
-        node = node.get(key)
-    return node if isinstance(node, str) else None
-
-
-def _default_year_and_version() -> tuple[int, str]:
-    """Read the baseline year and land-cover version from config/default.yaml."""
+def _default_config_values() -> tuple[int, str, str]:
+    """Read baseline year, land-cover version and mirror record from config."""
     with open(PROJECT_ROOT / "config" / "default.yaml") as handle:
         config = yaml.safe_load(handle)
-    return config["baseline_year"], config["data"]["land_cover"]["version"]
-
-
-def _build_metadata(year: int, version: str) -> dict:
-    """Zenodo deposition metadata carrying the required Copernicus attribution."""
-    attribution = COPERNICUS_ATTRIBUTION.format(year=year)
-    description = (
-        f"<p>Land cover classification (<code>lccs_class</code> variable only) "
-        f"for {year}, Copernicus ESA CCI land cover version {version}, at 300 m "
-        f"global resolution. Extracted from the Copernicus Climate Data Store "
-        f"<code>satellite-land-cover</code> dataset and redistributed here so "
-        f"that the GLADE model can be built without a Copernicus CDS API key.</p>"
-        f"<p>This is a mirror of a third-party product, provided under the "
-        f"Creative Commons Attribution 4.0 International licence (CC-BY-4.0).</p>"
-        f"<p><strong>Attribution:</strong> {attribution}</p>"
-        f"<p><strong>Source:</strong> Copernicus Climate Change Service, Climate "
-        f"Data Store (2019): Land cover classification gridded maps from 1992 to "
-        f"present derived from satellite observation. "
-        f"DOI: https://doi.org/{SOURCE_DOI}</p>"
+    return (
+        config["baseline_year"],
+        config["data"]["land_cover"]["version"],
+        config["data"]["mirror"]["zenodo_record"],
     )
-    return {
-        "title": (
-            f"Copernicus ESA CCI land cover (lccs_class), {year}, "
-            f"{version} - GLADE mirror"
-        ),
-        "upload_type": "dataset",
-        "description": description,
-        "creators": [
-            {"name": "Copernicus Climate Change Service (C3S)"},
-            {"name": "UCLouvain"},
-        ],
-        "license": "cc-by-4.0",
-        "access_right": "open",
-        "keywords": ["land cover", "ESA CCI", "Copernicus", "C3S", "GLADE"],
-        "related_identifiers": [
-            {
-                "identifier": SOURCE_DOI,
-                "relation": "isDerivedFrom",
-                "scheme": "doi",
-                "resource_type": "dataset",
-            }
-        ],
-        "notes": attribution,
-    }
 
 
 def main() -> None:
-    default_year, default_version = _default_year_and_version()
+    default_year, default_version, default_record = _default_config_values()
 
     parser = argparse.ArgumentParser(
         description="Mirror the Copernicus ESA CCI land-cover map onto Zenodo.",
@@ -145,8 +75,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--parent-record",
-        default=None,
-        help="Existing Zenodo record id to publish a new version of (refresh).",
+        default=default_record,
+        help=(
+            "Mirror record id to publish a new version of. Defaults to "
+            "config['data']['mirror']['zenodo_record']; pass an empty string "
+            "to create a brand-new record."
+        ),
     )
     parser.add_argument(
         "--work-dir",
@@ -185,10 +119,11 @@ def main() -> None:
     sys.path.insert(0, str(PROJECT_ROOT / "tools"))
     import download_land_cover
     import extract_land_cover_class
-    from zenodo_publish import publish_dataset, publish_draft
+    from mirror_metadata import build_metadata
+    from zenodo_publish import load_secret, publish_dataset, publish_draft
 
     if args.publish_record:
-        zenodo_token = _load_secret("ZENODO_TOKEN", "zenodo", "token")
+        zenodo_token = load_secret("ZENODO_TOKEN", "zenodo", "token")
         if not zenodo_token:
             parser.error(
                 "Missing Zenodo token. Set ZENODO_TOKEN, or credentials.zenodo.token "
@@ -199,7 +134,7 @@ def main() -> None:
         print(f"  record id : {result['record_id']}")
         print(f"  doi       : {result['doi']}")
         print(
-            "\nSet this in config/default.yaml under data.land_cover:\n"
+            "\nSet this in config/default.yaml under data.mirror:\n"
             f'    zenodo_record: "{result["record_id"]}"'
         )
         return
@@ -213,8 +148,8 @@ def main() -> None:
             parser.error(f"--skip-download given but {extracted} does not exist")
         print(f"Reusing existing {extracted}")
     else:
-        ecmwf_url = _load_secret("ECMWF_DATASTORES_URL", "ecmwf", "url")
-        ecmwf_key = _load_secret("ECMWF_DATASTORES_KEY", "ecmwf", "key")
+        ecmwf_url = load_secret("ECMWF_DATASTORES_URL", "ecmwf", "url")
+        ecmwf_key = load_secret("ECMWF_DATASTORES_KEY", "ecmwf", "key")
         if not ecmwf_url or not ecmwf_key:
             parser.error(
                 "Missing Copernicus CDS credentials. Set ECMWF_DATASTORES_URL and "
@@ -239,7 +174,7 @@ def main() -> None:
         extract_land_cover_class.main(input_path=archive, output_path=extracted)
         archive.unlink(missing_ok=True)
 
-    zenodo_token = _load_secret("ZENODO_TOKEN", "zenodo", "token")
+    zenodo_token = load_secret("ZENODO_TOKEN", "zenodo", "token")
     if not zenodo_token:
         parser.error(
             "Missing Zenodo token. Set ZENODO_TOKEN, or credentials.zenodo.token "
@@ -250,8 +185,9 @@ def main() -> None:
     result = publish_dataset(
         token=zenodo_token,
         files=[extracted],
-        metadata=_build_metadata(args.year, args.version),
-        parent_record=args.parent_record,
+        metadata=build_metadata(args.year, args.version),
+        parent_record=args.parent_record or None,
+        keep_existing=True,
         sandbox=args.sandbox,
         publish=args.publish,
     )
@@ -264,7 +200,7 @@ def main() -> None:
         print(f"  status    : DRAFT (not published) - review at {edit_link}")
     else:
         print(
-            "\nSet this in config/default.yaml under data.land_cover:\n"
+            "\nSet this in config/default.yaml under data.mirror:\n"
             f'    zenodo_record: "{result["record_id"]}"'
         )
 

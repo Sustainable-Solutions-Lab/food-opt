@@ -277,7 +277,7 @@ FAOSTAT Prices (PP)
 
 **Citation**: FAO. FAOSTAT Producer Prices. https://www.fao.org/faostat/en/
 
-**Retrieval**: Bulk zip download via ``download_faostat_pp`` rule, converted to Parquet by ``extract_faostat_pp``. Output: ``data/downloads/faostat/PP.parquet``.
+**Retrieval**: Bulk zip fetched from the GLADE input-data mirror by the ``download_faostat`` rule (see :ref:`redistributing-datasets`), converted to Parquet by ``extract_faostat``. Output: ``data/downloads/faostat/PP.parquet``.
 
 **Usage**: Combined with QCL yields and a configurable ``non_endogenous_cost_share`` to produce per-(crop, country) crop production costs in ``prepare_faostat_crop_costs``. Prices are CPI-deflated to the configured base year before averaging. Crops without FAOSTAT price data use proxy mappings from ``data/curated/faostat_cost_proxies.yaml``. See :doc:`costs` for full methodology.
 
@@ -349,7 +349,7 @@ FAOSTAT Land Use (RL)
 
 **License**: CC BY 4.0 + FAO database terms
 
-**Retrieval**: Downloaded as bulk CSV (``Inputs_LandUse_E_All_Data_(Normalized).zip``), converted to Parquet, and processed by ``workflow/scripts/prepare_faostat_pasture_area.py``.
+**Retrieval**: Bulk zip fetched from the GLADE input-data mirror by the ``download_faostat`` rule (see :ref:`redistributing-datasets`), converted to Parquet, and processed by ``workflow/scripts/prepare_faostat_pasture_area.py``.
 
 **Usage**: Provides per-country permanent pasture area used to scale down satellite grassland area in ``build_model.py``.
 
@@ -360,11 +360,9 @@ FAOSTAT Food Balance Sheets (FBS)
 
 **Description**: Per-capita food supply quantities (kg/capita/year) by country, item, and year from FAO's global statistical database covering 245+ countries from 1961 onward. The model uses FBS item-level supply to disaggregate food-group totals into per-food consumption shares, to anchor the FBS-override foods in the baseline diet (meats, eggs, yam, coffee, cocoa), and to feed the food-loss-waste accounting.
 
-**Version**: Retrieved via the FAOSTAT API using the ``faostat`` Python client (JSON -> Pandas DataFrame)
-
 **Coverage**:
   * Spatial: 245+ countries and territories
-  * Temporal: 1961 onward
+  * Temporal: 1961 onward (FBS from 2010; the historical FBSH domain, retrieved alongside, covers 1961-2013 and serves as a fallback for countries the new FBS does not cover)
 
 **Access**: https://www.fao.org/faostat/en/ (Food Balance Sheets domain)
 
@@ -372,7 +370,7 @@ FAOSTAT Food Balance Sheets (FBS)
 
 **Citation**: FAO. FAOSTAT Food Balance Sheets. https://www.fao.org/faostat/en/
 
-**Retrieval**: Downloaded as a bulk CSV from FAOSTAT (converted to Parquet) and processed by scripts in ``workflow/scripts/`` (e.g., ``prepare_faostat_fbs_items.py``, ``prepare_food_loss_waste.py``, ``prepare_faostat_food_group_supply.py``).
+**Retrieval**: Bulk zips (FBS and FBSH) fetched from the GLADE input-data mirror by the ``download_faostat`` rule (see :ref:`redistributing-datasets`), converted to Parquet, and processed by scripts in ``workflow/scripts/`` (e.g., ``prepare_faostat_fbs_items.py``, ``prepare_food_loss_waste.py``, ``prepare_faostat_food_group_supply.py``).
 
 **Usage**:
   * **Within-group disaggregation**: FBS item-level supply is the basis for per-food shares within each food group in ``estimate_baseline_diet.py``.
@@ -656,7 +654,7 @@ Copernicus Satellite Land Cover
 
 **Retrieval**: Automatic via the ``download_land_cover`` Snakemake rule, which uses ``curl`` to fetch the pre-extracted land cover classification (``lccs_class`` only, ~320 MB NetCDF) from our Zenodo mirror. The rule writes ``data/downloads/land_cover_lccs_class.nc``. The mirror itself is produced from the upstream CDS dataset by the maintainer tool ``tools/mirror_land_cover.py`` (see :ref:`redistributing-datasets`).
 
-**Configuration**: The land cover year is derived from the top-level ``baseline_year`` parameter, and the version from ``config['data']['land_cover']['version']`` (default: v2_1_1). The mirror to download from is pinned by ``config['data']['land_cover']['zenodo_record']`` (the numeric Zenodo record id); the download URL and file name are derived from these three values.
+**Configuration**: The land cover year is derived from the top-level ``baseline_year`` parameter, and the version from ``config['data']['land_cover']['version']`` (default: v2_1_1). The mirror to download from is pinned by ``config['data']['mirror']['zenodo_record']`` (the numeric Zenodo record id); the download URL and file name are derived from these three values.
 
 **Usage**: Spatial analysis of agricultural land availability and land use constraints.
 
@@ -1139,25 +1137,43 @@ Most datasets used in this project require attribution. Some disallow redistribu
 Redistributing datasets via Zenodo
 ----------------------------------
 
-Some upstream datasets are free to use but sit behind an API key or registration
-wall. Where the licence permits
-redistribution, GLADE mirrors the exact slice it needs to `Zenodo
-<https://zenodo.org/>`__ and downloads it during builds with a plain HTTP
-request. This removes the per-user credential, pins an immutable, citable
-version (each Zenodo version has its own DOI and record id), and gives a single
-reusable pattern for any future dataset in the same situation.
+Some upstream datasets are free to use but sit behind an API key or
+registration wall, or -- like FAOSTAT's bulk downloads -- are served only as an
+unversioned "current release" that upstream revises continuously. Where the
+licence permits redistribution, GLADE mirrors the exact slice it needs to
+`Zenodo <https://zenodo.org/>`__ and downloads it during builds with a plain
+HTTP request. This removes per-user credentials, pins an immutable, citable
+data vintage (each Zenodo version has its own DOI and record id), and makes
+builds reproducible across machines and over time.
+
+All mirrored inputs live in a single record, the *GLADE input data mirror*,
+pinned by ``config['data']['mirror']['zenodo_record']``. It holds the
+Copernicus land-cover extract and the FAOSTAT bulk zips together with a
+``faostat_vintages.yaml`` manifest recording each zip's source URL, upstream
+last-modified date, retrieval date and SHA-256 digest.
 
 The components are:
 
 * ``tools/zenodo_publish.py`` -- a dataset-agnostic helper that creates (or
   versions) a Zenodo deposition, uploads files, sets metadata, and publishes via
   the Zenodo REST API. Reuse it for any redistributable dataset.
-* ``tools/mirror_land_cover.py`` -- the land-cover-specific maintainer tool. It
-  downloads ``satellite-land-cover`` from the Copernicus CDS, extracts
-  ``lccs_class``, and publishes it to Zenodo under CC-BY-4.0 with the required
-  Copernicus attribution baked into the deposition metadata.
-* The ``download_land_cover`` build rule, which ``curl``\ s the mirrored file
-  from the record pinned by ``config['data']['land_cover']['zenodo_record']``.
+* ``tools/mirror_metadata.py`` -- the mirror record's deposition metadata,
+  carrying the attributions required by the Copernicus and FAO licences (both
+  CC-BY-4.0).
+* ``tools/mirror_land_cover.py`` -- downloads ``satellite-land-cover`` from the
+  Copernicus CDS, extracts ``lccs_class``, and publishes a new version of the
+  mirror record with it.
+* ``tools/mirror_faostat.py`` -- downloads the bulk zip of every FAOSTAT domain
+  in ``workflow/scripts/faostat_bulk.py``, writes the vintage manifest, and
+  publishes a new version of the mirror record with them.
+* The ``download_land_cover`` and ``download_faostat`` build rules, which
+  ``curl`` the mirrored files from the pinned record.
+
+Each mirror tool replaces only its own files in the record and keeps the rest,
+so the two datasets can be refreshed independently. Every published version has
+a new record id; update ``config['data']['mirror']['zenodo_record']`` in
+``config/default.yaml`` and commit that change so builds pick up the new
+mirror.
 
 **Before mirroring a new dataset**, confirm its licence actually permits
 redistribution (CC-BY / CC0 / public domain are safe; "use only" or
@@ -1170,12 +1186,18 @@ token and a Zenodo token -- see ``config/secrets.yaml.example``)::
     # Optional dry-run against the Zenodo sandbox (leaves an unpublished draft):
     pixi run -e dev python tools/mirror_land_cover.py --sandbox --no-publish
 
-    # First publication (creates a new Zenodo record):
+    # Publish a new version of the mirror record:
     pixi run -e dev python tools/mirror_land_cover.py
 
-    # New data version (publishes a new version of an existing record):
-    pixi run -e dev python tools/mirror_land_cover.py --parent-record <record-id>
+**Refreshing the FAOSTAT mirror** (maintainer, requires a Zenodo token; the
+`FAOSTAT release calendar
+<https://www.fao.org/faostat/en/#release_calendar>`__ shows when domains
+update)::
 
-The tool prints the published record id; set it as
-``config['data']['land_cover']['zenodo_record']`` in ``config/default.yaml`` and
-commit that change so builds pick up the new mirror.
+    pixi run -e dev python tools/mirror_faostat.py
+
+A new FAOSTAT vintage changes baseline production, land-use and diet inputs, so
+the calibration artefact sets must be regenerated afterwards (see
+:doc:`calibration`). The pinned record id is part of the calibration provenance
+snapshot, so sets fit against an older vintage are rejected rather than
+silently consumed.

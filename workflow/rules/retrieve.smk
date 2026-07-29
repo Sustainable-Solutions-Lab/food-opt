@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from workflow.scripts.faostat_bulk import FAOSTAT_BULK_URLS
+
 
 rule download_gadm_zip:
     output:
@@ -184,18 +186,44 @@ rule merge_animal_costs:
         "../scripts/merge_animal_costs.py"
 
 
-rule download_faostat_pp:
+# FAOSTAT bulk zips are fetched from the GLADE input-data mirror on Zenodo,
+# never from FAO's bulk endpoints: those serve only the current release, so a
+# re-download would silently change the data vintage under every downstream
+# artefact (including the committed calibration sets). The mirror record is
+# pinned by config['data']['mirror']['zenodo_record']; refresh it to a new
+# FAO release with tools/mirror_faostat.py, then recalibrate. Domain codes
+# and upstream FAO URLs live in workflow/scripts/faostat_bulk.py.
+
+FAOSTAT_EXTRACT_MEM_MB = {
+    "PP": 2500,
+    "QCL": 2500,
+    "FBS": 3000,
+    "FBSH": 4000,
+    "RL": 2500,
+    "GT": 1500,
+    "FS": 1500,
+}
+
+assert FAOSTAT_EXTRACT_MEM_MB.keys() == FAOSTAT_BULK_URLS.keys()
+
+
+rule download_faostat:
     output:
-        temp("data/downloads/faostat/PP.zip"),
+        temp("data/downloads/faostat/{domain}.zip"),
+    wildcard_constraints:
+        domain="|".join(FAOSTAT_BULK_URLS),
     params:
-        url="https://bulks-faostat.fao.org/production/Prices_E_All_Data_(Normalized).zip",
+        url=lambda wc: (
+            f"https://zenodo.org/records/{config['data']['mirror']['zenodo_record']}"
+            f"/files/faostat_{wc.domain}.zip?download=1"
+        ),
     resources:
         runtime="30m",
         mem_mb=500,
     log:
-        "<logs>/shared/download_faostat_pp.log",
+        "<logs>/shared/download_faostat_{domain}.log",
     benchmark:
-        "<benchmarks>/shared/download_faostat_pp.tsv"
+        "<benchmarks>/shared/download_faostat_{domain}.tsv"
     shell:
         r"""
         mkdir -p "$(dirname {output})"
@@ -203,233 +231,20 @@ rule download_faostat_pp:
         """
 
 
-rule extract_faostat_pp:
+rule extract_faostat:
     input:
-        "data/downloads/faostat/PP.zip",
+        "data/downloads/faostat/{domain}.zip",
     output:
-        "data/downloads/faostat/PP.parquet",
+        "data/downloads/faostat/{domain}.parquet",
+    wildcard_constraints:
+        domain="|".join(FAOSTAT_BULK_URLS),
     resources:
         runtime="2m",
-        mem_mb=2500,
+        mem_mb=lambda wc: FAOSTAT_EXTRACT_MEM_MB[wc.domain],
     log:
-        "<logs>/shared/extract_faostat_pp.log",
+        "<logs>/shared/extract_faostat_{domain}.log",
     benchmark:
-        "<benchmarks>/shared/extract_faostat_pp.tsv"
-    script:
-        "../scripts/convert_faostat_to_parquet.py"
-
-
-rule download_faostat_qcl:
-    output:
-        temp("data/downloads/faostat/QCL.zip"),
-    params:
-        url="https://bulks-faostat.fao.org/production/Production_Crops_Livestock_E_All_Data_(Normalized).zip",
-    resources:
-        runtime="30m",
-        mem_mb=500,
-    log:
-        "<logs>/shared/download_faostat_qcl.log",
-    benchmark:
-        "<benchmarks>/shared/download_faostat_qcl.tsv"
-    shell:
-        r"""
-        mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
-        """
-
-
-rule extract_faostat_qcl:
-    input:
-        "data/downloads/faostat/QCL.zip",
-    output:
-        "data/downloads/faostat/QCL.parquet",
-    resources:
-        runtime="2m",
-        mem_mb=2500,
-    log:
-        "<logs>/shared/extract_faostat_qcl.log",
-    benchmark:
-        "<benchmarks>/shared/extract_faostat_qcl.tsv"
-    script:
-        "../scripts/convert_faostat_to_parquet.py"
-
-
-rule download_faostat_fbs:
-    output:
-        temp("data/downloads/faostat/FBS.zip"),
-    params:
-        url="https://bulks-faostat.fao.org/production/FoodBalanceSheets_E_All_Data_(Normalized).zip",
-    resources:
-        runtime="30m",
-        mem_mb=500,
-    log:
-        "<logs>/shared/download_faostat_fbs.log",
-    benchmark:
-        "<benchmarks>/shared/download_faostat_fbs.tsv"
-    shell:
-        r"""
-        mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
-        """
-
-
-rule extract_faostat_fbs:
-    input:
-        "data/downloads/faostat/FBS.zip",
-    output:
-        "data/downloads/faostat/FBS.parquet",
-    resources:
-        runtime="2m",
-        mem_mb=3000,
-    log:
-        "<logs>/shared/extract_faostat_fbs.log",
-    benchmark:
-        "<benchmarks>/shared/extract_faostat_fbs.tsv"
-    script:
-        "../scripts/convert_faostat_to_parquet.py"
-
-
-# FBSH = historical Food Balance Sheets (1961-2013, old methodology).
-# Used as a fallback for countries that the new FBS dataset (2010-) does
-# not cover (Japan, Chad, Mali, Benin, Togo, Burundi, Eritrea, Somalia,
-# Central African Republic, etc.). For these countries we use their
-# latest available FBSH year (typically 2013) per-capita supply values.
-rule download_faostat_fbsh:
-    output:
-        temp("data/downloads/faostat/FBSH.zip"),
-    params:
-        url="https://bulks-faostat.fao.org/production/FoodBalanceSheetsHistoric_E_All_Data_(Normalized).zip",
-    resources:
-        runtime="30m",
-        mem_mb=500,
-    log:
-        "<logs>/shared/download_faostat_fbsh.log",
-    benchmark:
-        "<benchmarks>/shared/download_faostat_fbsh.tsv"
-    shell:
-        r"""
-        mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
-        """
-
-
-rule extract_faostat_fbsh:
-    input:
-        "data/downloads/faostat/FBSH.zip",
-    output:
-        "data/downloads/faostat/FBSH.parquet",
-    resources:
-        runtime="2m",
-        mem_mb=4000,
-    log:
-        "<logs>/shared/extract_faostat_fbsh.log",
-    benchmark:
-        "<benchmarks>/shared/extract_faostat_fbsh.tsv"
-    script:
-        "../scripts/convert_faostat_to_parquet.py"
-
-
-rule download_faostat_rl:
-    output:
-        temp("data/downloads/faostat/RL.zip"),
-    params:
-        url="https://bulks-faostat.fao.org/production/Inputs_LandUse_E_All_Data_(Normalized).zip",
-    resources:
-        runtime="30m",
-        mem_mb=500,
-    log:
-        "<logs>/shared/download_faostat_rl.log",
-    benchmark:
-        "<benchmarks>/shared/download_faostat_rl.tsv"
-    shell:
-        r"""
-        mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
-        """
-
-
-rule extract_faostat_rl:
-    input:
-        "data/downloads/faostat/RL.zip",
-    output:
-        "data/downloads/faostat/RL.parquet",
-    resources:
-        runtime="2m",
-        mem_mb=2500,
-    log:
-        "<logs>/shared/extract_faostat_rl.log",
-    benchmark:
-        "<benchmarks>/shared/extract_faostat_rl.tsv"
-    script:
-        "../scripts/convert_faostat_to_parquet.py"
-
-
-rule download_faostat_gt:
-    output:
-        temp("data/downloads/faostat/GT.zip"),
-    params:
-        url="https://bulks-faostat.fao.org/production/Emissions_Totals_E_All_Data_(Normalized).zip",
-    resources:
-        runtime="30m",
-        mem_mb=500,
-    log:
-        "<logs>/shared/download_faostat_gt.log",
-    benchmark:
-        "<benchmarks>/shared/download_faostat_gt.tsv"
-    shell:
-        r"""
-        mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
-        """
-
-
-rule extract_faostat_gt:
-    input:
-        "data/downloads/faostat/GT.zip",
-    output:
-        "data/downloads/faostat/GT.parquet",
-    resources:
-        runtime="2m",
-        mem_mb=1500,
-    log:
-        "<logs>/shared/extract_faostat_gt.log",
-    benchmark:
-        "<benchmarks>/shared/extract_faostat_gt.tsv"
-    script:
-        "../scripts/convert_faostat_to_parquet.py"
-
-
-rule download_faostat_fs:
-    output:
-        temp("data/downloads/faostat/FS.zip"),
-    params:
-        url="https://bulks-faostat.fao.org/production/Food_Security_Data_E_All_Data_(Normalized).zip",
-    resources:
-        runtime="30m",
-        mem_mb=500,
-    log:
-        "<logs>/shared/download_faostat_fs.log",
-    benchmark:
-        "<benchmarks>/shared/download_faostat_fs.tsv"
-    shell:
-        r"""
-        mkdir -p "$(dirname {output})"
-        curl -L --fail --progress-bar -o "{output}" "{params.url}" > {log} 2>&1
-        """
-
-
-rule extract_faostat_fs:
-    input:
-        "data/downloads/faostat/FS.zip",
-    output:
-        "data/downloads/faostat/FS.parquet",
-    resources:
-        runtime="2m",
-        mem_mb=1500,
-    log:
-        "<logs>/shared/extract_faostat_fs.log",
-    benchmark:
-        "<benchmarks>/shared/extract_faostat_fs.tsv"
+        "<benchmarks>/shared/extract_faostat_{domain}.tsv"
     script:
         "../scripts/convert_faostat_to_parquet.py"
 
@@ -1283,14 +1098,14 @@ rule download_luicube_grassland:
 
 rule download_land_cover:
     # Copernicus ESA CCI land cover (lccs_class only) for the baseline year,
-    # fetched from our Zenodo mirror (CC-BY-4.0). Refresh the mirror with
-    # tools/mirror_land_cover.py and point
-    # config['data']['land_cover']['zenodo_record'] at the new record id.
+    # fetched from the GLADE input-data mirror on Zenodo (CC-BY-4.0). Refresh
+    # the mirror with tools/mirror_land_cover.py and point
+    # config['data']['mirror']['zenodo_record'] at the new record id.
     output:
         "data/downloads/land_cover_lccs_class.nc",
     params:
         url=(
-            f"https://zenodo.org/records/{config['data']['land_cover']['zenodo_record']}"
+            f"https://zenodo.org/records/{config['data']['mirror']['zenodo_record']}"
             f"/files/land_cover_lccs_class_{config['baseline_year']}"
             f"_{config['data']['land_cover']['version']}.nc?download=1"
         ),
