@@ -1773,7 +1773,7 @@ data:
     # data vintages with no API keys. Refresh with tools/mirror_land_cover.py
     # / tools/mirror_faostat.py and point this at the new record id (see
     # docs/data_sources.rst). A new FAOSTAT vintage requires recalibration.
-    zenodo_record: "21085632"  # https://doi.org/10.5281/zenodo.21085632
+    zenodo_record: "21694233"  # https://doi.org/10.5281/zenodo.21694233
   land_cover:
     # Copernicus ESA CCI land cover version mirrored for `baseline_year`.
     version: "v2_1_1"
