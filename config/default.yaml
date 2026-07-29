@@ -216,6 +216,37 @@ deviation_penalty:
       feed: 0.03
       diet: 3.0
 
+# --- section: supply_response ---
+# Convex piecewise-linear supply curves through observed production, in the
+# positive-mathematical-programming tradition. Each group -- (crop, country),
+# grassland by country, (animal product, country) -- gets a marginal-cost curve
+# whose slope reproduces the configured supply elasticity at the observed point,
+# so response to a shock is graduated rather than the dead-band-then-jump of an
+# L1 kink, and the curvature comes from an exogenous elasticity rather than a
+# fitted deviation target.
+#
+# The curves price changes in a country's total activity for a commodity, not
+# where that activity sits within the country. Reallocation between regions,
+# resource classes and water-supply types remains with the per-link
+# deviation_penalty, so the two are designed to run together: the curve carries
+# the elasticity, the per-link term spatial inertia.
+supply_response:
+  enabled: false
+  n_blocks: 4            # Tranches per direction approximating the quadratic
+  expansion_range: 0.5   # Up-range as a fraction of group baseline (last tranche extrapolates)
+  contraction_range: 1.0 # Down-range as a fraction of group baseline (1.0 reaches zero)
+  # Long-run own-price supply elasticities. Perennials and livestock adjust more
+  # slowly than annual crops; grassland is the least elastic.
+  elasticities:
+    crops: 0.5
+    grassland: 0.3
+    animals: 0.4
+  elasticity_factor: 1.0 # Global multiplier for scanning the elasticity assumption
+  components:
+    crops: true
+    grassland: true
+    animals: true
+
 # --- section: food_incentives ---
 food_incentives:
   enabled: false  # When true, food-level incentives are applied to the objective

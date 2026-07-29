@@ -62,6 +62,7 @@ required:
   - food_loss_waste_calibration
   - food_demand_calibration
   - deviation_penalty
+  - supply_response
   - solving
   - remote_solve
   - sensitivity
@@ -2085,6 +2086,60 @@ properties:
               diet:
                 type: number
                 exclusiveMinimum: 0
+
+  supply_response:
+    type: object
+    required: [enabled, n_blocks, expansion_range, contraction_range, elasticities, elasticity_factor, components]
+    additionalProperties: false
+    description: "Convex piecewise-linear supply curves through observed production, with curvature set by an exogenous supply elasticity per component."
+    properties:
+      enabled:
+        type: boolean
+        description: "Master switch for the supply-response curves."
+      n_blocks:
+        type: integer
+        minimum: 1
+        description: "Tranches per direction approximating the quadratic deviation cost."
+      expansion_range:
+        type: number
+        exclusiveMinimum: 0
+        description: "Up-range as a fraction of group baseline; the outermost tranche is unbounded and extrapolates."
+      contraction_range:
+        type: number
+        exclusiveMinimum: 0
+        maximum: 1
+        description: "Down-range as a fraction of group baseline; 1.0 reaches zero activity."
+      elasticities:
+        type: object
+        required: [crops, grassland, animals]
+        additionalProperties: false
+        description: "Long-run own-price supply elasticity per component."
+        properties:
+          crops:
+            type: number
+            exclusiveMinimum: 0
+          grassland:
+            type: number
+            exclusiveMinimum: 0
+          animals:
+            type: number
+            exclusiveMinimum: 0
+      elasticity_factor:
+        type: number
+        exclusiveMinimum: 0
+        description: "Global multiplier on every elasticity, for scanning the assumption."
+      components:
+        type: object
+        required: [crops, grassland, animals]
+        additionalProperties: false
+        description: "Which components carry supply curves."
+        properties:
+          crops:
+            type: boolean
+          grassland:
+            type: boolean
+          animals:
+            type: boolean
 
   solving:
     type: object

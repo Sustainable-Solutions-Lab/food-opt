@@ -44,6 +44,7 @@ from workflow.scripts.solve_model.production_stability import (
     add_reforestation_cap_constraints,
     resolve_calibrated_l1_costs,
 )
+from workflow.scripts.solve_model.supply_response import add_supply_response_curves
 
 # Module-level logger (replaced by run_solve's caller)
 logger = logging.getLogger(__name__)
@@ -1821,6 +1822,13 @@ def run_solve(
         if dp_cfg["diet"]["enabled"] and not enforce_baseline:
             with _phase("add_diet_stability_constraints"):
                 add_diet_stability_constraints(n, matched_baseline, dp_cfg)
+
+    # Convex piecewise-linear supply curves on group activity. Complementary to
+    # the per-link deviation penalty above: the curve carries the elasticity of
+    # a country's total activity for a commodity, the per-link term the inertia
+    # of where within the country that activity sits.
+    with _phase("add_supply_response_curves"):
+        add_supply_response_curves(n, smk.params.supply_response)
 
     # Add animal growth cap constraints (independent of production stability)
     animal_growth_cap_cfg = smk.params.animal_growth_cap
