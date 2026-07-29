@@ -357,7 +357,7 @@ the solve-time pricing/capping levers are documented in the dedicated
    :width: 100%
    :alt: Regional water availability map
 
-   Growing season water availability by optimization region (mm). The map shows area-normalized water available during the average growing season for each region, computed by summing monthly basin availability over the typical crop growing period. This represents the blue water constraint for irrigated crop production in the optimization model.
+   Annual renewable water availability by optimization region (mm), area-normalized. Volumes are WaterGAP's irrigation surface availability, allocated to the intersecting AWARE basins and summed over the year. This is the blue water constraint on irrigated crop production; the LP enforces the seasonal bind per period against the monthly pool.
 
 Irrigated Land Availability
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

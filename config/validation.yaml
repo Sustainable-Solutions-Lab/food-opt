@@ -6,6 +6,10 @@
 # ----------
 # Runs the model in validation mode (actual yields, enforced baseline diet
 # and feed) to compare model behaviour against observed 2020 outcomes.
+#
+# Health stays off (the default): the goal here is physical mass balance, and
+# leaving it off keeps the run clear of the manually-downloaded IHME GBD data
+# and of GBD anchoring of the baseline diet.
 
 name: "validation"
 
@@ -29,16 +33,6 @@ cost_calibration:
 
 food_demand_calibration:
   enabled: false
-
-# Health module on with zero objective weight: post-hoc YLL evaluation only.
-health:
-  enabled: true
-  value_per_yll: 0
-
-# With health on, the baseline diet is GBD-anchored, so consume the artefact
-# set calibrated against that diet (the `default` set is anchoring-off).
-calibration:
-  source: "gbd-anchored"
 
 emissions:
   ghg_pricing_enabled: false

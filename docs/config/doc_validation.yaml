@@ -4,13 +4,8 @@
 
 # Standalone validation configuration for documentation figures.
 # Mirrors config/validation.yaml but writes to results/doc_validation/ so
-# documentation runs don't clobber the main validation workspace.
-#
-# We skip the ``uncalibrated`` scenario here: the grassland-forage
-# calibration CSVs in ``data/curated/calibration/`` are committed to the
-# repo, so the default ``grassland_forage_calibration`` block in
-# ``config/default.yaml`` (``enabled: true, generate: false``) consumes
-# them directly and there's no need to regenerate.
+# documentation runs don't clobber the main validation workspace. Keep the two
+# files in sync.
 
 name: "doc_validation"
 
@@ -34,16 +29,6 @@ cost_calibration:
 
 food_demand_calibration:
   enabled: false
-
-# Health module on with zero objective weight: post-hoc YLL evaluation only.
-health:
-  enabled: true
-  value_per_yll: 0
-
-# With health on, the baseline diet is GBD-anchored, so consume the artefact
-# set calibrated against that diet (the `default` set is anchoring-off).
-calibration:
-  source: "gbd-anchored"
 
 emissions:
   ghg_pricing_enabled: false

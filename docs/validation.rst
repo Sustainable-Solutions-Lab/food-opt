@@ -63,9 +63,10 @@ These settings collectively remove the optimizer's degrees of freedom:
 - **Calibration multiplier**: ``grassland_yield_multiplier`` applies a small
   adjustment to grassland feed yields to compensate for known data gaps.
 
-Additional settings select present-day water availability
-(``water.data.availability: current_use``) and disable health impacts, since the
-goal is physical mass balance rather than optimization.
+The health module is left off, since the goal is physical mass balance rather
+than optimization. That also keeps the baseline diet un-anchored from GBD
+intake exposure, so validation needs none of the manually-downloaded IHME GBD
+data.
 
 
 .. _validation-slack-mechanism:

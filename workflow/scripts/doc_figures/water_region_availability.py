@@ -5,7 +5,8 @@
 
 """Generate regional water availability map for crop production documentation.
 
-Shows growing season water availability by optimization region.
+Shows annual renewable water availability by optimization region, the column
+both availability sources (aware, current_use) share.
 """
 
 import cartopy.crs as ccrs
@@ -32,7 +33,7 @@ def main(
 
     Args:
         regions_path: Path to regions GeoJSON file
-        water_data_path: Path to regional water availability CSV
+        water_data_path: Path to the composed regional water availability CSV
         svg_output_path: Path for output SVG file
         png_output_path: Path for output PNG file
     """
@@ -60,10 +61,10 @@ def main(
     regions = regions.merge(water_data, left_on="region", right_on="region", how="left")
 
     # Convert to mm for better spatial comparison
-    # mm = m³ / (km² * 1e6 m²/km²) * 1000 mm/m = m³ / (km² * 1000)
-    regions["growing_season_water_mm"] = regions[
-        "growing_season_water_available_m3"
-    ] / (regions["area_km2"] * 1000)
+    # mm = m3 / (km2 * 1e6 m2/km2) * 1000 mm/m = m3 / (km2 * 1000)
+    regions["annual_water_mm"] = regions["annual_water_available_m3"] / (
+        regions["area_km2"] * 1000
+    )
 
     # Create figure with EqualEarth projection
     fig, ax = plt.subplots(
@@ -76,7 +77,7 @@ def main(
 
     # Plot regional water availability
     regions.plot(
-        column="growing_season_water_mm",
+        column="annual_water_mm",
         ax=ax,
         cmap=COLORMAPS["water"],
         edgecolor="white",
@@ -103,23 +104,21 @@ def main(
     sm = plt.cm.ScalarMappable(
         cmap=COLORMAPS["water"],
         norm=plt.Normalize(
-            vmin=regions["growing_season_water_mm"].min(),
-            vmax=regions["growing_season_water_mm"].quantile(
-                0.95
-            ),  # Cap at 95th percentile
+            vmin=regions["annual_water_mm"].min(),
+            vmax=regions["annual_water_mm"].quantile(0.95),  # Cap at 95th percentile
         ),
     )
     sm.set_array([])
     cbar = plt.colorbar(sm, ax=ax, orientation="horizontal", pad=0.05, fraction=0.046)
     cbar.set_label(
-        "Growing Season Water Availability (mm)", fontsize=FONT_SIZES["colorbar_label"]
+        "Annual water availability (mm)", fontsize=FONT_SIZES["colorbar_label"]
     )
 
     # Add data source note
     ax.text(
         0.02,
         0.02,
-        "Data: Water Footprint Network, aggregated to regions",
+        "Data: WaterGAP irrigation surface availability, aggregated to regions",
         transform=ax.transAxes,
         fontsize=FONT_SIZES["colorbar_tick"],
         verticalalignment="bottom",
