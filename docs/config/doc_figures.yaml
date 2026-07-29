@@ -2,9 +2,12 @@
 #
 # SPDX-License-Identifier: CC-BY-4.0
 
-# Configuration for generating documentation figures
-# This inherits from default.yaml but uses coarser resolution for faster execution
-# and to showcase global coverage without excessive computational cost
+# Configuration for generating documentation figures.
+#
+# Everything not listed below falls back to config/default.yaml, so the figures
+# show the model as a reader gets it out of the box. The overrides add the
+# scenarios the figures need plus the health module, which three figures
+# document.
 
 name: "doc_figures"
 
@@ -66,26 +69,12 @@ scenarios:
 food_utility_piecewise:
   enabled: true
 
-cost_calibration:
-  enabled: true
-
-validation:
-  use_actual_yields: true
-
-deviation_penalty:
-  enabled: true
-  penalty_mode: "l1"
-  deviation_type: "absolute"
-
-water:
-  data:
-    availability: "current_use"
-
 health:
-  # Documentation figures include health-cluster maps and the diet-attributable
-  # burden choropleth, which need the health data-prep outputs (clusters etc.).
-  # value_per_yll: 0 keeps health out of the objective (post-hoc evaluation
-  # only). Needs the manually-downloaded IHME GBD data.
+  # Documentation figures include the health-cluster map, the diet-attributable
+  # burden choropleth and the marginal-YLL bar chart, which need the health
+  # data-prep outputs and health-aware solves. value_per_yll: 0 keeps health
+  # out of the objective (post-hoc evaluation only). Needs the
+  # manually-downloaded IHME GBD data.
   enabled: true
   value_per_yll: 0
 

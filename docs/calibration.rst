@@ -35,7 +35,7 @@ so that ordinary builds don't need to re-solve anything. See
    diet source and differing only in anchoring: ``default``, fit against
    the anchoring-off diet of the default config; and ``gbd-anchored``,
    fit against the GBD-anchored diet and consumed by the health-enabled
-   configs (``validation``, ``gsa``, the doc-figure configs) via
+   configs (``gsa``, ``doc_figures``) via
    ``calibration.source: gbd-anchored``. No set is shipped for
    ``diet.source: fbs``: that source is supported but needs its own
    calibration run before use. ``tools/calibrate`` resolves anchoring

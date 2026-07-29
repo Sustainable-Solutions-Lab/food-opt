@@ -28,7 +28,7 @@ The model divides the world into sub-national optimization regions and connects 
    :width: 100%
    :alt: Global model coverage map
 
-   Optimization regions (here 250) created by clustering administrative units. Each region has its own land endowment, crop yields, water budget, and dietary requirements.
+   Optimization regions (750 in the default configuration) created by clustering administrative units. Each region has its own land endowment, crop yields, water budget, and dietary requirements.
 
 .. figure:: https://github.com/Sustainable-Solutions-Lab/GLADE/releases/download/doc-figures/crop_yield_wheat.png
    :width: 100%

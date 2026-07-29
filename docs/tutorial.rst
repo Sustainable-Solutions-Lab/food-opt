@@ -54,9 +54,10 @@ A few things to note:
 * The ``scenarios:`` block defines three scenarios that each set
   ``validation.enforce_baseline_diet: true``. That flag forces consumption
   per food group to equal the observed 2020 diet in every country.
-* ``health.value_per_yll: 0`` disables the health-cost objective. Health
-  costs are the subject of separate documentation — we keep them out of the
-  tutorial on purpose.
+* The health module stays off, which is the default. Health costs are the
+  subject of separate documentation (:doc:`health`) — we keep them out of the
+  tutorial on purpose, which also means you need none of the manually
+  downloaded IHME GBD data to follow along.
 
 If you want to experiment, you can copy this file to a new name (e.g.
 ``config/tutorial/01_my_variant.yaml``), change the ``name`` field, and edit

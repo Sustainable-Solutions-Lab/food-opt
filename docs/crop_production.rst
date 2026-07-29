@@ -357,7 +357,7 @@ the solve-time pricing/capping levers are documented in the dedicated
    :width: 100%
    :alt: Regional water availability map
 
-   Growing season water availability by optimization region (mm). The map shows area-normalized water available during the average growing season for each region, computed by summing monthly basin availability over the typical crop growing period. This represents the blue water constraint for irrigated crop production in the optimization model.
+   Annual renewable water availability by optimization region (mm), area-normalized. The default AWARE source combines WaterGAP-derived irrigation surface and renewable groundwater availability with AWARE basin scarcity factors. The map shows the regional pool summed over the year; the LP applies the corresponding water constraint per period.
 
 Irrigated Land Availability
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -551,8 +551,8 @@ unattributed extra-cycle area.
 
    Rain-fed perspective: top panel shows RES01-MCR classes from GAEZ v5. Bottom panel
    reports the share of each optimisation region where the climate supports sequential
-   multi-cropping (zones C–H). Zones suitable only for relay systems are counted as
-   sequential double cropping, consistent with the current model assumptions.
+   multi-cropping (zones 3–8). The model treats the relay-permitting zone 3 as
+   sequential multi-cropping.
 
 .. figure:: https://github.com/Sustainable-Solutions-Lab/GLADE/releases/download/doc-figures/multi_cropping_potential_irrigated.png
    :alt: Irrigated multi-cropping zones and regional potential
@@ -560,7 +560,8 @@ unattributed extra-cycle area.
 
    Irrigated perspective: top panel shows RES01-MCI classes. Bottom panel reports the
    share of each optimisation region where irrigated climate conditions allow sequential
-   multi-cropping. Relay-only zones are again interpreted as sequential crop chains.
+   multi-cropping (zones 3–8); the model interprets relay-permitting zone 3 as a
+   sequential crop chain.
 
 Crop-Specific Data Files
 -------------------------

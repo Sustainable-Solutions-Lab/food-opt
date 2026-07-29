@@ -86,6 +86,15 @@ introduce breaking changes to configuration and outputs.
 
 ### Changed
 
+- The validation configs (`config/validation.yaml`,
+  `docs/config/doc_validation.yaml`) and both tutorial configs under
+  `config/tutorial/` now leave the health module off, so they run without the
+  manually-downloaded IHME GBD data. Their baseline diet is consequently no
+  longer anchored to GBD intake exposure and they consume the `default`
+  calibration artefact set, which shifts validation figures somewhat. Turn
+  health back on with `health.enabled: true` plus
+  `calibration.source: gbd-anchored`.
+
 - `tools/calibrate --check` now answers by content instead of by file
   timestamp. Each artefact set carries a `fingerprint.yaml` hashing the step's
   external inputs (curated, bundled and manually downloaded data, the rule
@@ -260,6 +269,13 @@ introduce breaking changes to configuration and outputs.
   `food_loss_waste` convenience key.
 
 ### Fixed
+
+- `docs/config/doc_figures.yaml` no longer pins `water.data.availability` to
+  `current_use`, which contradicted the `gbd-anchored` calibration artefacts it
+  consumes and aborted every documentation build on the provenance check.
+  Documentation figures now use the default AWARE water supply, and the
+  regional water availability map reports annual renewable availability, the
+  quantity both availability sources provide.
 
 - The feed, food_waste, food_demand and cost calibration steps no longer depend
   on the calibrated deviation penalty, which the stability step produces at the
