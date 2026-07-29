@@ -1068,9 +1068,7 @@ if __name__ == "__main__":
     # crop production links exist: rows whose source crop has no producible
     # supply anywhere are skipped instead of making the model infeasible.
     if biofuel_baseline_df is not None:
-        biomass.add_biofuel_links(
-            n, biofuel_baseline_df, crop_moisture=moisture_by_crop
-        )
+        biomass.add_biofuel_links(n, biofuel_baseline_df)
 
     # Land correction runs AFTER the multi links and the single-baseline
     # reconciliation, and sums both crop carriers, so the cropland-bus demand

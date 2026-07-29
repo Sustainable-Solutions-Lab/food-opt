@@ -200,7 +200,6 @@ def add_biomass_crop_links(
 def add_biofuel_links(
     n: pypsa.Network,
     biofuel_baseline: pd.DataFrame,
-    crop_moisture: dict[str, float] | None = None,
 ) -> None:
     """Add biofuel/industrial demand links from food or crop buses to biomass.
 
@@ -212,14 +211,16 @@ def add_biofuel_links(
     Biogas crop demand (e.g. silage maize) is routed directly from crop
     buses when the ``bus_type`` column is set to ``"crop"``.
 
-    ``crop_moisture`` (crop -> moisture_fraction) is required to keep the
-    food-bus path mass-consistent: ``prepare_biofuel_baseline`` outputs
-    demand in MtDM, and routing from a fresh-weight food bus needs
-    ``efficiency = (1 - moisture)`` plus a fresh-equivalent ``p_nom``.
+    The baseline carries both sides of each route: ``demand_mt`` is the mass
+    drawn from the source bus in that bus's own units (commercial weight for
+    food buses, dry matter for crop buses) and ``dm_mt`` is the dry matter
+    delivered to the biomass bus. The link efficiency is their ratio, so both
+    the draw and the dry-matter accounting come from the baseline rather than
+    being reconstructed from crop moisture here -- a food bus carries the
+    commodity, whose dry-matter content is not the source crop's.
 
-    Each link is fixed at its baseline demand level: ``p_nom`` is set so
-    the link's biomass-side (DM) flow equals the configured demand at
-    ``p_min_pu = 1.0``.
+    Each link is fixed at its baseline demand level: ``p_nom = demand_mt``
+    with ``p_min_pu = 1.0``.
     """
     carrier = "biofuel"
     if carrier not in n.carriers.static.index:
@@ -233,7 +234,7 @@ def add_biofuel_links(
     # would raise on duplicate names.
     grouped = biofuel_baseline.groupby(
         ["source_item", "crop", "country", "bus_type"], as_index=False
-    )["demand_mt"].sum()
+    )[["demand_mt", "dm_mt"]].sum()
     name_keys = grouped[["source_item", "country"]]
     if name_keys.duplicated().any():
         dups = name_keys[name_keys.duplicated(keep=False)].drop_duplicates()
@@ -267,7 +268,6 @@ def add_biofuel_links(
     skipped = 0
     skipped_no_supply = 0
     skipped_no_supply_demand = 0.0
-    crop_moisture = crop_moisture or {}
 
     for _, row in grouped.iterrows():
         source_item = str(row["source_item"])
@@ -275,6 +275,7 @@ def add_biofuel_links(
         country = str(row["country"])
         bus_type = str(row["bus_type"])
         demand = float(row["demand_mt"])
+        demand_dm = float(row["dm_mt"])
 
         if demand <= 0:
             continue
@@ -291,23 +292,14 @@ def add_biofuel_links(
             skipped += 1
             continue
 
-        # Crop bus is MtDM, food bus is Mt fresh; biomass bus is MtDM.
-        # For food-bus routing, deflate by (1 - moisture) so the link's
-        # bus1 flow equals the configured DM demand.
-        if bus_type == "food":
-            moisture = float(crop_moisture.get(crop, 0.0))
-            efficiency = max(1.0 - moisture, 1e-6)
-            p_nom = demand / efficiency
-        else:
-            efficiency = 1.0
-            p_nom = demand
-
+        # The biomass bus is MtDM; the source bus is in its own units. Both
+        # sides come from the baseline, so the efficiency is their ratio.
         names.append(f"biofuel:{source_item}:{country}")
         bus0s.append(bus0)
         bus1s.append(bus1)
-        p_noms.append(p_nom)
-        efficiencies.append(efficiency)
-        demands_dm.append(demand)
+        p_noms.append(demand)
+        efficiencies.append(demand_dm / demand)
+        demands_dm.append(demand_dm)
         countries.append(country)
         crops.append(crop)
 
