@@ -7,15 +7,15 @@
 Prepare baseline biofuel/industrial demand from FAOSTAT Food Balance Sheets.
 
 Reads FBS element 5154 "Other uses (non-food)" for crops mapped in the
-biofuel crop mapping file and converts to food-bus units (Mt).
+biofuel crop mapping file and expresses it both as the mass drawn from the
+source (food) bus and as the dry matter that reaches the biomass bus.
 
-For grain/sugar crops, the FBS reports demand in crop fresh-weight units.
-The script converts to dry matter and then applies the pathway factor
-from the biofuel mapping to express demand in food-bus units (matching
-the ethanol-equivalent items produced by foods.csv pathways).
-
-For oil crops, the FBS already reports demand in oil units, so the
-pathway factor is 1.0.
+The draw is ``value * pathway_factor`` regardless of whether the mapped
+pathway factor is a crop dry-matter fraction (grain/sugar ethanol) or a
+commercial yield (oils); see the unit derivation at the conversion below.
+The dry-matter equivalent differs between the two: an ethanol fuel
+equivalent is a dry-matter fraction of the crop, whereas an extracted oil
+is dry matter throughout.
 
 Input:
     - data/curated/faostat_biofuel_crop_map.csv: Biofuel-to-model entity map
@@ -24,7 +24,7 @@ Input:
     - M49 codes CSV
 
 Output:
-    - CSV with columns: source_item, crop, country, demand_mt
+    - CSV with columns: source_item, crop, country, demand_mt, dm_mt
 """
 
 import logging
@@ -118,17 +118,27 @@ def main():
         if value_1000t <= 0:
             continue
 
-        # Convert units: 1000 tonnes → Mt on the food bus.
-        # For grain/sugar crops (fbs_is_processed=false): FBS is in crop
-        # fresh weight, so convert to DM first, then multiply by
-        # pathway_factor to get food-bus units.
-        # For oil crops (fbs_is_processed=true): FBS is already in
-        # processed (oil) units, so skip the DM conversion.
+        # ``demand_mt`` is the mass drawn from the source bus; ``dm_mt`` is the
+        # dry matter that reaches the biomass bus.
+        #
+        # Draw: the source bus carries commercial commodity weight, obtained in
+        # ``food.py`` as ``pathway_factor * 1 / (1 - moisture)`` per unit crop
+        # dry matter. FBS reports "other uses" in the same commercial basis as
+        # ``pathway_factor`` on both branches -- fresh crop weight where the
+        # factor is a crop dry-matter fraction (ethanol), processed weight where
+        # the factor is a commercial yield (oils) -- so the two moisture terms
+        # cancel and the draw is ``value * pathway_factor`` either way.
+        #
+        # Dry matter: a dry-matter pathway factor already expresses the fuel
+        # equivalent per unit crop dry matter, so the commercial draw carries
+        # ``(1 - moisture)`` of it as dry matter. A commercial factor yields an
+        # oil that is dry matter throughout.
+        demand_mt = value_1000t * pathway_factor / 1000.0
         if fbs_is_processed:
-            demand_mt = value_1000t * pathway_factor / 1000.0
+            dm_mt = demand_mt
         else:
             moisture = moisture_lookup.get(crop, 0.0)
-            demand_mt = value_1000t * (1.0 - moisture) * pathway_factor / 1000.0
+            dm_mt = demand_mt * (1.0 - moisture)
 
         results.append(
             {
@@ -136,6 +146,7 @@ def main():
                 "crop": crop,
                 "country": str(row["country"]),
                 "demand_mt": demand_mt,
+                "dm_mt": dm_mt,
             }
         )
 

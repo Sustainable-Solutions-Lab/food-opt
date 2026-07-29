@@ -45,6 +45,7 @@ def test_biofuel_skips_crops_without_production(caplog):
             "country": ["USA", "USA"],
             "bus_type": ["food", "food"],
             "demand_mt": [10.0, 5.0],
+            "dm_mt": [8.7, 1.5],
         }
     )
     # bus0 for sugarcane does not exist either, but the no-supply check
@@ -53,9 +54,7 @@ def test_biofuel_skips_crops_without_production(caplog):
     n.add("Bus", "food:sugarcane:USA", carrier="food")
 
     with caplog.at_level("WARNING"):
-        biomass.add_biofuel_links(
-            n, df, crop_moisture={"wheat": 0.13, "sugarcane": 0.7}
-        )
+        biomass.add_biofuel_links(n, df)
 
     names = n.links.static.index.tolist()
     assert any("biofuel:wheat:" in s for s in names)
@@ -63,8 +62,8 @@ def test_biofuel_skips_crops_without_production(caplog):
     assert any("no production anywhere" in rec.message for rec in caplog.records)
 
 
-def test_biofuel_food_path_deflates_with_moisture():
-    """p_nom is fresh-equivalent; bus1 flow at p == p_nom equals demand_mt (DM)."""
+def test_biofuel_draws_demand_and_delivers_dry_matter():
+    """The link draws demand_mt from the source bus and delivers dm_mt."""
     n = _build_network()
     df = pd.DataFrame(
         {
@@ -72,13 +71,38 @@ def test_biofuel_food_path_deflates_with_moisture():
             "crop": ["wheat"],
             "country": ["USA"],
             "bus_type": ["food"],
-            "demand_mt": [10.0],  # MtDM
+            "demand_mt": [10.0],
+            "dm_mt": [8.7],
         }
     )
-    biomass.add_biofuel_links(n, df, crop_moisture={"wheat": 0.13})
+    biomass.add_biofuel_links(n, df)
 
     link = n.links.static.loc["biofuel:wheat:USA"]
-    expected_eff = 1.0 - 0.13
-    assert link["efficiency"] == expected_eff
-    # p_nom * efficiency must equal demand (MtDM)
-    assert abs(link["p_nom"] * link["efficiency"] - 10.0) < 1e-9
+    assert abs(link["p_nom"] - 10.0) < 1e-9
+    assert abs(link["p_nom"] * link["efficiency"] - 8.7) < 1e-9
+
+
+def test_biofuel_commercial_basis_item_is_not_over_drawn():
+    """An item already in commercial units draws exactly its reported demand.
+
+    This is the palm-oil case: the demand is reported in oil, which is what the
+    food bus carries and is dry matter throughout, so the link must draw the
+    reported quantity rather than inflating it by the source crop's moisture
+    (oil palm's fresh fruit bunches are 60% water; the oil is not).
+    """
+    n = _build_network()
+    df = pd.DataFrame(
+        {
+            "source_item": ["wheat"],
+            "crop": ["wheat"],
+            "country": ["USA"],
+            "bus_type": ["food"],
+            "demand_mt": [38.13],
+            "dm_mt": [38.13],
+        }
+    )
+    biomass.add_biofuel_links(n, df)
+
+    link = n.links.static.loc["biofuel:wheat:USA"]
+    assert abs(link["p_nom"] - 38.13) < 1e-9
+    assert link["efficiency"] == 1.0

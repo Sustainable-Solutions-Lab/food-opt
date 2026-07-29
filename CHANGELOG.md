@@ -270,6 +270,17 @@ introduce breaking changes to configuration and outputs.
 
 ### Fixed
 
+- Enforced biofuel and industrial demand for vegetable oils no longer draws
+  more of the oil than FAOSTAT reports. The demand links deflated the food-bus
+  draw by the source crop's moisture content, which is not the moisture of the
+  commodity the food bus carries: palm oil was drawn at 2.5 times its reported
+  non-food use (95 against 38 Mt globally), and soybean and rapeseed oil at
+  about 1.1 times. Palm oil consequently ran a 26 Mt global shortage that the
+  food-demand calibration absorbed by clipping its multiplier at the configured
+  floor. Ethanol demand is unchanged. `biofuel_baseline.csv` and
+  `biogas_crop_demand.csv` gain a `dm_mt` column carrying the dry matter
+  delivered to the biomass bus alongside the source-bus draw.
+
 - `docs/config/doc_figures.yaml` no longer pins `water.data.availability` to
   `current_use`, which contradicted the `gbd-anchored` calibration artefacts it
   consumes and aborted every documentation build on the provenance check.
