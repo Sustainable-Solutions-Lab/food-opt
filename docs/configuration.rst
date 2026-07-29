@@ -456,6 +456,70 @@ with ``tools/calibrate stability`` and lands at
 ``data/curated/calibration/<source>/deviation_penalty.yaml`` (see
 :doc:`calibration`).
 
+.. _supply-response-curves:
+
+Supply Response
+^^^^^^^^^^^^^^^
+
+The ``supply_response`` section (default: off) is an alternative anchoring
+mechanism in the tradition of positive mathematical programming. Where the
+deviation penalty prices every unit of departure from the baseline at the same
+rate, a supply curve prices the *next* unit more than the last, so the response
+to a shock is graduated rather than a dead band followed by a jump to whichever
+bound stops it. Its curvature comes from an exogenous supply elasticity instead
+of a coefficient fitted to a chosen deviation target.
+
+For a group :math:`g` with observed activity :math:`b_g` and marginal cost
+:math:`c_g` there, the marginal-cost curve reproducing own-price supply
+elasticity :math:`\eta` has slope
+
+.. math::
+
+   \gamma_g = \frac{c_g}{\eta \, b_g},
+
+and enters the objective as its integral from the baseline,
+:math:`\tfrac{1}{2}\gamma_g (X_g - b_g)^2`, which is convex and minimised at the
+observed activity. The quadratic is approximated by ``n_blocks`` tranches per
+direction, each priced at the slope times its midpoint deviation, so the model
+stays an LP. Activity therefore moves in steps of
+``expansion_range * baseline / n_blocks``; raise ``n_blocks`` when that
+granularity is coarse relative to the movements of interest.
+
+Curves apply per **group** -- ``(crop, country)``, grassland per country,
+``(animal product, country)`` -- the same units the cost calibration extracts
+corrections for. A group curve prices how much of a commodity a country
+produces, not where within the country it sits, so it does not replace the
+per-link deviation penalty: roughly half of the observed baseline deviation is
+reallocation *within* a group across regions, resource classes and water-supply
+types. The two are designed to run together, the curve carrying the elasticity
+and the per-link term the spatial inertia.
+
+**Configuration options**:
+
+* ``supply_response.enabled``: master switch (default: ``false``).
+* ``supply_response.n_blocks``: tranches per direction.
+* ``supply_response.expansion_range`` / ``contraction_range``: the
+  directional range as a fraction of group baseline. The outermost tranche is
+  unbounded, so ``expansion_range`` sets where the curve stops being resolved
+  rather than a cap; contraction at ``1.0`` reaches zero activity.
+* ``supply_response.elasticities.{crops,grassland,animals}``: own-price supply
+  elasticity per component.
+* ``supply_response.elasticity_factor``: global multiplier on every elasticity,
+  for scanning the assumption.
+* ``supply_response.components.{crops,grassland,animals}``: which components
+  carry curves.
+
+**Behavior notes**:
+
+* Groups with no baseline activity get no curve; whether an activity absent
+  from the baseline may appear at all is governed by the :ref:`growth caps
+  <growth-caps>`.
+* Multi-cropping links are not covered yet: their duals price a joint cycle
+  bundle rather than one constituent crop, so they keep the per-link deviation
+  penalty alone.
+* A group whose baseline-weighted marginal cost is not positive is an error,
+  since the slope is undefined there.
+
 .. _growth-caps:
 
 Growth Caps

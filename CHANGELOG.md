@@ -25,6 +25,18 @@ introduce breaking changes to configuration and outputs.
   provenance, so a vintage bump forces recalibration); maintainers refresh
   the mirror to a new FAO release with `tools/mirror_faostat.py`.
 
+- New `supply_response` configuration section (off by default) adds convex
+  piecewise-linear supply curves through observed production, as an alternative
+  to pricing every unit of baseline deviation at the same rate. Each production
+  group -- a crop in a country, grassland in a country, an animal product in a
+  country -- gets a marginal-cost curve whose slope reproduces a configured
+  own-price supply elasticity, so response to a shock is graduated and its
+  strength follows from an elasticity assumption rather than from a fitted
+  deviation target. Curves price how much of a commodity a country produces,
+  not where within the country it sits, so they complement the per-link
+  `deviation_penalty` rather than replacing it. Multi-cropping links are not
+  covered yet. See "Supply Response" in the configuration reference.
+
 - Multiple cropping is now anchored to an observed baseline derived from
   MIRCA-OS v2 (new automated data source), using the available 2010, 2015, or
   2020 release nearest `baseline_year`. A fixed, documented sequence catalog
