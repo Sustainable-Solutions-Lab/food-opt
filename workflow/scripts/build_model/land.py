@@ -118,9 +118,12 @@ def add_multi_cropping_land_correction(
         return
     supply = land_use_links.groupby("bus1")["p_nom"].sum()
 
-    # Compute deficit
-    common = harvested.index.intersection(supply.index)
-    deficit = (harvested.reindex(common) - supply.reindex(common)).clip(lower=0.0)
+    # Compute deficit. Buses without any land_use inflow (baseline crop area
+    # where the land-cover data reports no cropland) count as zero supply so
+    # they receive a correction generator too.
+    deficit = (harvested - supply.reindex(harvested.index, fill_value=0.0)).clip(
+        lower=0.0
+    )
     deficit = deficit[deficit > 1e-10]
     if deficit.empty:
         return
