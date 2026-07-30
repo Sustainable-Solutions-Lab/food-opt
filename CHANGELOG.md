@@ -25,28 +25,30 @@ introduce breaking changes to configuration and outputs.
   provenance, so a vintage bump forces recalibration); maintainers refresh
   the mirror to a new FAO release with `tools/mirror_faostat.py`.
 
-- New `supply_response` configuration section (off by default) adds convex
-  piecewise-linear supply curves through observed production, as an alternative
-  to pricing every unit of baseline deviation at the same rate. Each production
-  group gets a marginal-cost curve whose slope reproduces a configured
-  own-price supply elasticity, so response to a shock is graduated and its
-  strength follows from an elasticity assumption rather than from a fitted
-  deviation target. The curves calibrate exactly by the standard two-phase
-  positive-mathematical-programming procedure: a `pin_baseline` solve fixes
-  every group at its observed activity and writes the pinning duals (per-group
-  price wedges) next to the solved network, and a run pointing `intercepts` at
-  that file reproduces the observed allocation as its exact unconstrained
-  optimum. The spatial resolution of the curves is configurable
-  (`granularity`: per country, per region, or per production link); at `link`
-  granularity the curves price spatial reallocation themselves and can replace
-  the per-link `deviation_penalty`, while coarser curves complement it.
-  Tranche widths grow away from the baseline (`width_growth`) so the
-  resolution sits where groups actually are; with equal widths the curve
-  cannot express a move smaller than `expansion_range / n_blocks` of baseline
-  and collapses into a flat-rate penalty. The curve's deviation cost appears
-  as its own `supply_response` category in the objective breakdown.
-  Multi-cropping links carry curves per `(combination, country)` bundle. See
-  "Supply Response" in the configuration reference.
+- Production anchoring is now done by exactly calibrated convex
+  piecewise-linear supply curves (new `supply_response` configuration
+  section), replacing the L1 `deviation_penalty` as the default mechanism.
+  Each production group -- including multi-cropping bundles -- gets a
+  marginal-cost curve through its observed activity whose slope reproduces a
+  configured own-price supply elasticity, so response to a shock is graduated
+  and its strength follows from an elasticity assumption rather than from a
+  fitted deviation target. The curves calibrate exactly by the standard
+  two-phase positive-mathematical-programming procedure: a new
+  `supply_response` calibration step (one baseline-pinned solve, replacing the
+  L1 `stability` step in the `tools/calibrate` chain) writes each group's
+  price wedge to `supply_response.csv`, and solves feed the wedges back as
+  curve intercepts, reproducing the observed allocation as the exact
+  unconstrained optimum -- no hard constraints, no tuned deviation target.
+  The spatial resolution of the curves is configurable (`granularity`); the
+  default is per production link, which prices spatial reallocation and makes
+  the per-link deviation penalty redundant, and per-country or per-region
+  curves are available where a coarser anchor is wanted. The curve cost
+  appears as its own `supply_response` category in the objective breakdown.
+  The deviation-penalty machinery remains available for configs that
+  re-enable it, and its artefacts stay in the calibration sets; configs on
+  the `gbd-anchored` set need `tools/calibrate --base <config>
+  supply_response` before solving with the curves. See "Supply Response" in
+  the configuration reference and the calibration documentation.
 
 - Multiple cropping is now anchored to an observed baseline derived from
   MIRCA-OS v2 (new automated data source), using the available 2010, 2015, or

@@ -2089,7 +2089,7 @@ properties:
 
   supply_response:
     type: object
-    required: [enabled, n_blocks, expansion_range, contraction_range, width_growth, granularity, pin_baseline, intercepts, elasticities, elasticity_factor, components]
+    required: [enabled, n_blocks, expansion_range, contraction_range, width_growth, granularity, pin_baseline, pin_slack_cost, intercepts, calibration, elasticities, elasticity_factor, components]
     additionalProperties: false
     description: "Convex piecewise-linear supply curves through observed production, with curvature set by an exogenous supply elasticity per component."
     properties:
@@ -2126,7 +2126,18 @@ properties:
         description: "Price of deviating from the pin during phase 1; groups that use slack get their intercept censored here and are flagged."
       intercepts:
         type: ["string", "null"]
-        description: "PMP phase 2: path to the intercepts CSV from a pinned solve; shifts each curve so the observed allocation is the exact unconstrained optimum."
+        description: "PMP phase 2: path to the intercepts CSV from a pinned solve, or the sentinel 'calibrated' resolving to calibration.calibrated_csv; shifts each curve so the observed allocation is the exact unconstrained optimum."
+      calibration:
+        type: object
+        required: [generate, calibrated_csv]
+        additionalProperties: false
+        properties:
+          generate:
+            type: boolean
+            description: "Generate the intercepts artefact via a pinned solve (breaks the DAG cycle when true)."
+          calibrated_csv:
+            type: string
+            description: "Artefact path the 'calibrated' sentinel resolves to."
       elasticities:
         type: object
         required: [crops, multi_crops, grassland, animals]

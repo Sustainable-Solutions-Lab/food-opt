@@ -414,7 +414,9 @@ across components.
 
 **Configuration options**:
 
-* ``deviation_penalty.enabled``: master switch (default: ``true``).
+* ``deviation_penalty.enabled``: master switch (default: ``false``;
+  production anchoring comes from the :ref:`supply-response curves
+  <supply-response-curves>` by default).
 * ``deviation_penalty.penalty_mode``: ``hard``, ``l1``, or ``quadratic``.
 * ``deviation_penalty.deviation_type``: ``absolute`` or ``relative``.
 * ``deviation_penalty.quadratic_cost``: shared coefficient for quadratic mode.
@@ -443,8 +445,6 @@ across components.
 * Per-link bounds with zero baseline are constrained to zero (no new
   products introduced) under hard mode.
 * The L1 penalty also applies to links with zero baseline.
-* Multi-cropping is automatically disabled when ``deviation_penalty.land``
-  is enabled.
 * The diet penalty has no effect when ``enforce_baseline_diet`` is true
   (consumption is already pinned via ``p_set``).
 * Costs land in three separate columns of the per-scenario

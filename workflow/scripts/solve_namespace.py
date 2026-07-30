@@ -432,6 +432,10 @@ def build_scenario_entry(
     if dp_cal_cfg["enabled"] and deviation_penalty_uses_calibrated(dp_cfg):
         inputs["deviation_penalty_calibration"] = dp_cal_cfg["calibrated_yaml"]
 
+    sr_cfg = eff["supply_response"]
+    if sr_cfg["enabled"] and sr_cfg["intercepts"] == CALIBRATED_SENTINEL:
+        inputs["supply_response_calibration"] = sr_cfg["calibration"]["calibrated_csv"]
+
     if inline_analysis:
         inputs["population"] = rp("<processing>/{name}/population.csv")
         inputs["analysis_scripts"] = sorted(

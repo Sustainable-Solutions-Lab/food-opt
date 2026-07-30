@@ -141,7 +141,10 @@ validation:
 # scenarios scan around the calibrated central value without hard-coding
 # absolute numbers (e.g. gsa.yaml's lower/higher regimes).
 deviation_penalty:
-  enabled: true
+  # Off by default: production anchoring comes from the supply_response curves
+  # below, which price spatial reallocation per link. The penalty machinery
+  # remains available for configs and scenarios that re-enable it.
+  enabled: false
   penalty_mode: "l1"  # "hard" | "l1" | "quadratic" (hard supported for land + feed only)
   deviation_type: "absolute"  # "absolute" or "relative"
   quadratic_cost: 1.0  # Shared coefficient for quadratic mode (bn USD per deviation^2)
@@ -218,20 +221,14 @@ deviation_penalty:
 
 # --- section: supply_response ---
 # Convex piecewise-linear supply curves through observed production, in the
-# positive-mathematical-programming tradition. Each group -- (crop, country),
-# grassland by country, (animal product, country) -- gets a marginal-cost curve
-# whose slope reproduces the configured supply elasticity at the observed point,
-# so response to a shock is graduated rather than the dead-band-then-jump of an
-# L1 kink, and the curvature comes from an exogenous elasticity rather than a
-# fitted deviation target.
-#
-# The curves price changes in a country's total activity for a commodity, not
-# where that activity sits within the country. Reallocation between regions,
-# resource classes and water-supply types remains with the per-link
-# deviation_penalty, so the two are designed to run together: the curve carries
-# the elasticity, the per-link term spatial inertia.
+# positive-mathematical-programming tradition. Each production group gets a
+# marginal-cost curve through its observed activity whose slope reproduces the
+# configured supply elasticity, so response to a shock is graduated rather than
+# the dead-band-then-jump of an L1 kink, and the curvature comes from an
+# exogenous elasticity rather than a fitted deviation target. This is the
+# default production-anchoring mechanism, replacing the L1 deviation_penalty.
 supply_response:
-  enabled: false
+  enabled: true
   n_blocks: 6            # Breakpoints per side of the baseline sampling the quadratic
   expansion_range: 0.5   # Up-range as a fraction of group baseline (extrapolates beyond)
   contraction_range: 1.0 # Down-range as a fraction of group baseline (1.0 reaches zero)
@@ -244,24 +241,29 @@ supply_response:
   width_growth: 2.0
   # Spatial resolution of the curves: "country" prices a country's total output
   # of a commodity, "region" prices it per optimisation region, "link" gives
-  # every production link its own curve. Finer resolution prices reallocation
-  # that a coarser one leaves to the per-link deviation_penalty, at the cost of
-  # more variables (2 * n_blocks per group).
-  granularity: "country"
+  # every production link its own curve. Per-link curves price spatial
+  # reallocation themselves and replace the per-link deviation_penalty; coarser
+  # curves leave that reallocation to it.
+  granularity: "link"
   # PMP two-phase calibration. pin_baseline fixes every group at its observed
-  # activity and the solve writes the pinning duals (per-group price wedges)
-  # next to the solved network; intercepts points a later solve at that file,
-  # shifting each curve so its marginal cost at the baseline equals the marginal
-  # value there -- the observed allocation is then the exact unconstrained
-  # optimum. The two keys are mutually exclusive, and the intercepts must come
-  # from a pinned solve of the same model at the same granularity.
+  # activity (phase 1, run by ``tools/calibrate supply_response``); the pinning
+  # duals -- per-group price wedges -- become intercepts that shift each curve
+  # so its marginal cost at the baseline equals the marginal value there,
+  # making the observed allocation the exact unconstrained optimum. intercepts
+  # is a path to that artefact or the sentinel "calibrated", which resolves to
+  # calibration.calibrated_csv; the artefact must come from a pinned solve of
+  # the same model at the same granularity. pin_baseline and intercepts are
+  # mutually exclusive.
   pin_baseline: false
   # Price of deviating from the pin during phase 1. The pin is elastic because
   # the reference data is never perfectly consistent with every hard constraint;
   # groups that use slack get their intercept censored at this price and are
   # flagged in the log. Must sit well above any plausible genuine wedge.
   pin_slack_cost: 10.0
-  intercepts: null
+  intercepts: "calibrated"
+  calibration:
+    generate: false  # Generate the artefact via a pinned solve (breaks DAG cycle when true)
+    calibrated_csv: "data/curated/calibration/{calibration_source}/supply_response.csv"
   # Long-run own-price supply elasticities. Perennials and livestock adjust more
   # slowly than annual crops; grassland is the least elastic.
   elasticities:

@@ -98,11 +98,19 @@ so that ordinary builds don't need to re-solve anything. See
        ``animal_cost.csv``
      - Additive production-cost corrections derived from stability-
        constraint duals (observed allocation -> optimal allocation).
-   * - :ref:`stability <prod-stability-calibration>`
+   * - :ref:`supply_response <supply-response-calibration>`
+     - ``config/calibration/supply_response.yaml``
+     - ``supply_response.csv``
+     - Per-group supply-curve intercepts (price wedges from one
+       baseline-pinned solve) that make the observed allocation the
+       exact optimum of the unpinned model.
+   * - :ref:`stability <prod-stability-calibration>` (legacy)
      - ``config/calibration/stability.yaml``
      - ``deviation_penalty.yaml``
      - The L1 penalty pair :math:`(\ell^c_1, \ell^a_1)` that brings both
        land-use and animal-feed deviations to ~5 % of observed totals.
+       Superseded by ``supply_response`` in the default chain; run
+       explicitly for configs still using the deviation penalty.
 
 Dependency order
 ----------------
@@ -125,9 +133,15 @@ When upstream data or build logic changes, rerun in this order:
    per-food mismatch leaks into the cost-calibration duals as spurious
    sign (e.g. olive-oil cost driven negative, coffee/cocoa pegged at
    the slack ceiling) and inflates the stability L1 cost downstream.
-#. :ref:`stability <prod-stability-calibration>` — the L1 Broyden
-   iteration uses all previous corrections so that the observed
-   deviations reflect the fully-calibrated baseline.
+#. :ref:`supply_response <supply-response-calibration>` — the pinned
+   solve measures each group's residual price wedge against the fully
+   calibrated feed, waste, demand, and cost behaviour, so the intercepts
+   absorb exactly what the earlier steps could not.
+
+The legacy :ref:`stability <prod-stability-calibration>` step is no
+longer part of the default chain; run ``tools/calibrate stability``
+explicitly for artefact sets still consumed by deviation-penalty
+configs.
 
 Running the calibrations
 ------------------------
@@ -141,7 +155,8 @@ Everything is wrapped by ``tools/calibrate``:
    tools/calibrate food_waste
    tools/calibrate food_demand
    tools/calibrate cost
-   tools/calibrate stability
+   tools/calibrate supply_response
+   tools/calibrate stability    # legacy L1 step, not in the default chain
    tools/calibrate --check      # per-step staleness + provenance, no execution
    tools/calibrate --record     # re-stamp the set as it stands, no execution
    tools/calibrate --base config/<name>.yaml [all|<step>|--check]
@@ -360,10 +375,55 @@ Script: ``workflow/scripts/extract_cost_calibration.py``. The two
 scenarios (``baseline`` and ``calibration``) live in
 ``config/calibration/cost.yaml``.
 
+.. _supply-response-calibration:
+
+Supply-response intercept calibration
+-------------------------------------
+
+The default production-anchoring mechanism is the set of convex
+piecewise-linear supply curves described under :ref:`Supply Response
+<supply-response-curves>`. Their calibration is the standard two-phase
+positive-mathematical-programming procedure: one solve with every curve
+group held at its observed activity behind an elastic pin
+(``supply_response.pin_baseline``), whose pinning duals -- the per-group
+price wedges between marginal value and accounting cost -- are written
+to ``supply_response.csv`` and fed back as curve intercepts. With the
+intercepts in place the observed allocation satisfies the optimality
+conditions of the unpinned model and is reproduced exactly, with no
+hard constraints and no tuned deviation target; the configured
+elasticity governs only the response away from the calibrated point.
+
+The pinned solve runs under the base config's own operating regime with
+the policy dials at neutral (no GHG price, demand left to whatever
+drives it in ordinary solves). Exact reproduction therefore holds for
+unpriced solves of the same config, and a priced solve shows the pure
+elasticity-governed response. Wedges are regime-specific: intercepts fit
+under one demand system misprice production under another, so a config
+that changes the demand side materially needs its own artefact set.
+
+Groups whose reference activity is inconsistent with the model's hard
+constraints (land or water availability, feed balances) use pin slack
+and get their intercept censored at ``pin_slack_cost``; they are flagged
+in the calibration log and carry a nonzero ``slack`` column in the
+artefact, which is the place to look when a group refuses to sit at its
+baseline.
+
+The intercepts are keyed by curve group, so they are specific to both
+the ``granularity`` setting and -- at ``link`` granularity -- the exact
+model structure. A solve against intercepts from a structurally
+different build fails loudly on the missing group keys; regenerate with
+``tools/calibrate supply_response`` (or ``--base config/<name>.yaml``
+for a dedicated artefact set).
+
+Rule: ``calibrate_supply_response`` in
+``workflow/rules/supply_response.smk``. Script:
+``workflow/scripts/calibrate_supply_response.py``. Config:
+``config/calibration/supply_response.yaml``.
+
 .. _prod-stability-calibration:
 
-Production-stability L1 calibration
------------------------------------
+Production-stability L1 calibration (legacy)
+--------------------------------------------
 
 Motivation
 ~~~~~~~~~~

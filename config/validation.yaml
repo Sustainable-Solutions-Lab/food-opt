@@ -28,6 +28,11 @@ validation:
 deviation_penalty:
   enabled: false
 
+# Production is pinned via use_actual_production; the supply curves would
+# double-anchor it and require an intercepts artefact this config never fits.
+supply_response:
+  enabled: false
+
 cost_calibration:
   enabled: false
 

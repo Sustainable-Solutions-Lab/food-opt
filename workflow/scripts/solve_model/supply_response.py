@@ -356,7 +356,7 @@ def _add_component_curves(
         return
 
     # Only links whose group carries a baseline participate; the rest are
-    # governed by the growth caps and the per-link deviation penalty.
+    # governed by the growth caps.
     work = links.copy()
     work["_group"] = _group_key(work, group_cols)
     work = work[work["_group"].isin(groups.index)]
@@ -375,12 +375,6 @@ def _add_component_curves(
     if not group_index.equals(groups.index):
         groups = groups.reindex(group_index)
 
-    baseline_da = xr.DataArray(
-        groups["baseline"].to_numpy(),
-        coords={"sr_group": group_index.to_numpy()},
-        dims="sr_group",
-    )
-
     if pin:
         # PMP phase 1: hold every group at its observed activity. The dual of
         # this constraint is the group's price wedge, extracted after the solve
@@ -396,6 +390,11 @@ def _add_component_curves(
             raise ValueError(
                 f"supply_response.pin_slack_cost must be > 0, got {slack_cost}"
             )
+        baseline_da = xr.DataArray(
+            groups["baseline"].to_numpy(),
+            coords={"sr_group": group_index.to_numpy()},
+            dims="sr_group",
+        )
         slack_coords = {"sr_group": group_index.to_numpy()}
         slack_up = m.add_variables(
             lower=0,

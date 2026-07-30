@@ -46,6 +46,10 @@ consumer_values:
 validation:
   use_actual_yields: true
 
+# The L1 being calibrated must be the only production anchoring in the solve.
+supply_response:
+  enabled: false
+
 # Per-iteration scenarios override these; the baseline iteration disables
 # the penalty entirely via enforce_baseline_diet + l1_cost overrides.
 deviation_penalty:

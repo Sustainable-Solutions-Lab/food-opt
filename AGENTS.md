@@ -358,15 +358,21 @@ regenerate in this order:
    now enables hard production-stability bounds at +/-20% with a
    `slack_marginal_cost: 5.0` override for foods carrying structural
    FAOSTAT-vs-FBS mismatch beyond the band.
-5. **stability** — `config/calibration/stability.yaml` →
-   `deviation_penalty.yaml` (calibrated L1 penalty costs for the
-   cropland, grassland and feed components; resolved at solve time
-   wherever `deviation_penalty.<component>.l1_cost` is the sentinel
-   string `"calibrated"`).
+5. **supply_response** — `config/calibration/supply_response.yaml` →
+   `supply_response.csv` (per-group supply-curve intercepts from one
+   baseline-pinned solve; resolved at solve time when
+   `supply_response.intercepts` is the sentinel string `"calibrated"`.
+   Keyed by curve group, so link-granularity intercepts are specific to
+   the exact model structure).
+
+The legacy **stability** step (`config/calibration/stability.yaml` →
+`deviation_penalty.yaml`, the calibrated L1 penalty costs) is no longer
+part of the default chain; run `tools/calibrate stability` explicitly
+for artefact sets still consumed by deviation-penalty configs.
 
 Single entrypoint: `tools/calibrate` (`all` by default; `feed`,
-`food_waste`, `food_demand`, `cost`, `stability`, or `--check` for
-staleness). `tools/smk` prints a one-line reminder when
+`food_waste`, `food_demand`, `cost`, `supply_response`, `stability`, or
+`--check` for staleness). `tools/smk` prints a one-line reminder when
 `data/curated/` inputs are newer than the oldest calibration artefact.
 
 Each artefact set carries a `provenance.yaml` stamp of the structural

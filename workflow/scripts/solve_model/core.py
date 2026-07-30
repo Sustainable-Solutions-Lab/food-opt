@@ -1827,12 +1827,25 @@ def run_solve(
             with _phase("add_diet_stability_constraints"):
                 add_diet_stability_constraints(n, matched_baseline, dp_cfg)
 
-    # Convex piecewise-linear supply curves on group activity. Complementary to
-    # the per-link deviation penalty above: the curve carries the elasticity of
-    # a country's total activity for a commodity, the per-link term the inertia
-    # of where within the country that activity sits.
+    # Convex piecewise-linear supply curves on group activity. At link
+    # granularity they replace the per-link deviation penalty above; coarser
+    # curves complement it, carrying the elasticity of a group's total
+    # activity while the per-link term carries spatial inertia.
+    supply_response_cfg = dict(smk.params.supply_response)
+    if supply_response_cfg["intercepts"] == "calibrated":
+        # Same sentinel convention as the deviation penalty's l1_cost: the
+        # calibrated artefact is declared as a rule input so the DAG tracks it.
+        intercepts_path = getattr(smk.input, "supply_response_calibration", None)
+        if intercepts_path is None:
+            raise ValueError(
+                "supply_response.intercepts is 'calibrated' but the solve has "
+                "no supply_response_calibration input; run "
+                "tools/calibrate supply_response for this config's "
+                "calibration.source, or set an explicit intercepts path"
+            )
+        supply_response_cfg["intercepts"] = str(intercepts_path)
     with _phase("add_supply_response_curves"):
-        add_supply_response_curves(n, smk.params.supply_response)
+        add_supply_response_curves(n, supply_response_cfg)
 
     # Add animal growth cap constraints (independent of production stability)
     animal_growth_cap_cfg = smk.params.animal_growth_cap
@@ -2157,21 +2170,10 @@ def run_solve(
             n.meta["supply_response_cost"] = curve_cost
 
         # PMP phase 1: a baseline-pinned solve exists to measure the per-group
-        # price wedges, written next to the solved network for phase-2 runs to
-        # consume via supply_response.intercepts.
-        sr_cfg = smk.params.supply_response
-        if sr_cfg["enabled"] and sr_cfg["pin_baseline"]:
-            out = Path(smk.output.network)
-            intercepts_path = out.with_name(
-                f"supply_response_intercepts_{out.stem.removeprefix('model_')}.csv"
-            )
-            intercepts = extract_supply_response_intercepts(n)
-            intercepts.to_csv(intercepts_path, index=False)
-            logger.info(
-                "Wrote %d supply-response intercepts to %s",
-                len(intercepts),
-                intercepts_path,
-            )
+        # price wedges. Extracted here, while the model still holds its duals,
+        # and stashed on the network for the calibration driver to write out.
+        if supply_response_cfg["enabled"] and supply_response_cfg["pin_baseline"]:
+            n._supply_response_intercepts = extract_supply_response_intercepts(n)
 
         # Post-hoc health evaluation when value_per_yll == 0
         if health_enabled and value_per_yll == 0:
