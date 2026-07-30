@@ -84,15 +84,23 @@ logger = logging.getLogger(__name__)
 # build several models in sequence (the calibration drivers do).
 _PRICES: dict[str, "xr.DataArray"] = {}
 
-# Component -> (carriers, baseline column, group-key columns).
+# Component -> (carriers, baseline column, commodity-identifying columns). The
+# commodity columns say *what* is produced; the granularity setting adds the
+# columns saying *where*, so both are needed to form a group key.
 COMPONENTS = {
-    "crops": (("crop_production",), "baseline_area_mha", ("crop", "country")),
-    "grassland": (("grassland_production",), "baseline_area_mha", ("country",)),
-    "animals": (
-        ("animal_production",),
-        "baseline_feed_use_mt_dm",
-        ("product", "country"),
-    ),
+    "crops": (("crop_production",), "baseline_area_mha", ("crop",)),
+    "grassland": (("grassland_production",), "baseline_area_mha", ()),
+    "animals": (("animal_production",), "baseline_feed_use_mt_dm", ("product",)),
+}
+
+# Spatial columns appended to a component's commodity key at each granularity.
+# ``link`` is the exception: it resolves every production link separately, so it
+# replaces the whole key rather than extending it (a link already identifies its
+# commodity and its location), and is represented by an empty tuple.
+GRANULARITY_COLUMNS = {
+    "country": ("country",),
+    "region": ("country", "region"),
+    "link": None,
 }
 
 
@@ -164,7 +172,15 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
             "coarsest resolution where groups actually sit"
         )
 
-    for component, (carriers, baseline_col, group_cols) in COMPONENTS.items():
+    granularity = str(cfg["granularity"])
+    if granularity not in GRANULARITY_COLUMNS:
+        raise ValueError(
+            f"supply_response.granularity must be one of "
+            f"{sorted(GRANULARITY_COLUMNS)}, got '{granularity}'"
+        )
+    spatial_cols = GRANULARITY_COLUMNS[granularity]
+
+    for component, (carriers, baseline_col, commodity_cols) in COMPONENTS.items():
         if not cfg["components"][component]:
             continue
         elasticity = float(cfg["elasticities"][component]) * factor
@@ -178,13 +194,27 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
             component=component,
             carriers=carriers,
             baseline_col=baseline_col,
-            group_cols=group_cols,
+            group_cols=() if spatial_cols is None else commodity_cols + spatial_cols,
             elasticity=elasticity,
             n_blocks=n_blocks,
             expansion=expansion,
             contraction=contraction,
             width_growth=width_growth,
         )
+
+
+def _group_key(links: pd.DataFrame, group_cols: tuple[str, ...]) -> pd.Series:
+    """Group label per link: the commodity and spatial columns joined.
+
+    With no columns at all -- the ``link`` granularity, where nothing is
+    aggregated -- the link's own name is the key, so each production link gets
+    its own curve. Every link then carries the configured elasticity with
+    respect to its own margin, and the group aggregate carries it too whenever
+    costs within the group are similar.
+    """
+    if not group_cols:
+        return pd.Series(links.index.astype(str), index=links.index)
+    return links[list(group_cols)].astype(str).agg("::".join, axis=1)
 
 
 def _group_table(
@@ -200,7 +230,7 @@ def _group_table(
     """
     work = links.copy()
     work["_baseline"] = work[baseline_col].fillna(0.0).astype(float)
-    work["_group"] = work[list(group_cols)].astype(str).agg("::".join, axis=1)
+    work["_group"] = _group_key(work, group_cols)
     work = work[work["_baseline"] > 0]
     if work.empty:
         return pd.DataFrame(columns=["baseline", "cost"])
@@ -259,7 +289,7 @@ def _add_component_curves(
     # Only links whose group carries a baseline participate; the rest are
     # governed by the growth caps and the per-link deviation penalty.
     work = links.copy()
-    work["_group"] = work[list(group_cols)].astype(str).agg("::".join, axis=1)
+    work["_group"] = _group_key(work, group_cols)
     work = work[work["_group"].isin(groups.index)]
 
     m = n.model

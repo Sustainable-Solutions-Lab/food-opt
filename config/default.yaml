@@ -241,6 +241,12 @@ supply_response:
   # tranches narrow, putting the resolution at the baseline where groups sit
   # while the outer tranches still resolve large moves.
   width_growth: 2.0
+  # Spatial resolution of the curves: "country" prices a country's total output
+  # of a commodity, "region" prices it per optimisation region, "link" gives
+  # every production link its own curve. Finer resolution prices reallocation
+  # that a coarser one leaves to the per-link deviation_penalty, at the cost of
+  # more variables (2 * n_blocks per group).
+  granularity: "country"
   # Long-run own-price supply elasticities. Perennials and livestock adjust more
   # slowly than annual crops; grassland is the least elastic.
   elasticities:

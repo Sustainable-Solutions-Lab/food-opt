@@ -36,6 +36,7 @@ def _cfg(
     expansion_range: float = 0.5,
     contraction_range: float = 1.0,
     width_growth: float = 1.0,
+    granularity: str = "country",
     crops: float = 0.5,
     elasticity_factor: float = 1.0,
     components: dict | None = None,
@@ -46,6 +47,7 @@ def _cfg(
         "expansion_range": expansion_range,
         "contraction_range": contraction_range,
         "width_growth": width_growth,
+        "granularity": granularity,
         "elasticities": {"crops": crops, "grassland": 0.3, "animals": 0.4},
         "elasticity_factor": elasticity_factor,
         "components": components
@@ -220,6 +222,36 @@ def test_width_growth_one_matches_equal_widths():
     a = _solve(_make_network(COST * 1.1), _cfg(n_blocks=8, width_growth=1.0))
     b = _solve(_make_network(COST * 1.1), _cfg(n_blocks=8))
     assert a == pytest.approx(b, rel=1e-9)
+
+
+def test_link_granularity_curves_each_link_and_keeps_the_elasticity():
+    """Per-link curves still deliver the configured elasticity in aggregate.
+
+    Each link gets slope ``c / (eta * b_link)``, so it carries the elasticity
+    with respect to its own margin; with equal costs across the group the
+    aggregate carries the same elasticity, which is what lets granularity be
+    changed without re-tuning it.
+    """
+    shock = 0.1
+    baseline = sum(BASELINE_MHA)
+    total = _solve(_make_network(COST * (1 + shock)), _cfg(granularity="link"))
+    arc_elasticity = ((total - baseline) / baseline) / shock
+    assert arc_elasticity == pytest.approx(0.5, rel=0.05)
+
+
+def test_link_granularity_builds_one_group_per_link():
+    n = _make_network(COST)
+    n.optimize.create_model(include_objective_constant=False)
+    add_supply_response_curves(n, _cfg(granularity="link"))
+    var = n.model.variables["crops_supply_response_up"]
+    assert var.sizes["sr_group"] == len(BASELINE_MHA)
+
+
+def test_unknown_granularity_raises():
+    n = _make_network(COST)
+    n.optimize.create_model(include_objective_constant=False)
+    with pytest.raises(ValueError, match="granularity"):
+        add_supply_response_curves(n, _cfg(granularity="continent"))
 
 
 def test_width_growth_below_one_raises():

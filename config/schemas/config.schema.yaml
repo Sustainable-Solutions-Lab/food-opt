@@ -2089,7 +2089,7 @@ properties:
 
   supply_response:
     type: object
-    required: [enabled, n_blocks, expansion_range, contraction_range, width_growth, elasticities, elasticity_factor, components]
+    required: [enabled, n_blocks, expansion_range, contraction_range, width_growth, granularity, elasticities, elasticity_factor, components]
     additionalProperties: false
     description: "Convex piecewise-linear supply curves through observed production, with curvature set by an exogenous supply elasticity per component."
     properties:
@@ -2113,6 +2113,10 @@ properties:
         type: number
         minimum: 1
         description: "Relative width of each successive tranche. 1.0 gives equal widths; above 1 concentrates resolution near the baseline."
+      granularity:
+        type: string
+        enum: ["country", "region", "link"]
+        description: "Spatial resolution of the curves: per country, per optimisation region, or per production link."
       elasticities:
         type: object
         required: [crops, grassland, animals]
