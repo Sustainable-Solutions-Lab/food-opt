@@ -179,7 +179,7 @@ steps:
       workflow/scripts/solve_model/core.py: 71cd673487e6475fa128fdd448e1a251d89ee1ebfc4b882f021a447acb71fd74
       workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
       workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
-      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/health.py: 4e8b34555c4a7aaf94b59f081c0ba5e89a3369eaaf7c8e918ef5e660eb9d37a5
       workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
       workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
     missing_inputs: []
@@ -351,7 +351,7 @@ steps:
       workflow/scripts/solve_model/core.py: 71cd673487e6475fa128fdd448e1a251d89ee1ebfc4b882f021a447acb71fd74
       workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
       workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
-      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/health.py: 4e8b34555c4a7aaf94b59f081c0ba5e89a3369eaaf7c8e918ef5e660eb9d37a5
       workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
       workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
     missing_inputs: []
@@ -524,7 +524,7 @@ steps:
       workflow/scripts/solve_model/core.py: 71cd673487e6475fa128fdd448e1a251d89ee1ebfc4b882f021a447acb71fd74
       workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
       workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
-      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/health.py: 4e8b34555c4a7aaf94b59f081c0ba5e89a3369eaaf7c8e918ef5e660eb9d37a5
       workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
       workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
     missing_inputs: []
@@ -696,7 +696,7 @@ steps:
       workflow/scripts/solve_model/core.py: 71cd673487e6475fa128fdd448e1a251d89ee1ebfc4b882f021a447acb71fd74
       workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
       workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
-      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/health.py: 4e8b34555c4a7aaf94b59f081c0ba5e89a3369eaaf7c8e918ef5e660eb9d37a5
       workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
       workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
     missing_inputs: []
