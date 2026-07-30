@@ -4,8 +4,8 @@
 # tools/calibrate; do not edit by hand.
 # Licensing: see the annotation in REUSE.toml.
 base_config: config/gsa.yaml
-generated_at: '2026-07-28T22:30:03+00:00'
-git_commit: 53225fd85a4fa4ec491f92515226a9d09f790073
+generated_at: '2026-07-30T00:41:54+00:00'
+git_commit: 8bf83510aad5b925f4e7727fdfb2f35125bede44
 source: gbd-anchored
 structural_config:
   aggregation.irrigated_area_source: current
@@ -647,7 +647,7 @@ structural_config:
   data.gaez.water_requirement_var: RES05-WDC
   data.gaez.yield_var: RES05-YCX
   data.land_cover.version: v2_1_1
-  data.land_cover.zenodo_record: '21085632'
+  data.mirror.zenodo_record: '21694233'
   data.soilgrids.target_resolution_m: 10000
   data.usda.nutrients.cal: Energy
   data.usda.nutrients.carb: Carbohydrate, by difference
