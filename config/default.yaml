@@ -1767,12 +1767,16 @@ data:
       carb: "Carbohydrate, by difference"
       fat: "Total lipid (fat)"
       cal: "Energy"
+  mirror:
+    # GLADE input-data mirror on Zenodo (CC-BY-4.0): one record holding the
+    # land-cover extract and the FAOSTAT bulk zips, so builds fetch pinned
+    # data vintages with no API keys. Refresh with tools/mirror_land_cover.py
+    # / tools/mirror_faostat.py and point this at the new record id (see
+    # docs/data_sources.rst). A new FAOSTAT vintage requires recalibration.
+    zenodo_record: "21694233"  # https://doi.org/10.5281/zenodo.21694233
   land_cover:
-    # Copernicus ESA CCI land cover, mirrored on Zenodo (CC-BY-4.0). `zenodo_record`
-    # is the record id holding the `lccs_class` file for `baseline_year`; refresh
-    # it with tools/mirror_land_cover.py (see docs/data_sources.rst).
+    # Copernicus ESA CCI land cover version mirrored for `baseline_year`.
     version: "v2_1_1"
-    zenodo_record: "21085632"  # https://doi.org/10.5281/zenodo.21085632
   faostat:
     qcl_production_element_code: 5510  # "Production" in tonnes (QCL dataset, covers crops and livestock)
     fbs_food_supply_element_code: 645  # "Food supply quantity (kg/capita/yr)" in FBS dataset

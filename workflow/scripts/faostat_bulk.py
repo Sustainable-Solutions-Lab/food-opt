@@ -21,6 +21,26 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+# FAOSTAT bulk domains used by the model: domain code -> upstream FAO bulk
+# download URL. These URLs always serve FAO's *current* release, so builds
+# never fetch them directly; instead, the zips are mirrored to a pinned
+# Zenodo record (see tools/mirror_faostat.py and the download_faostat rule)
+# and each mirrored zip is named ``faostat_<code>.zip``.
+FAOSTAT_BULK_URLS: dict[str, str] = {
+    "PP": "https://bulks-faostat.fao.org/production/Prices_E_All_Data_(Normalized).zip",
+    "QCL": "https://bulks-faostat.fao.org/production/Production_Crops_Livestock_E_All_Data_(Normalized).zip",
+    "FBS": "https://bulks-faostat.fao.org/production/FoodBalanceSheets_E_All_Data_(Normalized).zip",
+    # FBSH = historical Food Balance Sheets (1961-2013, old methodology).
+    # Used as a fallback for countries that the new FBS dataset (2010-) does
+    # not cover (Japan, Chad, Mali, Benin, Togo, Burundi, Eritrea, Somalia,
+    # Central African Republic, etc.). For these countries we use their
+    # latest available FBSH year (typically 2013) per-capita supply values.
+    "FBSH": "https://bulks-faostat.fao.org/production/FoodBalanceSheetsHistoric_E_All_Data_(Normalized).zip",
+    "RL": "https://bulks-faostat.fao.org/production/Inputs_LandUse_E_All_Data_(Normalized).zip",
+    "GT": "https://bulks-faostat.fao.org/production/Emissions_Totals_E_All_Data_(Normalized).zip",
+    "FS": "https://bulks-faostat.fao.org/production/Food_Security_Data_E_All_Data_(Normalized).zip",
+}
+
 # Proxy mapping for countries missing from FAOSTAT FBS data.
 # Maps ISO3 codes to ordered list of fallback countries with similar
 # dietary patterns.

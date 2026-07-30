@@ -1501,9 +1501,18 @@ properties:
 
   data:
     type: object
-    required: [gaez, usda, land_cover, faostat, soilgrids]
+    required: [gaez, usda, mirror, land_cover, faostat, soilgrids]
     additionalProperties: false
     properties:
+      mirror:
+        type: object
+        required: [zenodo_record]
+        additionalProperties: false
+        properties:
+          zenodo_record:
+            type: string
+            minLength: 1
+            description: "Zenodo record id of the GLADE input-data mirror holding the land-cover extract and the FAOSTAT bulk zips (refresh with tools/mirror_land_cover.py / tools/mirror_faostat.py)"
       gaez:
         type: object
         required:
@@ -1563,16 +1572,12 @@ properties:
                 type: string
       land_cover:
         type: object
-        required: [version, zenodo_record]
+        required: [version]
         additionalProperties: false
         properties:
           version:
             type: string
             description: "Version of land cover dataset"
-          zenodo_record:
-            type: string
-            minLength: 1
-            description: "Zenodo record id hosting the mirrored lccs_class file (refresh with tools/mirror_land_cover.py)"
       faostat:
         type: object
         required: [qcl_production_element_code, fbs_food_supply_element_code, fbs_food_kcal_element_code, fbs_other_uses_element_code, fbs_production_element_code]
