@@ -206,7 +206,7 @@ def build_cause_chord_tables(
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """Build per-cause (log_pts, rr_pts) arrays for chord-PWL evaluation.
 
-    The LP's Stage 2 (``_add_stage2_lp_tangent``) constrains the YLL store
+    The LP's Stage 2 (``_add_stage2_piecewise``) constrains the YLL store
     with the chord PWL of exp() through these points; since exp is convex
     and the YLL coefficient is non-negative, the store collapses to the
     chord value at the optimum. Post-hoc reconstruction must therefore use
@@ -471,7 +471,7 @@ def compute_health_attribution(
     2. Use cluster-specific dose-response curves. ``risk_breakpoints``
        carries a ``health_cluster`` column and must be grouped by it.
     3. Evaluate ``RR(log_total)`` via the chord PWL of exp() through
-       ``cause_log_breakpoints``, matching ``_add_stage2_lp_tangent``.
+       ``cause_log_breakpoints``, matching ``_add_stage2_piecewise``.
        Using ``exp()`` directly creates a small but systematic bias.
 
     Parameters

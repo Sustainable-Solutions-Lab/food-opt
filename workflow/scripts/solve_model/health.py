@@ -58,16 +58,10 @@ relaxed solution, re-solves, certifies the result against the relaxed bound,
 and falls back to the exact SOS1 MIP (seeded with the repaired solution)
 when the certificate fails.
 
-**Stage 2** uses an LP-tangent (chord-only) formulation: no auxiliary
-variables at all. Because ``exp()`` is convex and the YLL cost minimises
-RR, the constraint
-
-    store_var >= scale * (slope_j * log_total + intercept_j - rr_ref)
-
-added for each piece j of the chord PWL approximation of ``exp(log_total)``
-collapses at the optimum to the exact chord-PWL value of ``exp(log_total)``.
-A domain bound ``log_total ∈ [log_pts[0], log_pts[-1]]`` is added explicitly
-(it was implicit in the δ ∈ [0,1] bound of the previous formulation).
+**Stage 2** uses Linopy's pure-LP piecewise formulation. Because ``exp()`` is
+convex and the YLL cost minimises RR, bounding each health store below by the
+piecewise chord curve is exact at the optimum. The formulation also enforces
+the sampled log-risk domain.
 
 Code Organization
 -----------------
@@ -81,7 +75,7 @@ Code Organization
 - Stage 2 (log(RR) → YLL):
     - _build_cause_breakpoints: Build log-RR breakpoints per cause
     - _group_cluster_cause_pairs: Group pairs by shared log-RR grids
-    - _add_stage2_constraints: Main Stage 2 logic (LP-tangent chords + domain bounds)
+    - _add_stage2_constraints: Main Stage 2 piecewise formulation
 - Main entry point: add_health_objective
 """
 
@@ -89,8 +83,10 @@ from collections import defaultdict
 import itertools
 import logging
 import math
+import warnings
 
 import linopy
+from linopy.constants import EvolvingAPIWarning
 import numpy as np
 import pandas as pd
 import pypsa
@@ -991,7 +987,7 @@ def _add_stage2_constraints(
         sample_data = cluster_cause_data[cluster_cause_pairs[0]]
         rr_pts = sample_data["cause_bp"]["rr_total"].values.astype(float)
 
-        constraints_added += _add_stage2_lp_tangent(
+        constraints_added += _add_stage2_piecewise(
             m=m,
             log_rr_totals=log_rr_totals,
             cluster_cause_pairs=cluster_cause_pairs,
@@ -1004,7 +1000,7 @@ def _add_stage2_constraints(
     return constraints_added
 
 
-def _add_stage2_lp_tangent(
+def _add_stage2_piecewise(
     m: linopy.Model,
     log_rr_totals: dict[tuple[int, str], linopy.LinearExpression],
     cluster_cause_pairs: list[tuple[int, str]],
@@ -1014,31 +1010,14 @@ def _add_stage2_lp_tangent(
     log_pts: np.ndarray,
     rr_pts: np.ndarray,
 ) -> int:
-    """Stage 2 LP-tangent formulation (no auxiliary variables).
+    """Add the Stage 2 convex piecewise lower bounds.
 
-    For each piece j of the chord PWL approximation of exp() through the
-    cause breakpoints, we add
-
-        store_var >= scale_factor * (slope_j * log_total + intercept_j - rr_ref)
-
-    plus the domain bound log_total ∈ [log_pts[0], log_pts[-1]]. Because
-    exp() is convex and store_var carries a non-negative coefficient in the
-    objective, the per-piece chord lower bounds collapse at the optimum to
-    the exact chord-PWL value of exp(log_total) — mathematically equivalent
-    to the previous δ-fill-up formulation.
+    Linopy selects its pure-LP formulation for this convex two-dimensional
+    inequality. The sampled curve includes the pair-specific health scale and
+    reference-risk offset, so zero-scale pairs remain well-defined.
 
     Returns the number of (cluster, cause) pairs handled.
     """
-    n_seg = len(log_pts) - 1
-    slopes = np.diff(rr_pts) / np.diff(log_pts)
-    intercepts = rr_pts[:-1] - slopes * log_pts[:-1]
-    log_lo = float(log_pts[0])
-    log_hi = float(log_pts[-1])
-
-    piece_index = pd.Index(range(n_seg), name="health_chord_piece")
-    slopes_xr = xr.DataArray(slopes, coords={"health_chord_piece": piece_index})
-    intercepts_xr = xr.DataArray(intercepts, coords={"health_chord_piece": piece_index})
-
     for cluster, cause in cluster_cause_pairs:
         if (cluster, cause) not in log_rr_totals:
             raise ValueError(
@@ -1055,19 +1034,14 @@ def _add_stage2_lp_tangent(
         store_name = health_stores.loc[(cluster, cause), "name"]
         store_var = store_level_var.sel(name=store_name)
 
-        m.add_constraints(
-            store_var - scale_factor * slopes_xr * total_expr
-            >= scale_factor * (intercepts_xr - rr_ref),
-            name=f"health_stage2_chord_c{cluster}_cause{cause}",
-        )
-        m.add_constraints(
-            total_expr >= log_lo,
-            name=f"health_stage2_dom_lo_c{cluster}_cause{cause}",
-        )
-        m.add_constraints(
-            total_expr <= log_hi,
-            name=f"health_stage2_dom_hi_c{cluster}_cause{cause}",
-        )
+        scaled_rr_pts = scale_factor * (rr_pts - rr_ref)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", EvolvingAPIWarning)
+            m.add_piecewise_formulation(
+                (store_var, scaled_rr_pts, ">="),
+                (total_expr, log_pts),
+                name=f"health_stage2_piecewise_c{cluster}_cause{cause}",
+            )
 
     return len(cluster_cause_pairs)
 
@@ -1279,7 +1253,7 @@ def add_health_objective(
         - RR_d^ref = RR at TMREL (theoretical minimum risk exposure level)
         - x^base = baseline intake
 
-    The implementation uses two-stage SOS2 interpolation to handle the
+    The implementation uses two-stage piecewise interpolation to handle the
     nonlinear multiplicative combination of relative risks:
 
         Stage 1: Intake x_r → log(RR_{r,d})

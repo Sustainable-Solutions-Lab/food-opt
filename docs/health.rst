@@ -398,32 +398,31 @@ functions.
 2. Approximate :math:`\log(\mathrm{RR}_{r,d}(x_r))` as a piecewise-linear function of :math:`x_r`
 3. Approximate :math:`\exp(z)` as a piecewise-linear function to recover :math:`\mathrm{RR}_d`
 
-Two-Stage SOS2 Interpolation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Two-Stage Piecewise Interpolation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The implementation uses **Special Ordered Sets of Type 2 (SOS2)** constraints to
-represent piecewise-linear functions without introducing binary variables (when
-the solver supports SOS2).
+The implementation uses two formulations matched to the shape of each stage.
 
 **Stage 1: Intake → log(RR)**
 
-For each risk factor :math:`r` and disease :math:`d`, precompute breakpoints
-:math:`(x_k, \log\mathrm{RR}_{r,d}(x_k))` from the GBD dose–response data. During
-optimisation, introduce SOS2 variables :math:`\lambda_k` satisfying:
-
-.. math::
-   \sum_k \lambda_k = 1, \quad
-   x_r = \sum_k x_k \lambda_k, \quad
-   \log\mathrm{RR}_{r,d} = \sum_k \lambda_k \log\mathrm{RR}_{r,d}(x_k)
-
-The SOS2 constraint ensures at most two adjacent :math:`\lambda_k` are nonzero,
-yielding piecewise-linear interpolation.
+For each risk factor :math:`r` and disease :math:`d`, preprocessing supplies
+breakpoints :math:`(x_k, \log\mathrm{RR}_{r,d}(x_k))` from the GBD
+dose-response data. Incremental variables interpolate between them. The LP
+fill-up formulation is exact for curves that are convex in the
+objective-relevant direction. Non-convex curves additionally use SOS1 segment
+indicators in exact mode, or segment fixing in the default relax-and-fix mode,
+to prevent interpolation across the convex hull.
 
 **Stage 2: Aggregated log(RR) → RR**
 
 Sum the log-RR contributions across risk factors:
-:math:`z_d = \sum_r \log\mathrm{RR}_{r,d}`. Then apply a second SOS2 interpolation
-using precomputed breakpoints :math:`(z_m, \exp(z_m))` to recover :math:`\mathrm{RR}_d`.
+:math:`z_d = \sum_r \log\mathrm{RR}_{r,d}`. The exponential is convex, so
+Linopy's pure-LP piecewise formulation bounds the YLL store below by every
+chord through the scaled points
+:math:`(z_m, a_{c,d}(\exp(z_m)-\mathrm{RR}^{ref}_d))`. Minimising a
+non-negatively priced health store presses it onto this chord envelope. The
+same formulation enforces the sampled :math:`z_d` domain and adds no Stage 2
+auxiliary variables.
 
 Health Clustering
 ~~~~~~~~~~~~~~~~~
@@ -548,15 +547,15 @@ Data Flow Overview
 
 1. Cluster countries into health regions
 2. Compute baseline YLL and RR for each cluster–cause pair
-3. Build breakpoint tables for SOS2 interpolation
+3. Build breakpoint tables for piecewise interpolation
 4. Output: ``risk_breakpoints.csv``, ``cause_log_breakpoints.csv``,
    ``cluster_cause_baseline.csv``
 
 **Solver** (``workflow/scripts/solve_model.py``):
 
 1. Read breakpoint tables
-2. Create SOS2 variables and constraints for each cluster–risk–cause combination
-3. Construct health cost expressions and add to objective
+2. Create Stage 1 incremental constraints for each cluster-risk pair
+3. Add Stage 2 convex piecewise bounds and the health cost to the objective
 
 Detailed Implementation
 -----------------------
@@ -639,12 +638,14 @@ where :math:`e_{i,r}` is the store level for country :math:`i` and food group
 
 **Linearised relative risk curves**
 
-For every (cluster, risk) pair, SOS2 variables :math:`\lambda_k` satisfy:
+For every (cluster, risk) pair, incremental variables
+:math:`\delta_j \in [0,1]` satisfy:
 
 .. math::
-   \sum_k \lambda_k = 1, \quad
-   I_{c,r} = \sum_k x_k \lambda_k, \quad
-   \log\mathrm{RR}_{c,r,d} = \sum_k \lambda_k \log\mathrm{RR}_{r,d}(x_k)
+   \delta_j \leq \delta_{j-1}, \quad
+   I_{c,r} = x_0 + \sum_j \delta_j \Delta x_j, \quad
+   \log\mathrm{RR}_{c,r,d}
+   = f_0 + \sum_j \delta_j \Delta f_j
 
 **Aggregating across risk factors**
 
@@ -655,8 +656,9 @@ The combined effect on each disease is:
 
 **Recovering total relative risk**
 
-A second SOS2 interpolation maps :math:`z = \log\mathrm{RR}_{c,d}` back to
-:math:`\mathrm{RR}_{c,d} = \exp(z)` using precomputed breakpoints.
+Linopy bounds the health store below by the convex piecewise chord
+approximation of :math:`\exp(z)` using precomputed breakpoints. This Stage 2
+formulation is a pure LP and introduces no interpolation variables.
 
 **Health cost expression**
 
