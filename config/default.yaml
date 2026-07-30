@@ -259,7 +259,7 @@ supply_response:
   # the reference data is never perfectly consistent with every hard constraint;
   # groups that use slack get their intercept censored at this price and are
   # flagged in the log. Must sit well above any plausible genuine wedge.
-  pin_slack_cost: 10.0
+  pin_slack_cost: 100.0
   intercepts: "calibrated"
   calibration:
     generate: false  # Generate the artefact via a pinned solve (breaks DAG cycle when true)
