@@ -469,19 +469,33 @@ to a shock is graduated rather than a dead band followed by a jump to whichever
 bound stops it. Its curvature comes from an exogenous supply elasticity instead
 of a coefficient fitted to a chosen deviation target.
 
-For a group :math:`g` with observed activity :math:`b_g` and marginal cost
-:math:`c_g` there, the marginal-cost curve reproducing own-price supply
-elasticity :math:`\eta` has slope
+Calibration is the standard two-phase procedure. Phase 1
+(``pin_baseline: true``) solves with every group fixed at its observed
+activity; the dual :math:`\lambda_g` of each pinning constraint is the wedge
+between the marginal value of the group's output and its accounting marginal
+cost :math:`c_g` there, and is written next to the solved network. Phase 2
+(``intercepts: <path>``) feeds the wedges back as intercepts on the curves, so
+each group's marginal cost at the baseline equals the marginal value there and
+the observed allocation is the *exact* optimum of the unpinned model -- no hard
+constraints, nothing tuned. The elasticity then only governs the response away
+from the calibrated point.
+
+For a group :math:`g` with observed activity :math:`b_g`, the marginal-cost
+curve through the calibrated point reproducing own-price supply elasticity
+:math:`\eta` has slope
 
 .. math::
 
-   \gamma_g = \frac{c_g}{\eta \, b_g},
+   \gamma_g = \frac{c_g + \lambda_g}{\eta \, b_g},
 
-and enters the objective as its integral from the baseline,
-:math:`\tfrac{1}{2}\gamma_g (X_g - b_g)^2`, which is convex and minimised at the
-observed activity. The quadratic is approximated by ``n_blocks`` tranches per
-direction, each priced at the slope times its midpoint deviation, so the model
-stays an LP.
+the elasticity being stated at the calibrated marginal cost. The curve enters
+the objective as :math:`\lambda_g (X_g - b_g) + \tfrac{1}{2}\gamma_g (X_g -
+b_g)^2`, which is convex, and whose minimum net of the value of output sits at
+the observed activity. The quadratic is approximated by ``n_blocks`` tranches
+per direction, each priced at the intercept plus the slope times its midpoint
+deviation, so the model stays an LP. Without intercepts :math:`\lambda_g = 0`
+and the accounting cost stands in, which anchors only as well as the cost
+calibration aligned costs with values.
 
 Activity moves in whole tranches, so the tranche width sets the finest response
 the curve can express. With equal widths this is
@@ -497,14 +511,17 @@ baseline. Shrinking ``expansion_range`` instead is not equivalent -- it would
 resolve small moves but degenerate for large ones, which matter under carbon
 pricing.
 
-Curves apply per **group** -- ``(crop, country)``, grassland per country,
-``(animal product, country)`` -- the same units the cost calibration extracts
-corrections for. A group curve prices how much of a commodity a country
-produces, not where within the country it sits, so it does not replace the
-per-link deviation penalty: roughly half of the observed baseline deviation is
-reallocation *within* a group across regions, resource classes and water-supply
-types. The two are designed to run together, the curve carrying the elasticity
-and the per-link term the spatial inertia.
+Curves apply per **group**, whose spatial resolution ``granularity`` sets:
+``country`` prices how much of a commodity a country produces (``(crop,
+country)``, grassland per country, ``(animal product, country)``), ``region``
+resolves that per optimisation region, and ``link`` gives every production
+link its own curve. A coarse curve says nothing about where within the group
+activity sits, so reallocation across regions, resource classes and
+water-supply types is left to the per-link deviation penalty; at ``link``
+granularity the curves price that reallocation themselves and can replace the
+deviation penalty outright. Finer granularity costs more variables
+(``2 * n_blocks`` per group) but leaves each link's response to its *own*
+margin, which controls spatial churn far better than a shared country curve.
 
 **Configuration options**:
 
@@ -516,6 +533,15 @@ and the per-link term the spatial inertia.
   rather than a cap; contraction at ``1.0`` reaches zero activity.
 * ``supply_response.width_growth``: relative width of each successive tranche.
   ``1.0`` gives equal widths; above 1 concentrates resolution near the baseline.
+* ``supply_response.granularity``: spatial resolution of the curves,
+  ``country`` / ``region`` / ``link``.
+* ``supply_response.pin_baseline``: phase-1 calibration switch; mutually
+  exclusive with ``intercepts``. The pin is elastic: reference data is never
+  perfectly consistent with every hard constraint, so deviating from the pin
+  is allowed at ``pin_slack_cost``, and groups that use slack get their
+  intercept censored at that price and flagged in the log.
+* ``supply_response.intercepts``: path to the intercepts CSV from a pinned
+  solve of the same model at the same granularity, or ``null``.
 * ``supply_response.elasticities.{crops,grassland,animals}``: own-price supply
   elasticity per component.
 * ``supply_response.elasticity_factor``: global multiplier on every elasticity,
@@ -531,8 +557,10 @@ and the per-link term the spatial inertia.
 * Multi-cropping links are not covered yet: their duals price a joint cycle
   bundle rather than one constituent crop, so they keep the per-link deviation
   penalty alone.
-* A group whose baseline-weighted marginal cost is not positive is an error,
-  since the slope is undefined there.
+* A group whose calibrated marginal cost :math:`c_g + \lambda_g` is not
+  positive is an error, since the slope is undefined there. Without intercepts
+  this means a zero accounting cost; with intercepts it means the pinned solve
+  valued the group's output at or below nothing.
 
 .. _growth-caps:
 

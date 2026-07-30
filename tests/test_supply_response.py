@@ -16,10 +16,14 @@ baseline -- that is what an own-price elasticity of ``eta`` means.
 """
 
 import numpy as np
+import pandas as pd
 import pypsa
 import pytest
 
-from workflow.scripts.solve_model.supply_response import add_supply_response_curves
+from workflow.scripts.solve_model.supply_response import (
+    add_supply_response_curves,
+    extract_supply_response_intercepts,
+)
 
 BASELINE_MHA = (6.0, 4.0)  # two links in one (crop, country) group
 COST = 2.0  # bnUSD per Mha, equal on both links
@@ -37,6 +41,9 @@ def _cfg(
     contraction_range: float = 1.0,
     width_growth: float = 1.0,
     granularity: str = "country",
+    pin_baseline: bool = False,
+    pin_slack_cost: float = 10.0,
+    intercepts: str | None = None,
     crops: float = 0.5,
     elasticity_factor: float = 1.0,
     components: dict | None = None,
@@ -48,6 +55,9 @@ def _cfg(
         "contraction_range": contraction_range,
         "width_growth": width_growth,
         "granularity": granularity,
+        "pin_baseline": pin_baseline,
+        "pin_slack_cost": pin_slack_cost,
+        "intercepts": intercepts,
         "elasticities": {"crops": crops, "grassland": 0.3, "animals": 0.4},
         "elasticity_factor": elasticity_factor,
         "components": components
@@ -252,6 +262,104 @@ def test_unknown_granularity_raises():
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="granularity"):
         add_supply_response_curves(n, _cfg(granularity="continent"))
+
+
+def _fit_intercepts(price: float, cfg: dict, tmp_path) -> str:
+    """PMP phase 1 on the fixture: pinned solve, wedges written to a CSV."""
+    n = _make_network(price)
+    n.optimize.create_model(include_objective_constant=False)
+    add_supply_response_curves(n, {**cfg, "pin_baseline": True, "intercepts": None})
+    status, condition = n.model.solve(solver_name="highs")
+    assert (status, condition) == ("ok", "optimal"), (status, condition)
+    path = tmp_path / "intercepts.csv"
+    extract_supply_response_intercepts(n).to_csv(path, index=False)
+    return str(path)
+
+
+def test_pinned_solve_holds_activity_at_baseline():
+    """Phase 1 fixes the group at its observed activity whatever the price."""
+    n = _make_network(COST * 3)
+    n.optimize.create_model(include_objective_constant=False)
+    add_supply_response_curves(n, _cfg(pin_baseline=True))
+    status, condition = n.model.solve(solver_name="highs")
+    assert (status, condition) == ("ok", "optimal")
+    sol = n.model.variables["Link-p"].solution.sel(snapshot="now")
+    produce = [
+        str(v) for v in sol.coords["name"].values if str(v).startswith("produce")
+    ]
+    total = float(sol.sel(name=produce).sum().item())
+    assert total == pytest.approx(sum(BASELINE_MHA), rel=1e-9)
+
+
+def test_pinned_duals_measure_the_price_wedge(tmp_path):
+    """The extracted intercept is the value-minus-cost gap at the baseline."""
+    wedge = 0.4
+    path = _fit_intercepts(COST + wedge, _cfg(), tmp_path)
+    table = pd.read_csv(path)
+    assert set(table["component"]) == {"crops"}
+    assert table["intercept"].to_numpy() == pytest.approx(wedge, rel=1e-9)
+
+
+def test_intercepts_reproduce_the_baseline_exactly(tmp_path):
+    """PMP phase 2: with fitted intercepts, the observed activity is the exact
+    optimum even though the output price sits well above the accounting cost."""
+    price = COST * 1.5
+    path = _fit_intercepts(price, _cfg(), tmp_path)
+    total = _solve(_make_network(price), _cfg(intercepts=path))
+    assert total == pytest.approx(sum(BASELINE_MHA), rel=1e-9)
+
+
+def test_calibrated_elasticity_is_stated_at_the_calibrated_cost(tmp_path):
+    """Around the calibrated point, a price rise of s (relative to the
+    calibrated marginal cost) expands activity by eta * s of baseline."""
+    eta, shock = 0.5, 0.1
+    calibrated_price = COST * 1.5
+    path = _fit_intercepts(calibrated_price, _cfg(crops=eta), tmp_path)
+    baseline = sum(BASELINE_MHA)
+    total = _solve(
+        _make_network(calibrated_price * (1 + shock)),
+        _cfg(crops=eta, intercepts=path),
+    )
+    arc_elasticity = ((total - baseline) / baseline) / shock
+    assert arc_elasticity == pytest.approx(eta, rel=0.05)
+
+
+def test_elastic_pin_survives_an_infeasible_reference_and_censors_the_dual():
+    """A reference the model cannot reach uses pin slack instead of going
+    infeasible, and the affected group's intercept is censored at the slack
+    price so the inconsistency is visible rather than hidden."""
+    slack_cost = 10.0
+    n = _make_network(COST)
+    # Capacity below the observed activity: the pin cannot be met exactly.
+    n.links.static.loc[n.links.static.index.str.startswith("produce"), "p_nom"] = 3.0
+    n.optimize.create_model(include_objective_constant=False)
+    add_supply_response_curves(n, _cfg(pin_baseline=True, pin_slack_cost=slack_cost))
+    status, condition = n.model.solve(solver_name="highs")
+    assert (status, condition) == ("ok", "optimal")
+    table = extract_supply_response_intercepts(n)
+    assert table["slack"].to_numpy() == pytest.approx(-4.0)  # 6 capped at 3, x2
+    # Activity is stuck below the pin, so at the margin the pinned unit is
+    # worth less than its cost by at least the slack price: censored at
+    # -slack_cost (an unreachable overshoot would censor at +slack_cost).
+    assert table["intercept"].to_numpy() == pytest.approx(-slack_cost)
+
+
+def test_pin_and_intercepts_are_mutually_exclusive(tmp_path):
+    path = _fit_intercepts(COST, _cfg(), tmp_path)
+    n = _make_network(COST)
+    n.optimize.create_model(include_objective_constant=False)
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        add_supply_response_curves(n, _cfg(pin_baseline=True, intercepts=path))
+
+
+def test_intercepts_from_a_different_granularity_raise(tmp_path):
+    """Group keys must match between fit and apply, so a granularity switch
+    between phases fails loudly instead of silently zeroing the wedges."""
+    path = _fit_intercepts(COST * 1.5, _cfg(granularity="link"), tmp_path)
+    n = _make_network(COST * 1.5)
+    n.optimize.create_model(include_objective_constant=False)
+    with pytest.raises(ValueError, match="no entry"):
+        add_supply_response_curves(n, _cfg(granularity="country", intercepts=path))
 
 
 def test_width_growth_below_one_raises():

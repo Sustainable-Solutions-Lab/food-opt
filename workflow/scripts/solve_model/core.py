@@ -47,6 +47,7 @@ from workflow.scripts.solve_model.production_stability import (
 from workflow.scripts.solve_model.supply_response import (
     add_supply_response_curves,
     evaluate_supply_response_cost,
+    extract_supply_response_intercepts,
 )
 
 # Module-level logger (replaced by run_solve's caller)
@@ -2154,6 +2155,23 @@ def run_solve(
         curve_cost = evaluate_supply_response_cost(n)
         if abs(curve_cost) > 1e-12:
             n.meta["supply_response_cost"] = curve_cost
+
+        # PMP phase 1: a baseline-pinned solve exists to measure the per-group
+        # price wedges, written next to the solved network for phase-2 runs to
+        # consume via supply_response.intercepts.
+        sr_cfg = smk.params.supply_response
+        if sr_cfg["enabled"] and sr_cfg["pin_baseline"]:
+            out = Path(smk.output.network)
+            intercepts_path = out.with_name(
+                f"supply_response_intercepts_{out.stem.removeprefix('model_')}.csv"
+            )
+            intercepts = extract_supply_response_intercepts(n)
+            intercepts.to_csv(intercepts_path, index=False)
+            logger.info(
+                "Wrote %d supply-response intercepts to %s",
+                len(intercepts),
+                intercepts_path,
+            )
 
         # Post-hoc health evaluation when value_per_yll == 0
         if health_enabled and value_per_yll == 0:

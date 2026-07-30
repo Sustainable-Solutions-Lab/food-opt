@@ -17,17 +17,27 @@ group gets a convex, increasing marginal-cost curve through its observed
 activity, so response is graduated and governed by an exogenous supply
 elasticity rather than by a fitted deviation target.
 
-For a group ``g`` with observed activity ``b_g`` and marginal cost ``c_g`` at
-that activity, a linear marginal-cost curve reproducing supply elasticity
-``eta`` has slope
+Calibration is the standard two-phase procedure. Phase 1 (``pin_baseline``)
+solves the model with each group's activity fixed at its observed value by an
+equality constraint; the dual ``lambda_g`` of that constraint is the wedge
+between the marginal value of the group's output and its accounting marginal
+cost ``c_g`` at the observed point. Phase 2 (``intercepts``) feeds the wedges
+back as intercepts on the curves, so each group's marginal cost at the baseline
+becomes ``c_g + lambda_g`` -- exactly the marginal value there. The observed
+allocation then satisfies the optimality conditions of the *unpinned* model and
+is reproduced exactly, with no hard constraints and nothing tuned.
 
-    gamma_g = c_g / (eta * b_g),
+For a group ``g`` with observed activity ``b_g``, a linear marginal-cost curve
+through the calibrated point reproducing supply elasticity ``eta`` has slope
+
+    gamma_g = (c_g + lambda_g) / (eta * b_g),
 
 since equating marginal cost to the marginal value of output gives
-``dX/dv = 1 / gamma`` and hence ``eta = v / (gamma * b)`` with ``v = c_g`` at the
-calibrated point. The cost calibration already aligns each link's marginal cost
-with the marginal value of its output at baseline, so ``c_g`` is read off the
-network rather than supplied separately.
+``dX/dv = 1 / gamma`` and hence ``eta = v / (gamma * b)`` with
+``v = c_g + lambda_g`` at the calibrated point (Merel and Bucaram 2010: the
+elasticity is stated at the calibrated marginal cost, not the accounting cost).
+Without intercepts ``lambda_g = 0`` and the accounting cost stands in, which
+anchors only as well as the cost calibration aligned costs with values.
 
 The curve enters the objective as its deviation cost, the integral of the slope
 from the baseline,
@@ -133,6 +143,67 @@ def evaluate_supply_response_cost(n: pypsa.Network) -> float:
     return total
 
 
+def extract_supply_response_intercepts(n: pypsa.Network) -> pd.DataFrame:
+    """Per-group price wedges from a baseline-pinned solve (PMP phase 1).
+
+    The dual of each group's pinning constraint is the gap between the marginal
+    value of the group's output and its marginal cost at the observed activity.
+    Returned as a frame with columns ``component``, ``sr_group``, ``intercept``;
+    fed back via ``supply_response.intercepts``, the wedges make the observed
+    allocation the exact optimum of the unpinned model.
+    """
+    m = n.model
+    frames = []
+    for component in COMPONENTS:
+        name = f"GlobalConstraint-{component}_supply_response_balance"
+        if name not in m.constraints:
+            continue
+        dual = m.constraints[name].dual
+        slack = (
+            m.variables[f"{component}_supply_response_pin_slack_up"].solution
+            - m.variables[f"{component}_supply_response_pin_slack_down"].solution
+        )
+        frames.append(
+            pd.DataFrame(
+                {
+                    "component": component,
+                    "sr_group": dual.coords["sr_group"].values,
+                    # The constraint reads activity == baseline, so the dual is
+                    # the objective change per unit of *required* activity: the
+                    # cost of producing one more unit minus the value gained.
+                    # The wedge (value minus cost) is its negation.
+                    "intercept": -dual.values,
+                    # Net pin slack (activity minus baseline). Nonzero means
+                    # the reference point is inconsistent with some other
+                    # constraint and the intercept is censored at the slack
+                    # price -- worth investigating upstream.
+                    "slack": slack.values,
+                }
+            )
+        )
+    if not frames:
+        raise ValueError(
+            "no supply-response pinning constraints found; intercepts can only "
+            "be extracted from a solve with supply_response.pin_baseline: true"
+        )
+    table = pd.concat(frames, ignore_index=True)
+    slacked = table["slack"].abs() > 1e-6
+    if slacked.any():
+        worst = table.loc[slacked].reindex(
+            table.loc[slacked, "slack"].abs().sort_values(ascending=False).index
+        )
+        logger.warning(
+            "%d of %d pinned supply-response groups used pin slack (total "
+            "|slack| %.3f); their intercepts are censored at the slack price. "
+            "Worst: %s",
+            int(slacked.sum()),
+            len(table),
+            float(table["slack"].abs().sum()),
+            worst[["component", "sr_group", "slack"]].head(5).to_dict("records"),
+        )
+    return table
+
+
 def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
     """Add convex piecewise-linear supply curves to the objective.
 
@@ -180,6 +251,18 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
         )
     spatial_cols = GRANULARITY_COLUMNS[granularity]
 
+    pin = bool(cfg["pin_baseline"])
+    if pin and cfg["intercepts"]:
+        raise ValueError(
+            "supply_response.pin_baseline and supply_response.intercepts are "
+            "mutually exclusive: the pinned solve fits the intercepts against "
+            "the accounting costs, so it must not itself carry intercepts"
+        )
+    intercepts = None
+    if cfg["intercepts"]:
+        table = pd.read_csv(cfg["intercepts"])
+        intercepts = table.set_index(["component", "sr_group"])["intercept"]
+
     for component, (carriers, baseline_col, commodity_cols) in COMPONENTS.items():
         if not cfg["components"][component]:
             continue
@@ -189,6 +272,15 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
                 f"supply_response.elasticities.{component} must be > 0 after "
                 f"applying elasticity_factor, got {elasticity}"
             )
+        component_intercepts = None
+        if intercepts is not None:
+            if component not in intercepts.index.get_level_values("component"):
+                raise ValueError(
+                    f"supply_response.intercepts has no entries for component "
+                    f"'{component}'; the intercepts must come from a pinned "
+                    "solve covering the same components"
+                )
+            component_intercepts = intercepts.xs(component, level="component")
         _add_component_curves(
             n,
             component=component,
@@ -200,6 +292,9 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
             expansion=expansion,
             contraction=contraction,
             width_growth=width_growth,
+            pin=pin,
+            pin_slack_cost=float(cfg["pin_slack_cost"]),
+            intercepts=component_intercepts,
         )
 
 
@@ -255,6 +350,9 @@ def _add_component_curves(
     expansion: float,
     contraction: float,
     width_growth: float,
+    pin: bool,
+    pin_slack_cost: float,
+    intercepts: "pd.Series | None",
 ) -> None:
     """Add the tranche variables, balance rows and objective terms for one component."""
     links_df = n.links.static
@@ -271,20 +369,6 @@ def _add_component_curves(
     if groups.empty:
         logger.info("No %s groups with positive baseline; skipping", component)
         return
-
-    zero_cost = groups["cost"] <= 0
-    if zero_cost.any():
-        raise ValueError(
-            f"{int(zero_cost.sum())} {component} group(s) have a non-positive "
-            f"baseline-weighted marginal cost (e.g. "
-            f"{groups.index[zero_cost][:5].tolist()}); the supply-curve slope "
-            "gamma = cost / (elasticity * baseline) is undefined. Marginal costs "
-            "come from the cost data and the cost calibration, so a zero here is "
-            "an upstream data problem rather than something to default away."
-        )
-
-    # Slope of the marginal-cost curve, in objective units per activity squared.
-    slope = groups["cost"] / (elasticity * groups["baseline"])
 
     # Only links whose group carries a baseline participate; the rest are
     # governed by the growth caps and the per-link deviation penalty.
@@ -305,7 +389,85 @@ def _add_component_curves(
     group_index = pd.Index(activity.coords["sr_group"].values)
     if not group_index.equals(groups.index):
         groups = groups.reindex(group_index)
-        slope = slope.reindex(group_index)
+
+    baseline_da = xr.DataArray(
+        groups["baseline"].to_numpy(),
+        coords={"sr_group": group_index.to_numpy()},
+        dims="sr_group",
+    )
+
+    if pin:
+        # PMP phase 1: hold every group at its observed activity. The dual of
+        # this constraint is the group's price wedge, extracted after the solve
+        # by extract_supply_response_intercepts. The pin is elastic -- slack at
+        # a high finite price -- because the reference data is never perfectly
+        # consistent with every other constraint (land availability, water,
+        # feed balances), and a hard pin would make the whole solve infeasible
+        # over the smallest such residual. Where slack is used the dual is
+        # censored at the slack price, which flags the group for investigation
+        # instead of hiding the inconsistency.
+        slack_cost = float(pin_slack_cost)
+        if slack_cost <= 0:
+            raise ValueError(
+                f"supply_response.pin_slack_cost must be > 0, got {slack_cost}"
+            )
+        slack_coords = {"sr_group": group_index.to_numpy()}
+        slack_up = m.add_variables(
+            lower=0,
+            coords=slack_coords,
+            dims=("sr_group",),
+            name=f"{component}_supply_response_pin_slack_up",
+        )
+        slack_down = m.add_variables(
+            lower=0,
+            coords=slack_coords,
+            dims=("sr_group",),
+            name=f"{component}_supply_response_pin_slack_down",
+        )
+        m.add_constraints(
+            activity - slack_up + slack_down == baseline_da,
+            name=f"GlobalConstraint-{component}_supply_response_balance",
+        )
+        m.objective += slack_cost * (slack_up.sum() + slack_down.sum())
+        logger.info(
+            "Pinned %s activity to baseline: %d groups (baseline=%.1f, "
+            "slack cost=%.3g)",
+            component,
+            len(group_index),
+            float(groups["baseline"].sum()),
+            slack_cost,
+        )
+        return
+
+    lam = pd.Series(0.0, index=group_index)
+    if intercepts is not None:
+        lam = intercepts.reindex(group_index)
+        if lam.isna().any():
+            missing = lam.index[lam.isna()][:5].tolist()
+            raise ValueError(
+                f"{int(lam.isna().sum())} {component} group(s) have no entry in "
+                f"supply_response.intercepts (e.g. {missing}); the intercepts "
+                "must come from a pinned solve of the same model at the same "
+                "granularity"
+            )
+
+    # Marginal value of each group's output at the observed activity: the
+    # accounting cost plus the calibrated wedge (zero without intercepts).
+    calibrated_cost = groups["cost"] + lam
+    bad = calibrated_cost <= 0
+    if bad.any():
+        raise ValueError(
+            f"{int(bad.sum())} {component} group(s) have a non-positive "
+            f"calibrated marginal cost (e.g. {group_index[bad][:5].tolist()}); "
+            "the supply-curve slope gamma = (cost + intercept) / (elasticity * "
+            "baseline) is undefined. Without intercepts this means a zero "
+            "accounting cost -- an upstream data problem; with intercepts it "
+            "means the pinned solve valued the group's output at or below "
+            "nothing, which wants investigating rather than defaulting away."
+        )
+
+    # Slope of the marginal-cost curve, in objective units per activity squared.
+    slope = calibrated_cost / (elasticity * groups["baseline"])
 
     coords = {
         "sr_group": group_index.to_numpy(),
@@ -320,22 +482,28 @@ def _add_component_curves(
     shares = width_growth ** np.arange(n_blocks)
     shares = shares / shares.sum()
 
-    def _tranches(range_fraction: float, direction: str):
+    def _tranches(range_fraction: float, direction: str, wedge_sign: float):
         """Build tranche variables and their objective prices for one direction.
 
         Widths split the group's directional range by ``shares``; each tranche is
-        priced at the slope times its midpoint deviation -- the width accumulated
-        before it plus half its own -- so the piecewise cost traces the quadratic
-        whatever the widths are. Prices rise with distance from the baseline, so
-        a cost-minimising solution fills the near tranches first and convexity
-        needs no ordering rows. The outermost tranche is unbounded so the curve
-        extrapolates at its top price instead of imposing a hidden bound.
+        priced at the intercept plus the slope times its midpoint deviation --
+        the width accumulated before it plus half its own -- so the piecewise
+        cost traces the calibrated quadratic whatever the widths are. Expanding
+        pays the wedge on top of the curvature; contracting is refunded it
+        (``wedge_sign``), which is what places the curve's minimum-cost point,
+        net of the value of output, exactly at the baseline. Prices rise with
+        distance from the baseline in both directions, so a cost-minimising
+        solution fills the near tranches first and convexity needs no ordering
+        rows. The outermost tranche is unbounded so the curve extrapolates at
+        its top price instead of imposing a hidden bound.
         """
         w = range_fraction * groups["baseline"].to_numpy()[:, None] * shares[None, :]
         upper = w.copy()
         upper[:, -1] = np.inf
         midpoints = np.cumsum(w, axis=1) - w / 2
-        prices = slope.to_numpy()[:, None] * midpoints
+        prices = (
+            wedge_sign * lam.to_numpy()[:, None] + slope.to_numpy()[:, None] * midpoints
+        )
         var = m.add_variables(
             lower=0,
             upper=xr.DataArray(upper, coords=coords, dims=dims),
@@ -347,14 +515,9 @@ def _add_component_curves(
         _PRICES[f"{component}_supply_response_{direction}"] = price_da
         return var, price_da
 
-    up, up_price = _tranches(expansion, "up")
-    down, down_price = _tranches(contraction, "down")
+    up, up_price = _tranches(expansion, "up", 1.0)
+    down, down_price = _tranches(contraction, "down", -1.0)
 
-    baseline_da = xr.DataArray(
-        groups["baseline"].to_numpy(),
-        coords={"sr_group": group_index.to_numpy()},
-        dims="sr_group",
-    )
     m.add_constraints(
         activity - up.sum("sr_block") + down.sum("sr_block") == baseline_da,
         name=f"GlobalConstraint-{component}_supply_response_balance",
@@ -363,13 +526,14 @@ def _add_component_curves(
 
     logger.info(
         "Added %s supply-response curves: %d groups x %d blocks/direction "
-        "(elasticity=%.3f, baseline=%.1f, slope median=%.4g, first up-tranche "
-        "price median=%.4g)",
+        "(elasticity=%.3f, baseline=%.1f, slope median=%.4g, intercept "
+        "median=%.4g, first up-tranche price median=%.4g)",
         component,
         len(group_index),
         n_blocks,
         elasticity,
         float(groups["baseline"].sum()),
         float(slope.median()),
+        float(lam.median()),
         float(up_price.isel(sr_block=0).median()),
     )

@@ -28,19 +28,25 @@ introduce breaking changes to configuration and outputs.
 - New `supply_response` configuration section (off by default) adds convex
   piecewise-linear supply curves through observed production, as an alternative
   to pricing every unit of baseline deviation at the same rate. Each production
-  group -- a crop in a country, grassland in a country, an animal product in a
-  country -- gets a marginal-cost curve whose slope reproduces a configured
+  group gets a marginal-cost curve whose slope reproduces a configured
   own-price supply elasticity, so response to a shock is graduated and its
   strength follows from an elasticity assumption rather than from a fitted
-  deviation target. Curves price how much of a commodity a country produces,
-  not where within the country it sits, so they complement the per-link
-  `deviation_penalty` rather than replacing it. Tranche widths grow away from
-  the baseline (`width_growth`) so the resolution sits where groups actually
-  are; with equal widths the curve cannot express a move smaller than
-  `expansion_range / n_blocks` of baseline and collapses into a flat-rate
-  penalty. The curve's deviation cost appears as its own `supply_response`
-  category in the objective breakdown. Multi-cropping links are not covered
-  yet. See "Supply Response" in the configuration reference.
+  deviation target. The curves calibrate exactly by the standard two-phase
+  positive-mathematical-programming procedure: a `pin_baseline` solve fixes
+  every group at its observed activity and writes the pinning duals (per-group
+  price wedges) next to the solved network, and a run pointing `intercepts` at
+  that file reproduces the observed allocation as its exact unconstrained
+  optimum. The spatial resolution of the curves is configurable
+  (`granularity`: per country, per region, or per production link); at `link`
+  granularity the curves price spatial reallocation themselves and can replace
+  the per-link `deviation_penalty`, while coarser curves complement it.
+  Tranche widths grow away from the baseline (`width_growth`) so the
+  resolution sits where groups actually are; with equal widths the curve
+  cannot express a move smaller than `expansion_range / n_blocks` of baseline
+  and collapses into a flat-rate penalty. The curve's deviation cost appears
+  as its own `supply_response` category in the objective breakdown.
+  Multi-cropping links are not covered yet. See "Supply Response" in the
+  configuration reference.
 
 - Multiple cropping is now anchored to an observed baseline derived from
   MIRCA-OS v2 (new automated data source), using the available 2010, 2015, or

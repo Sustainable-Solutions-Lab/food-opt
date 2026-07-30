@@ -2089,7 +2089,7 @@ properties:
 
   supply_response:
     type: object
-    required: [enabled, n_blocks, expansion_range, contraction_range, width_growth, granularity, elasticities, elasticity_factor, components]
+    required: [enabled, n_blocks, expansion_range, contraction_range, width_growth, granularity, pin_baseline, intercepts, elasticities, elasticity_factor, components]
     additionalProperties: false
     description: "Convex piecewise-linear supply curves through observed production, with curvature set by an exogenous supply elasticity per component."
     properties:
@@ -2117,6 +2117,16 @@ properties:
         type: string
         enum: ["country", "region", "link"]
         description: "Spatial resolution of the curves: per country, per optimisation region, or per production link."
+      pin_baseline:
+        type: boolean
+        description: "PMP phase 1: pin every group at its observed activity and write the pinning duals (price wedges) next to the solved network."
+      pin_slack_cost:
+        type: number
+        exclusiveMinimum: 0
+        description: "Price of deviating from the pin during phase 1; groups that use slack get their intercept censored here and are flagged."
+      intercepts:
+        type: ["string", "null"]
+        description: "PMP phase 2: path to the intercepts CSV from a pinned solve; shifts each curve so the observed allocation is the exact unconstrained optimum."
       elasticities:
         type: object
         required: [crops, grassland, animals]
