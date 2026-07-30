@@ -44,7 +44,10 @@ from workflow.scripts.solve_model.production_stability import (
     add_reforestation_cap_constraints,
     resolve_calibrated_l1_costs,
 )
-from workflow.scripts.solve_model.supply_response import add_supply_response_curves
+from workflow.scripts.solve_model.supply_response import (
+    add_supply_response_curves,
+    evaluate_supply_response_cost,
+)
 
 # Module-level logger (replaced by run_solve's caller)
 logger = logging.getLogger(__name__)
@@ -2144,6 +2147,13 @@ def run_solve(
             diet_cost = evaluate_diet_stability_cost(n, matched_baseline, dp_cfg)
             if abs(diet_cost) > 1e-12:
                 n.meta["diet_stability_cost"] = diet_cost
+
+        # Supply-response curve cost. Outside the deviation-penalty gate: the
+        # curves are an independent anchoring mechanism, and a run may carry
+        # either, both, or neither.
+        curve_cost = evaluate_supply_response_cost(n)
+        if abs(curve_cost) > 1e-12:
+            n.meta["supply_response_cost"] = curve_cost
 
         # Post-hoc health evaluation when value_per_yll == 0
         if health_enabled and value_per_yll == 0:

@@ -69,6 +69,12 @@ import xarray as xr
 
 logger = logging.getLogger(__name__)
 
+# Tranche prices by variable name, kept so the post-solve cost evaluation can
+# recover the objective term without rebuilding the curve parameters. Populated
+# by add_supply_response_curves and reset on each call, since one process may
+# build several models in sequence (the calibration drivers do).
+_PRICES: dict[str, "xr.DataArray"] = {}
+
 # Component -> (carriers, baseline column, group-key columns).
 COMPONENTS = {
     "crops": (("crop_production",), "baseline_area_mha", ("crop", "country")),
@@ -81,6 +87,35 @@ COMPONENTS = {
 }
 
 
+def evaluate_supply_response_cost(n: pypsa.Network) -> float:
+    """Total deviation cost the curves contributed to the objective.
+
+    Recovers the term from the solved tranche variables and the prices stashed
+    when the curves were built, so the objective breakdown can report it as its
+    own category and its identity check stays exact.
+    """
+    m = getattr(n, "model", None)
+    if m is None:
+        return 0.0
+    total = 0.0
+    for component in COMPONENTS:
+        for direction in ("up", "down"):
+            name = f"{component}_supply_response_{direction}"
+            if name not in m.variables:
+                continue
+            prices = _PRICES.get(name)
+            if prices is None:
+                raise ValueError(
+                    f"supply-response variable '{name}' is in the model but its "
+                    "tranche prices were not recorded, so its objective "
+                    "contribution cannot be evaluated. This means the curves "
+                    "were built by a different call than the one being "
+                    "evaluated."
+                )
+            total += float((prices * m.variables[name].solution).sum())
+    return total
+
+
 def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
     """Add convex piecewise-linear supply curves to the objective.
 
@@ -91,6 +126,7 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
     cfg : dict
         The resolved ``supply_response`` configuration block.
     """
+    _PRICES.clear()
     if not cfg["enabled"]:
         return
 
@@ -250,6 +286,7 @@ def _add_component_curves(
             name=f"{component}_supply_response_{direction}",
         )
         price_da = xr.DataArray(prices, coords=coords, dims=dims)
+        _PRICES[f"{component}_supply_response_{direction}"] = price_da
         return var, price_da
 
     up, up_price = _tranches(expansion, "up")
