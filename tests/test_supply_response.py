@@ -58,10 +58,20 @@ def _cfg(
         "pin_baseline": pin_baseline,
         "pin_slack_cost": pin_slack_cost,
         "intercepts": intercepts,
-        "elasticities": {"crops": crops, "grassland": 0.3, "animals": 0.4},
+        "elasticities": {
+            "crops": crops,
+            "multi_crops": crops,
+            "grassland": 0.3,
+            "animals": 0.4,
+        },
         "elasticity_factor": elasticity_factor,
         "components": components
-        or {"crops": True, "grassland": False, "animals": False},
+        or {
+            "crops": True,
+            "multi_crops": False,
+            "grassland": False,
+            "animals": False,
+        },
     }
 
 
@@ -253,7 +263,7 @@ def test_link_granularity_builds_one_group_per_link():
     n = _make_network(COST)
     n.optimize.create_model(include_objective_constant=False)
     add_supply_response_curves(n, _cfg(granularity="link"))
-    var = n.model.variables["crops_supply_response_up"]
+    var = n.model.variables["crops_supply_response_cost"]
     assert var.sizes["sr_group"] == len(BASELINE_MHA)
 
 

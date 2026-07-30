@@ -45,48 +45,45 @@ condition at the baseline -- but a group with wedge ``lambda_g`` realises
 elasticity ``eta * (c_g + lambda_g) / c_g`` with respect to the market price,
 so rent-poor groups respond more stiffly than ``eta`` suggests.
 
-The curve enters the objective as its deviation cost, the integral of the slope
-from the baseline,
+The curve enters the objective as its deviation cost, the intercept plus the
+integral of the slope from the baseline,
 
-    Psi_g(X) = gamma_g / 2 * (X - b_g)^2,
+    Psi_g(X) = lambda_g * (X - b_g) + gamma_g / 2 * (X - b_g)^2,
 
-which is convex and minimised at ``X = b_g``, so the observed activity stays
-optimal at reference prices. ``Psi_g`` is approximated by ``n_blocks`` tranches
-per direction, each priced at the slope times its midpoint deviation. Tranche
-prices increase with distance from the baseline, so a cost-minimising solution
-fills the near tranches first and no ordering constraints are needed. The last
-tranche in each direction is left unbounded, which extrapolates the curve
-linearly at its top price and keeps the formulation feasible whatever the
-growth caps allow.
+which is convex and, net of the value of output, minimised at ``X = b_g``, so
+the observed activity stays optimal at reference prices. ``Psi_g`` enters the
+LP through linopy's piecewise machinery: it is sampled at ``n_blocks``
+breakpoints per side of the baseline and one free variable per group is bounded
+below by the chords between consecutive samples (``linopy.piecewise
+.tangent_lines``). Minimisation presses the variable onto the upper envelope of
+the chords -- the piecewise-linear interpolant of ``Psi_g`` -- and beyond the
+outermost breakpoints the envelope extrapolates at the end chords' slopes, so
+the curve imposes no hidden activity bound.
 
-Because activity moves in whole tranches, the tranche width sets the finest
-response the curve can express. With equal widths and a range of half the
-baseline, four blocks resolve nothing below 12.5% of baseline -- coarser than
-the moves most groups make, so the curve collapses into a flat-rate penalty and
-loses the graduated response it exists for. ``width_growth`` above 1 narrows the
-near tranches so resolution concentrates at the baseline where groups sit, while
-the outer tranches still resolve large moves; that is far cheaper than the many
-equal tranches the same near-baseline resolution would otherwise need.
+The breakpoint spacing sets the finest response the curve can resolve: between
+adjacent breakpoints the marginal cost is a single chord slope. With equal
+spacing over a range of half the baseline, four points resolve nothing below
+12.5% of baseline -- coarser than the moves most groups make, so the curve
+collapses into a flat-rate penalty. ``width_growth`` above 1 narrows the
+spacing near the baseline, concentrating resolution where groups sit while the
+outer breakpoints still resolve large moves.
 
-Granularity: curves apply to *groups* -- ``(crop, country)``, ``(country)`` for
-grassland, ``(product, country)`` for animals -- matching the units the cost
-calibration extracts corrections for. A group curve prices changes in a
-country's total activity for a commodity; it says nothing about which regions,
-resource classes or water-supply types that activity sits in. Reallocation
-within a group is a distinct friction (land is heterogeneous, and rotations and
-infrastructure are local), so it stays with the per-link deviation penalty,
-which the two mechanisms are meant to share: the curve carries the elasticity,
-the per-link term carries spatial inertia.
-
-Multi-cropping links are not covered yet. Their duals price a joint cycle
-bundle rather than one constituent crop, so they need either their own
-``(combination, country)`` curves or a rule for splitting a bundle's activity
-across the crop curves it contributes to; until that is settled they keep the
-per-link deviation penalty alone.
+Granularity: curves apply to *groups*, whose spatial resolution is
+configurable. ``country`` prices how much of a commodity a country produces
+(``(crop, country)``, ``(combination, country)`` for multi-cropping,
+``(country)`` for grassland, ``(product, country)`` for animals); ``region``
+resolves that per optimisation region; ``link`` gives every production link its
+own curve. A coarse curve says nothing about which regions, resource classes or
+water-supply types activity sits in, so it leaves spatial reallocation to the
+per-link deviation penalty; at ``link`` granularity the curves price that
+reallocation themselves and replace the deviation penalty outright.
 """
 
 import logging
+import warnings
 
+from linopy.constants import BREAKPOINT_DIM, EvolvingAPIWarning
+from linopy.piecewise import tangent_lines
 import numpy as np
 import pandas as pd
 import pypsa
@@ -94,17 +91,12 @@ import xarray as xr
 
 logger = logging.getLogger(__name__)
 
-# Tranche prices by variable name, kept so the post-solve cost evaluation can
-# recover the objective term without rebuilding the curve parameters. Populated
-# by add_supply_response_curves and reset on each call, since one process may
-# build several models in sequence (the calibration drivers do).
-_PRICES: dict[str, "xr.DataArray"] = {}
-
 # Component -> (carriers, baseline column, commodity-identifying columns). The
 # commodity columns say *what* is produced; the granularity setting adds the
 # columns saying *where*, so both are needed to form a group key.
 COMPONENTS = {
     "crops": (("crop_production",), "baseline_area_mha", ("crop",)),
+    "multi_crops": (("crop_production_multi",), "baseline_area_mha", ("combination",)),
     "grassland": (("grassland_production",), "baseline_area_mha", ()),
     "animals": (("animal_production",), "baseline_feed_use_mt_dm", ("product",)),
 }
@@ -123,30 +115,18 @@ GRANULARITY_COLUMNS = {
 def evaluate_supply_response_cost(n: pypsa.Network) -> float:
     """Total deviation cost the curves contributed to the objective.
 
-    Recovers the term from the solved tranche variables and the prices stashed
-    when the curves were built, so the objective breakdown can report it as its
-    own category and its identity check stays exact.
+    Each component's cost variable enters the objective directly, so the term
+    is just the sum of their solutions, and the objective breakdown can report
+    it as its own category with an exact identity check.
     """
     m = getattr(n, "model", None)
     if m is None:
         return 0.0
-    total = 0.0
-    for component in COMPONENTS:
-        for direction in ("up", "down"):
-            name = f"{component}_supply_response_{direction}"
-            if name not in m.variables:
-                continue
-            prices = _PRICES.get(name)
-            if prices is None:
-                raise ValueError(
-                    f"supply-response variable '{name}' is in the model but its "
-                    "tranche prices were not recorded, so its objective "
-                    "contribution cannot be evaluated. This means the curves "
-                    "were built by a different call than the one being "
-                    "evaluated."
-                )
-            total += float((prices * m.variables[name].solution).sum())
-    return total
+    return sum(
+        float(m.variables[name].solution.sum())
+        for component in COMPONENTS
+        if (name := f"{component}_supply_response_cost") in m.variables
+    )
 
 
 def extract_supply_response_intercepts(n: pypsa.Network) -> pd.DataFrame:
@@ -220,7 +200,6 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
     cfg : dict
         The resolved ``supply_response`` configuration block.
     """
-    _PRICES.clear()
     if not cfg["enabled"]:
         return
 
@@ -245,8 +224,8 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
     if width_growth < 1:
         raise ValueError(
             f"supply_response.width_growth must be >= 1, got {width_growth}; "
-            "below 1 the tranches would widen toward the baseline, putting the "
-            "coarsest resolution where groups actually sit"
+            "below 1 the breakpoints would spread toward the baseline, putting "
+            "the coarsest resolution where groups actually sit"
         )
 
     granularity = str(cfg["granularity"])
@@ -360,7 +339,7 @@ def _add_component_curves(
     pin_slack_cost: float,
     intercepts: "pd.Series | None",
 ) -> None:
-    """Add the tranche variables, balance rows and objective terms for one component."""
+    """Add one component's curves (or its phase-1 pin) to the model."""
     links_df = n.links.static
     links = links_df[links_df["carrier"].isin(carriers)]
     if links.empty or baseline_col not in links.columns:
@@ -481,65 +460,57 @@ def _add_component_curves(
     # eta * (c + lambda) / c with respect to the market price.
     slope = groups["cost"] / (elasticity * groups["baseline"])
 
-    coords = {
-        "sr_group": group_index.to_numpy(),
-        "sr_block": np.arange(1, n_blocks + 1),
-    }
-    dims = ("sr_group", "sr_block")
-
-    # Relative tranche widths. At width_growth == 1 these are all equal, which
-    # spends resolution uniformly over the range; above 1 the near tranches are
-    # narrower, concentrating resolution at the baseline where nearly every
-    # group sits while the outer tranches still resolve large moves.
+    # Breakpoint offsets from the baseline, as fractions of it: n_blocks points
+    # per side, spaced by shares that grow by width_growth away from the
+    # baseline. At width_growth == 1 the spacing is uniform over each range;
+    # above 1 it concentrates resolution at the baseline where nearly every
+    # group sits, while the outer points still resolve large moves.
     shares = width_growth ** np.arange(n_blocks)
-    shares = shares / shares.sum()
+    cum = np.cumsum(shares / shares.sum())
+    offsets = np.concatenate([-contraction * cum[::-1], [0.0], expansion * cum])
 
-    def _tranches(range_fraction: float, direction: str, wedge_sign: float):
-        """Build tranche variables and their objective prices for one direction.
-
-        Widths split the group's directional range by ``shares``; each tranche is
-        priced at the intercept plus the slope times its midpoint deviation --
-        the width accumulated before it plus half its own -- so the piecewise
-        cost traces the calibrated quadratic whatever the widths are. Expanding
-        pays the wedge on top of the curvature; contracting is refunded it
-        (``wedge_sign``), which is what places the curve's minimum-cost point,
-        net of the value of output, exactly at the baseline. Prices rise with
-        distance from the baseline in both directions, so a cost-minimising
-        solution fills the near tranches first and convexity needs no ordering
-        rows. The outermost tranche is unbounded so the curve extrapolates at
-        its top price instead of imposing a hidden bound.
-        """
-        w = range_fraction * groups["baseline"].to_numpy()[:, None] * shares[None, :]
-        upper = w.copy()
-        upper[:, -1] = np.inf
-        midpoints = np.cumsum(w, axis=1) - w / 2
-        prices = (
-            wedge_sign * lam.to_numpy()[:, None] + slope.to_numpy()[:, None] * midpoints
-        )
-        var = m.add_variables(
-            lower=0,
-            upper=xr.DataArray(upper, coords=coords, dims=dims),
-            coords=coords,
-            dims=dims,
-            name=f"{component}_supply_response_{direction}",
-        )
-        price_da = xr.DataArray(prices, coords=coords, dims=dims)
-        _PRICES[f"{component}_supply_response_{direction}"] = price_da
-        return var, price_da
-
-    up, up_price = _tranches(expansion, "up", 1.0)
-    down, down_price = _tranches(contraction, "down", -1.0)
-
-    m.add_constraints(
-        activity - up.sum("sr_block") + down.sum("sr_block") == baseline_da,
-        name=f"GlobalConstraint-{component}_supply_response_balance",
+    # The deviation cost lambda * d + slope / 2 * d^2 sampled on the grid; one
+    # free variable per group bounded below by the chords between consecutive
+    # samples. Minimisation presses it onto the chords' upper envelope -- the
+    # piecewise-linear interpolant of the curve, kinked at the baseline point
+    # so the observed activity is strictly optimal -- and beyond the outermost
+    # samples the envelope extrapolates at the end chords' slopes, imposing no
+    # hidden activity bound.
+    deviation = groups["baseline"].to_numpy()[:, None] * offsets[None, :]
+    bp_coords = {
+        "sr_group": group_index.to_numpy(),
+        BREAKPOINT_DIM: np.arange(len(offsets)),
+    }
+    bp_dims = ("sr_group", BREAKPOINT_DIM)
+    x_points = xr.DataArray(
+        groups["baseline"].to_numpy()[:, None] + deviation, bp_coords, bp_dims
     )
-    m.objective += (up_price * up).sum() + (down_price * down).sum()
+    y_points = xr.DataArray(
+        lam.to_numpy()[:, None] * deviation
+        + slope.to_numpy()[:, None] / 2 * deviation**2,
+        bp_coords,
+        bp_dims,
+    )
+    cost = m.add_variables(
+        coords={"sr_group": group_index.to_numpy()},
+        dims=("sr_group",),
+        name=f"{component}_supply_response_cost",
+    )
+    with warnings.catch_warnings():
+        # The piecewise API is marked evolving upstream; our linopy fork is
+        # pinned by tag, so any evolution arrives through a deliberate bump.
+        warnings.simplefilter("ignore", EvolvingAPIWarning)
+        chords = tangent_lines(activity, x_points, y_points)
+    m.add_constraints(
+        cost >= chords,
+        name=f"GlobalConstraint-{component}_supply_response_curve",
+    )
+    m.objective += cost.sum()
 
     logger.info(
-        "Added %s supply-response curves: %d groups x %d blocks/direction "
+        "Added %s supply-response curves: %d groups x %d breakpoints/side "
         "(elasticity=%.3f, baseline=%.1f, slope median=%.4g, intercept "
-        "median=%.4g, first up-tranche price median=%.4g)",
+        "median=%.4g)",
         component,
         len(group_index),
         n_blocks,
@@ -547,5 +518,4 @@ def _add_component_curves(
         float(groups["baseline"].sum()),
         float(slope.median()),
         float(lam.median()),
-        float(up_price.isel(sr_block=0).median()),
     )

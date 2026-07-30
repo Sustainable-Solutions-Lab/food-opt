@@ -2129,11 +2129,14 @@ properties:
         description: "PMP phase 2: path to the intercepts CSV from a pinned solve; shifts each curve so the observed allocation is the exact unconstrained optimum."
       elasticities:
         type: object
-        required: [crops, grassland, animals]
+        required: [crops, multi_crops, grassland, animals]
         additionalProperties: false
         description: "Long-run own-price supply elasticity per component."
         properties:
           crops:
+            type: number
+            exclusiveMinimum: 0
+          multi_crops:
             type: number
             exclusiveMinimum: 0
           grassland:
@@ -2148,11 +2151,13 @@ properties:
         description: "Global multiplier on every elasticity, for scanning the assumption."
       components:
         type: object
-        required: [crops, grassland, animals]
+        required: [crops, multi_crops, grassland, animals]
         additionalProperties: false
         description: "Which components carry supply curves."
         properties:
           crops:
+            type: boolean
+          multi_crops:
             type: boolean
           grassland:
             type: boolean

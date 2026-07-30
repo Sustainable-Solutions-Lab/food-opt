@@ -45,8 +45,8 @@ introduce breaking changes to configuration and outputs.
   cannot express a move smaller than `expansion_range / n_blocks` of baseline
   and collapses into a flat-rate penalty. The curve's deviation cost appears
   as its own `supply_response` category in the objective breakdown.
-  Multi-cropping links are not covered yet. See "Supply Response" in the
-  configuration reference.
+  Multi-cropping links carry curves per `(combination, country)` bundle. See
+  "Supply Response" in the configuration reference.
 
 - Multiple cropping is now anchored to an observed baseline derived from
   MIRCA-OS v2 (new automated data source), using the available 2010, 2015, or

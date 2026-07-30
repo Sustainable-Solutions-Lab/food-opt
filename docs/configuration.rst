@@ -498,46 +498,49 @@ the optimality condition at the baseline -- but a group with wedge
 \lambda_g) / c_g` to its market price. The curve enters the objective as
 :math:`\lambda_g (X_g - b_g) + \tfrac{1}{2}\gamma_g (X_g - b_g)^2`, which is
 convex and, net of the value of output, minimised at the observed activity.
-The quadratic is approximated by ``n_blocks`` tranches per direction, each
-priced at the intercept plus the slope times its midpoint deviation, so the
-model stays an LP.
+The curve enters the LP through linopy's piecewise machinery
+(``linopy.piecewise.tangent_lines``): it is sampled at ``n_blocks`` breakpoints
+per side of the baseline and one free variable per group is bounded below by
+the chords between consecutive samples. Minimisation presses the variable onto
+the chords' upper envelope -- the piecewise-linear interpolant of the curve --
+and beyond the outermost breakpoints the envelope extrapolates at the end
+chords' slopes, so the curve imposes no hidden activity bound.
 
-Activity moves in whole tranches, so the tranche width sets the finest response
-the curve can express. With equal widths this is
-``expansion_range / n_blocks`` of baseline -- 12.5 % at four blocks over a range
-of half the baseline, which is coarser than the few-percent moves most groups
-make, and the curve then collapses into a flat-rate penalty and loses the
-graduated response it exists for. ``width_growth`` above 1 narrows the near
-tranches so the resolution sits at the baseline where groups actually are, while
-the outer tranches still resolve large moves. That is much cheaper than the many
-equal tranches the same near-baseline resolution would need: six tranches
-growing by a factor of two span the same range with a finest tranche of 0.8 % of
-baseline. Shrinking ``expansion_range`` instead is not equivalent -- it would
-resolve small moves but degenerate for large ones, which matter under carbon
-pricing.
+Between adjacent breakpoints the marginal cost is a single chord slope, so the
+spacing sets the finest response the curve can resolve. With equal spacing this
+is ``expansion_range / n_blocks`` of baseline -- 12.5 % at four points over a
+range of half the baseline, which is coarser than the few-percent moves most
+groups make, and the curve then collapses into a flat-rate penalty and loses
+the graduated response it exists for. ``width_growth`` above 1 narrows the
+spacing near the baseline, where groups actually sit, while the outer
+breakpoints still resolve large moves: six points growing by a factor of two
+span the same range with a finest step of 0.8 % of baseline. Shrinking
+``expansion_range`` instead is not equivalent -- it would resolve small moves
+but degenerate for large ones, which matter under carbon pricing.
 
 Curves apply per **group**, whose spatial resolution ``granularity`` sets:
 ``country`` prices how much of a commodity a country produces (``(crop,
-country)``, grassland per country, ``(animal product, country)``), ``region``
-resolves that per optimisation region, and ``link`` gives every production
-link its own curve. A coarse curve says nothing about where within the group
-activity sits, so reallocation across regions, resource classes and
-water-supply types is left to the per-link deviation penalty; at ``link``
-granularity the curves price that reallocation themselves and can replace the
-deviation penalty outright. Finer granularity costs more variables
-(``2 * n_blocks`` per group) but leaves each link's response to its *own*
-margin, which controls spatial churn far better than a shared country curve.
+country)``, ``(combination, country)`` for multi-cropping, grassland per
+country, ``(animal product, country)``), ``region`` resolves that per
+optimisation region, and ``link`` gives every production link its own curve. A
+coarse curve says nothing about where within the group activity sits, so
+reallocation across regions, resource classes and water-supply types is left
+to the per-link deviation penalty; at ``link`` granularity the curves price
+that reallocation themselves and replace the deviation penalty outright,
+leaving each link's response to its *own* margin -- which controls spatial
+churn far better than a shared country curve.
 
 **Configuration options**:
 
 * ``supply_response.enabled``: master switch (default: ``false``).
-* ``supply_response.n_blocks``: tranches per direction.
+* ``supply_response.n_blocks``: breakpoints per side of the baseline.
 * ``supply_response.expansion_range`` / ``contraction_range``: the
-  directional range as a fraction of group baseline. The outermost tranche is
-  unbounded, so ``expansion_range`` sets where the curve stops being resolved
-  rather than a cap; contraction at ``1.0`` reaches zero activity.
-* ``supply_response.width_growth``: relative width of each successive tranche.
-  ``1.0`` gives equal widths; above 1 concentrates resolution near the baseline.
+  directional range as a fraction of group baseline. The envelope extrapolates
+  beyond the range, so ``expansion_range`` sets where the curve stops being
+  resolved rather than a cap; contraction at ``1.0`` reaches zero activity.
+* ``supply_response.width_growth``: relative spacing of successive breakpoints.
+  ``1.0`` gives equal spacing; above 1 concentrates resolution near the
+  baseline.
 * ``supply_response.granularity``: spatial resolution of the curves,
   ``country`` / ``region`` / ``link``.
 * ``supply_response.pin_baseline``: phase-1 calibration switch; mutually
@@ -559,9 +562,6 @@ margin, which controls spatial churn far better than a shared country curve.
 * Groups with no baseline activity get no curve; whether an activity absent
   from the baseline may appear at all is governed by the :ref:`growth caps
   <growth-caps>`.
-* Multi-cropping links are not covered yet: their duals price a joint cycle
-  bundle rather than one constituent crop, so they keep the per-link deviation
-  penalty alone.
 * A group whose baseline-weighted marginal cost is not positive is an error,
   since the slope is undefined there.
 

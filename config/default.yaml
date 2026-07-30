@@ -232,14 +232,15 @@ deviation_penalty:
 # the elasticity, the per-link term spatial inertia.
 supply_response:
   enabled: false
-  n_blocks: 6            # Tranches per direction approximating the quadratic
-  expansion_range: 0.5   # Up-range as a fraction of group baseline (last tranche extrapolates)
+  n_blocks: 6            # Breakpoints per side of the baseline sampling the quadratic
+  expansion_range: 0.5   # Up-range as a fraction of group baseline (extrapolates beyond)
   contraction_range: 1.0 # Down-range as a fraction of group baseline (1.0 reaches zero)
-  # Relative width of each successive tranche. Activity moves in whole tranches,
-  # so equal widths (1.0) resolve nothing finer than range / n_blocks, which is
-  # coarser than the few-percent moves most groups make. Above 1 the near
-  # tranches narrow, putting the resolution at the baseline where groups sit
-  # while the outer tranches still resolve large moves.
+  # Relative spacing of successive breakpoints. Between adjacent breakpoints the
+  # marginal cost is a single chord slope, so equal spacing (1.0) resolves
+  # nothing finer than range / n_blocks -- coarser than the few-percent moves
+  # most groups make. Above 1 the spacing narrows near the baseline, putting the
+  # resolution where groups sit while the outer breakpoints still resolve large
+  # moves.
   width_growth: 2.0
   # Spatial resolution of the curves: "country" prices a country's total output
   # of a commodity, "region" prices it per optimisation region, "link" gives
@@ -265,11 +266,13 @@ supply_response:
   # slowly than annual crops; grassland is the least elastic.
   elasticities:
     crops: 0.5
+    multi_crops: 0.5
     grassland: 0.3
     animals: 0.4
   elasticity_factor: 1.0 # Global multiplier for scanning the elasticity assumption
   components:
     crops: true
+    multi_crops: true
     grassland: true
     animals: true
 
