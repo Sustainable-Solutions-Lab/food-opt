@@ -27,17 +27,23 @@ becomes ``c_g + lambda_g`` -- exactly the marginal value there. The observed
 allocation then satisfies the optimality conditions of the *unpinned* model and
 is reproduced exactly, with no hard constraints and nothing tuned.
 
-For a group ``g`` with observed activity ``b_g``, a linear marginal-cost curve
-through the calibrated point reproducing supply elasticity ``eta`` has slope
+For a group ``g`` with observed activity ``b_g`` and accounting marginal cost
+``c_g``, a linear marginal-cost curve reproducing supply elasticity ``eta`` has
+slope
 
-    gamma_g = (c_g + lambda_g) / (eta * b_g),
+    gamma_g = c_g / (eta * b_g),
 
 since equating marginal cost to the marginal value of output gives
-``dX/dv = 1 / gamma`` and hence ``eta = v / (gamma * b)`` with
-``v = c_g + lambda_g`` at the calibrated point (Merel and Bucaram 2010: the
-elasticity is stated at the calibrated marginal cost, not the accounting cost).
-Without intercepts ``lambda_g = 0`` and the accounting cost stands in, which
-anchors only as well as the cost calibration aligned costs with values.
+``dX/dv = 1 / gamma`` and hence ``eta = v / (gamma * b)`` with ``v = c_g`` at
+the calibrated point. The elasticity is stated at the accounting cost (Howitt's
+original form) rather than at the calibrated marginal cost ``c_g + lambda_g``
+(Merel and Bucaram 2010): under a pinned diet the wedges trace the Ricardian
+rent gradient, and sub-marginal groups at the extensive margin have
+``c_g + lambda_g <= 0``, where the calibrated-cost form is undefined. Exactness
+does not depend on this choice -- only the intercept enters the optimality
+condition at the baseline -- but a group with wedge ``lambda_g`` realises
+elasticity ``eta * (c_g + lambda_g) / c_g`` with respect to the market price,
+so rent-poor groups respond more stiffly than ``eta`` suggests.
 
 The curve enters the objective as its deviation cost, the integral of the slope
 from the baseline,
@@ -451,23 +457,29 @@ def _add_component_curves(
                 "granularity"
             )
 
-    # Marginal value of each group's output at the observed activity: the
-    # accounting cost plus the calibrated wedge (zero without intercepts).
-    calibrated_cost = groups["cost"] + lam
-    bad = calibrated_cost <= 0
+    bad = groups["cost"] <= 0
     if bad.any():
         raise ValueError(
             f"{int(bad.sum())} {component} group(s) have a non-positive "
-            f"calibrated marginal cost (e.g. {group_index[bad][:5].tolist()}); "
-            "the supply-curve slope gamma = (cost + intercept) / (elasticity * "
-            "baseline) is undefined. Without intercepts this means a zero "
-            "accounting cost -- an upstream data problem; with intercepts it "
-            "means the pinned solve valued the group's output at or below "
-            "nothing, which wants investigating rather than defaulting away."
+            f"baseline-weighted marginal cost (e.g. "
+            f"{group_index[bad][:5].tolist()}); the supply-curve slope "
+            "gamma = cost / (elasticity * baseline) is undefined. Marginal "
+            "costs come from the cost data and the cost calibration, so a zero "
+            "here is an upstream data problem rather than something to default "
+            "away."
         )
 
-    # Slope of the marginal-cost curve, in objective units per activity squared.
-    slope = calibrated_cost / (elasticity * groups["baseline"])
+    # Slope of the marginal-cost curve, in objective units per activity
+    # squared. Stated at the accounting cost, not the calibrated marginal cost
+    # c + lambda: under a pinned diet the wedges trace the Ricardian rent
+    # gradient, and sub-marginal groups at the extensive margin have
+    # c + lambda <= 0, where a calibrated-cost slope is undefined. The
+    # intercept alone carries exactness -- the observed optimum only needs the
+    # marginal cost *level* at the baseline to match the marginal value there
+    # -- so the slope choice affects only the stiffness of the response, which
+    # for a group with wedge lambda realises elasticity
+    # eta * (c + lambda) / c with respect to the market price.
+    slope = groups["cost"] / (elasticity * groups["baseline"])
 
     coords = {
         "sr_group": group_index.to_numpy(),

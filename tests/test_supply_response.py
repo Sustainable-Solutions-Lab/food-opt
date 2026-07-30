@@ -309,15 +309,15 @@ def test_intercepts_reproduce_the_baseline_exactly(tmp_path):
     assert total == pytest.approx(sum(BASELINE_MHA), rel=1e-9)
 
 
-def test_calibrated_elasticity_is_stated_at_the_calibrated_cost(tmp_path):
-    """Around the calibrated point, a price rise of s (relative to the
-    calibrated marginal cost) expands activity by eta * s of baseline."""
+def test_calibrated_curve_keeps_the_accounting_cost_slope(tmp_path):
+    """The slope is stated at the accounting cost, so around the calibrated
+    point a price rise of s * cost expands activity by eta * s of baseline."""
     eta, shock = 0.5, 0.1
     calibrated_price = COST * 1.5
     path = _fit_intercepts(calibrated_price, _cfg(crops=eta), tmp_path)
     baseline = sum(BASELINE_MHA)
     total = _solve(
-        _make_network(calibrated_price * (1 + shock)),
+        _make_network(calibrated_price + shock * COST),
         _cfg(crops=eta, intercepts=path),
     )
     arc_elasticity = ((total - baseline) / baseline) / shock

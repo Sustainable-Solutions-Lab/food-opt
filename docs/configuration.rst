@@ -480,22 +480,27 @@ the observed allocation is the *exact* optimum of the unpinned model -- no hard
 constraints, nothing tuned. The elasticity then only governs the response away
 from the calibrated point.
 
-For a group :math:`g` with observed activity :math:`b_g`, the marginal-cost
-curve through the calibrated point reproducing own-price supply elasticity
+For a group :math:`g` with observed activity :math:`b_g` and marginal cost
+:math:`c_g`, the marginal-cost curve reproducing own-price supply elasticity
 :math:`\eta` has slope
 
 .. math::
 
-   \gamma_g = \frac{c_g + \lambda_g}{\eta \, b_g},
+   \gamma_g = \frac{c_g}{\eta \, b_g}.
 
-the elasticity being stated at the calibrated marginal cost. The curve enters
-the objective as :math:`\lambda_g (X_g - b_g) + \tfrac{1}{2}\gamma_g (X_g -
-b_g)^2`, which is convex, and whose minimum net of the value of output sits at
-the observed activity. The quadratic is approximated by ``n_blocks`` tranches
-per direction, each priced at the intercept plus the slope times its midpoint
-deviation, so the model stays an LP. Without intercepts :math:`\lambda_g = 0`
-and the accounting cost stands in, which anchors only as well as the cost
-calibration aligned costs with values.
+The elasticity is stated at the accounting cost rather than at the calibrated
+marginal cost :math:`c_g + \lambda_g`: under a pinned diet the wedges trace
+the Ricardian rent gradient, and sub-marginal groups at the extensive margin
+have :math:`c_g + \lambda_g \le 0`, where a calibrated-cost slope is
+undefined. Exactness does not depend on the slope -- only the intercept enters
+the optimality condition at the baseline -- but a group with wedge
+:math:`\lambda_g` responds with realised elasticity :math:`\eta (c_g +
+\lambda_g) / c_g` to its market price. The curve enters the objective as
+:math:`\lambda_g (X_g - b_g) + \tfrac{1}{2}\gamma_g (X_g - b_g)^2`, which is
+convex and, net of the value of output, minimised at the observed activity.
+The quadratic is approximated by ``n_blocks`` tranches per direction, each
+priced at the intercept plus the slope times its midpoint deviation, so the
+model stays an LP.
 
 Activity moves in whole tranches, so the tranche width sets the finest response
 the curve can express. With equal widths this is
@@ -557,10 +562,8 @@ margin, which controls spatial churn far better than a shared country curve.
 * Multi-cropping links are not covered yet: their duals price a joint cycle
   bundle rather than one constituent crop, so they keep the per-link deviation
   penalty alone.
-* A group whose calibrated marginal cost :math:`c_g + \lambda_g` is not
-  positive is an error, since the slope is undefined there. Without intercepts
-  this means a zero accounting cost; with intercepts it means the pinned solve
-  valued the group's output at or below nothing.
+* A group whose baseline-weighted marginal cost is not positive is an error,
+  since the slope is undefined there.
 
 .. _growth-caps:
 
