@@ -232,9 +232,15 @@ deviation_penalty:
 # the elasticity, the per-link term spatial inertia.
 supply_response:
   enabled: false
-  n_blocks: 4            # Tranches per direction approximating the quadratic
+  n_blocks: 6            # Tranches per direction approximating the quadratic
   expansion_range: 0.5   # Up-range as a fraction of group baseline (last tranche extrapolates)
   contraction_range: 1.0 # Down-range as a fraction of group baseline (1.0 reaches zero)
+  # Relative width of each successive tranche. Activity moves in whole tranches,
+  # so equal widths (1.0) resolve nothing finer than range / n_blocks, which is
+  # coarser than the few-percent moves most groups make. Above 1 the near
+  # tranches narrow, putting the resolution at the baseline where groups sit
+  # while the outer tranches still resolve large moves.
+  width_growth: 2.0
   # Long-run own-price supply elasticities. Perennials and livestock adjust more
   # slowly than annual crops; grassland is the least elastic.
   elasticities:

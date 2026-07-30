@@ -43,6 +43,15 @@ tranche in each direction is left unbounded, which extrapolates the curve
 linearly at its top price and keeps the formulation feasible whatever the
 growth caps allow.
 
+Because activity moves in whole tranches, the tranche width sets the finest
+response the curve can express. With equal widths and a range of half the
+baseline, four blocks resolve nothing below 12.5% of baseline -- coarser than
+the moves most groups make, so the curve collapses into a flat-rate penalty and
+loses the graduated response it exists for. ``width_growth`` above 1 narrows the
+near tranches so resolution concentrates at the baseline where groups sit, while
+the outer tranches still resolve large moves; that is far cheaper than the many
+equal tranches the same near-baseline resolution would otherwise need.
+
 Granularity: curves apply to *groups* -- ``(crop, country)``, ``(country)`` for
 grassland, ``(product, country)`` for animals -- matching the units the cost
 calibration extracts corrections for. A group curve prices changes in a
@@ -147,6 +156,13 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
     factor = float(cfg["elasticity_factor"])
     if factor <= 0:
         raise ValueError(f"supply_response.elasticity_factor must be > 0, got {factor}")
+    width_growth = float(cfg["width_growth"])
+    if width_growth < 1:
+        raise ValueError(
+            f"supply_response.width_growth must be >= 1, got {width_growth}; "
+            "below 1 the tranches would widen toward the baseline, putting the "
+            "coarsest resolution where groups actually sit"
+        )
 
     for component, (carriers, baseline_col, group_cols) in COMPONENTS.items():
         if not cfg["components"][component]:
@@ -167,6 +183,7 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
             n_blocks=n_blocks,
             expansion=expansion,
             contraction=contraction,
+            width_growth=width_growth,
         )
 
 
@@ -207,6 +224,7 @@ def _add_component_curves(
     n_blocks: int,
     expansion: float,
     contraction: float,
+    width_growth: float,
 ) -> None:
     """Add the tranche variables, balance rows and objective terms for one component."""
     links_df = n.links.static
@@ -265,18 +283,28 @@ def _add_component_curves(
     }
     dims = ("sr_group", "sr_block")
 
+    # Relative tranche widths. At width_growth == 1 these are all equal, which
+    # spends resolution uniformly over the range; above 1 the near tranches are
+    # narrower, concentrating resolution at the baseline where nearly every
+    # group sits while the outer tranches still resolve large moves.
+    shares = width_growth ** np.arange(n_blocks)
+    shares = shares / shares.sum()
+
     def _tranches(range_fraction: float, direction: str):
         """Build tranche variables and their objective prices for one direction.
 
-        Widths are the group's directional range split evenly; prices are the
-        slope times each tranche's midpoint deviation, so the piecewise cost
-        traces the quadratic. The outermost tranche is unbounded so the curve
+        Widths split the group's directional range by ``shares``; each tranche is
+        priced at the slope times its midpoint deviation -- the width accumulated
+        before it plus half its own -- so the piecewise cost traces the quadratic
+        whatever the widths are. Prices rise with distance from the baseline, so
+        a cost-minimising solution fills the near tranches first and convexity
+        needs no ordering rows. The outermost tranche is unbounded so the curve
         extrapolates at its top price instead of imposing a hidden bound.
         """
-        width = (range_fraction * groups["baseline"] / n_blocks).to_numpy()
-        upper = np.tile(width[:, None], (1, n_blocks))
+        w = range_fraction * groups["baseline"].to_numpy()[:, None] * shares[None, :]
+        upper = w.copy()
         upper[:, -1] = np.inf
-        midpoints = (np.arange(1, n_blocks + 1) - 0.5)[None, :] * width[:, None]
+        midpoints = np.cumsum(w, axis=1) - w / 2
         prices = slope.to_numpy()[:, None] * midpoints
         var = m.add_variables(
             lower=0,

@@ -481,9 +481,21 @@ and enters the objective as its integral from the baseline,
 :math:`\tfrac{1}{2}\gamma_g (X_g - b_g)^2`, which is convex and minimised at the
 observed activity. The quadratic is approximated by ``n_blocks`` tranches per
 direction, each priced at the slope times its midpoint deviation, so the model
-stays an LP. Activity therefore moves in steps of
-``expansion_range * baseline / n_blocks``; raise ``n_blocks`` when that
-granularity is coarse relative to the movements of interest.
+stays an LP.
+
+Activity moves in whole tranches, so the tranche width sets the finest response
+the curve can express. With equal widths this is
+``expansion_range / n_blocks`` of baseline -- 12.5 % at four blocks over a range
+of half the baseline, which is coarser than the few-percent moves most groups
+make, and the curve then collapses into a flat-rate penalty and loses the
+graduated response it exists for. ``width_growth`` above 1 narrows the near
+tranches so the resolution sits at the baseline where groups actually are, while
+the outer tranches still resolve large moves. That is much cheaper than the many
+equal tranches the same near-baseline resolution would need: six tranches
+growing by a factor of two span the same range with a finest tranche of 0.8 % of
+baseline. Shrinking ``expansion_range`` instead is not equivalent -- it would
+resolve small moves but degenerate for large ones, which matter under carbon
+pricing.
 
 Curves apply per **group** -- ``(crop, country)``, grassland per country,
 ``(animal product, country)`` -- the same units the cost calibration extracts
@@ -502,6 +514,8 @@ and the per-link term the spatial inertia.
   directional range as a fraction of group baseline. The outermost tranche is
   unbounded, so ``expansion_range`` sets where the curve stops being resolved
   rather than a cap; contraction at ``1.0`` reaches zero activity.
+* ``supply_response.width_growth``: relative width of each successive tranche.
+  ``1.0`` gives equal widths; above 1 concentrates resolution near the baseline.
 * ``supply_response.elasticities.{crops,grassland,animals}``: own-price supply
   elasticity per component.
 * ``supply_response.elasticity_factor``: global multiplier on every elasticity,

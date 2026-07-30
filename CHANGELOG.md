@@ -34,8 +34,13 @@ introduce breaking changes to configuration and outputs.
   strength follows from an elasticity assumption rather than from a fitted
   deviation target. Curves price how much of a commodity a country produces,
   not where within the country it sits, so they complement the per-link
-  `deviation_penalty` rather than replacing it. Multi-cropping links are not
-  covered yet. See "Supply Response" in the configuration reference.
+  `deviation_penalty` rather than replacing it. Tranche widths grow away from
+  the baseline (`width_growth`) so the resolution sits where groups actually
+  are; with equal widths the curve cannot express a move smaller than
+  `expansion_range / n_blocks` of baseline and collapses into a flat-rate
+  penalty. The curve's deviation cost appears as its own `supply_response`
+  category in the objective breakdown. Multi-cropping links are not covered
+  yet. See "Supply Response" in the configuration reference.
 
 - Multiple cropping is now anchored to an observed baseline derived from
   MIRCA-OS v2 (new automated data source), using the available 2010, 2015, or

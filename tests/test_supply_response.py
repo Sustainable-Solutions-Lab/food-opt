@@ -35,6 +35,7 @@ def _cfg(
     n_blocks: int = 200,
     expansion_range: float = 0.5,
     contraction_range: float = 1.0,
+    width_growth: float = 1.0,
     crops: float = 0.5,
     elasticity_factor: float = 1.0,
     components: dict | None = None,
@@ -44,6 +45,7 @@ def _cfg(
         "n_blocks": n_blocks,
         "expansion_range": expansion_range,
         "contraction_range": contraction_range,
+        "width_growth": width_growth,
         "elasticities": {"crops": crops, "grassland": 0.3, "animals": 0.4},
         "elasticity_factor": elasticity_factor,
         "components": components
@@ -189,6 +191,42 @@ def test_invalid_block_count_raises():
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="n_blocks"):
         add_supply_response_curves(n, _cfg(n_blocks=0))
+
+
+def test_geometric_widths_reach_the_elasticity_with_far_fewer_blocks():
+    """Narrow near tranches resolve a small move that equal widths cannot.
+
+    This is the reason `width_growth` exists. At 4 equal tranches over a range of
+    half the baseline, nothing finer than 12.5% of baseline is resolved, so a 5%
+    target response is quantised to a whole tranche and the arc elasticity comes
+    out badly wrong. Growing the widths puts the resolution near the baseline.
+    """
+    shock = 0.1
+    eta = 0.5
+    baseline = sum(BASELINE_MHA)
+    uniform = _solve(_make_network(COST * (1 + shock)), _cfg(n_blocks=4, crops=eta))
+    geometric = _solve(
+        _make_network(COST * (1 + shock)),
+        _cfg(n_blocks=4, width_growth=3.0, crops=eta),
+    )
+    target = eta * shock * baseline
+    err_uniform = abs((uniform - baseline) - target)
+    err_geometric = abs((geometric - baseline) - target)
+    assert err_geometric < err_uniform
+
+
+def test_width_growth_one_matches_equal_widths():
+    """The default reproduces the equal-width formulation exactly."""
+    a = _solve(_make_network(COST * 1.1), _cfg(n_blocks=8, width_growth=1.0))
+    b = _solve(_make_network(COST * 1.1), _cfg(n_blocks=8))
+    assert a == pytest.approx(b, rel=1e-9)
+
+
+def test_width_growth_below_one_raises():
+    n = _make_network(COST)
+    n.optimize.create_model(include_objective_constant=False)
+    with pytest.raises(ValueError, match="width_growth"):
+        add_supply_response_curves(n, _cfg(width_growth=0.5))
 
 
 def test_contraction_range_above_one_raises():

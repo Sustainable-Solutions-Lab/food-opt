@@ -2089,7 +2089,7 @@ properties:
 
   supply_response:
     type: object
-    required: [enabled, n_blocks, expansion_range, contraction_range, elasticities, elasticity_factor, components]
+    required: [enabled, n_blocks, expansion_range, contraction_range, width_growth, elasticities, elasticity_factor, components]
     additionalProperties: false
     description: "Convex piecewise-linear supply curves through observed production, with curvature set by an exogenous supply elasticity per component."
     properties:
@@ -2109,6 +2109,10 @@ properties:
         exclusiveMinimum: 0
         maximum: 1
         description: "Down-range as a fraction of group baseline; 1.0 reaches zero activity."
+      width_growth:
+        type: number
+        minimum: 1
+        description: "Relative width of each successive tranche. 1.0 gives equal widths; above 1 concentrates resolution near the baseline."
       elasticities:
         type: object
         required: [crops, grassland, animals]
