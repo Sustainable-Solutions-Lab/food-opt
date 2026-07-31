@@ -4,8 +4,8 @@
 # tools/calibrate; do not edit by hand.
 # Licensing: see the annotation in REUSE.toml.
 base_config: config/gbd_anchored.yaml
-generated_at: '2026-07-31T18:42:56+00:00'
-git_commit: d9f3a131335f5ea126d2565941f8c4e58779790f
+generated_at: '2026-07-31T21:28:15+00:00'
+git_commit: 5496ce53b867cc2b979ba4db94628e9bc36842d5
 source: gbd-anchored
 structural_config:
   aggregation.irrigated_area_source: current
