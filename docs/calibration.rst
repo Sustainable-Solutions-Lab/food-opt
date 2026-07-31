@@ -34,8 +34,9 @@ so that ordinary builds don't need to re-solve anything. See
    Two artefact sets are committed, both fit against the default GDD-IA
    diet source and differing only in anchoring: ``default``, fit against
    the anchoring-off diet of the default config; and ``gbd-anchored``,
-   fit against the GBD-anchored diet and consumed by the health-enabled
-   configs (``gsa``, ``doc_figures``) via
+   fit against ``config/gbd_anchored.yaml`` -- the default config with
+   the GBD-anchored diet as its only structural change -- and consumed
+   by the health-enabled configs (``gsa``, ``doc_figures``) via
    ``calibration.source: gbd-anchored``. No set is shipped for
    ``diet.source: fbs``: that source is supported but needs its own
    calibration run before use. ``tools/calibrate`` resolves anchoring

@@ -45,10 +45,11 @@ introduce breaking changes to configuration and outputs.
   curves are available where a coarser anchor is wanted. The curve cost
   appears as its own `supply_response` category in the objective breakdown.
   The deviation-penalty machinery remains available for configs that
-  re-enable it, and its artefacts stay in the calibration sets. The shipped
-  `gbd-anchored` market-response artefact covers production; configs that
-  enable demand curves for that set must refit it with
-  `tools/calibrate --base <config> market_response`. See "Market Response" in
+  re-enable it, and its artefacts stay in the calibration sets. Both shipped
+  artefact sets (`default` and `gbd-anchored`) carry production and demand
+  curves; the `gbd-anchored` set is fit against a dedicated minimal base
+  config (`config/gbd_anchored.yaml`) whose only structural difference from
+  the default is the GBD-anchored baseline diet. See "Market Response" in
   the configuration reference and the calibration documentation.
 
 - The same mechanism now calibrates the demand side: a `demand` component

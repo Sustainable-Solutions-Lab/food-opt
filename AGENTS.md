@@ -339,9 +339,10 @@ Five calibrations feed the default workflow. Their outputs are organized
 in per-config artefact *sets* under `data/curated/calibration/<source>/`
 (selected by the `calibration.source` config key; git-tracked sets, both
 fit against the default GDD-IA diet source: `default` -- fit against the
-anchoring-off baseline diet -- and `gbd-anchored` -- fit against the
-GBD-anchored diet, consumed by the health-enabled configs) and builds
-depend on them. When upstream data or build logic changes materially,
+anchoring-off baseline diet -- and `gbd-anchored` -- fit against
+`config/gbd_anchored.yaml`, the default config with the GBD-anchored
+diet as its only structural change, consumed by the health-enabled
+configs) and builds depend on them. When upstream data or build logic changes materially,
 regenerate in this order:
 
 1. **feed** — `config/calibration/feed.yaml` → `grassland_yield.csv`,
