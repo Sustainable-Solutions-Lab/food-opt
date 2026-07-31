@@ -16,7 +16,7 @@ These tests pin down three analysis invariants:
    age-weighted effective RR differs across clusters.
 
 3. ``RR_d(log_total)`` must be evaluated via the chord PWL of exp() through
-   ``cause_log_breakpoints``, matching ``_add_stage2_lp_tangent``. Using
+   ``cause_log_breakpoints``, matching ``_add_stage2_piecewise``. Using
    ``exp(log_total)`` directly is the analytic value of a different
    function -- the chord upper-bounds it everywhere except at breakpoints.
 
