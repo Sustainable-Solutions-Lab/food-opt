@@ -1604,7 +1604,12 @@ def run_solve(
     # links below, and its guards against the other demand-side mechanisms
     # belong next to theirs.
     market_response_cfg = dict(smk.params.market_response)
-    if market_response_cfg["intercepts"] == "calibrated":
+    # Mirrors the DAG-time input gate: a disabled block never wires (or needs)
+    # the artefact, so the sentinel is only resolved for an enabled one.
+    if (
+        market_response_cfg["enabled"]
+        and market_response_cfg["intercepts"] == "calibrated"
+    ):
         # Same sentinel convention as the deviation penalty's l1_cost: the
         # calibrated artefact is declared as a rule input so the DAG tracks it.
         intercepts_path = getattr(smk.input, "market_response_calibration", None)
