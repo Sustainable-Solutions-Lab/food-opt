@@ -62,7 +62,7 @@ required:
   - food_loss_waste_calibration
   - food_demand_calibration
   - deviation_penalty
-  - supply_response
+  - market_response
   - solving
   - remote_solve
   - sensitivity
@@ -2087,7 +2087,7 @@ properties:
                 type: number
                 exclusiveMinimum: 0
 
-  supply_response:
+  market_response:
     type: object
     required: [enabled, n_blocks, expansion_range, contraction_range, width_growth, granularity, pin_baseline, pin_slack_cost, intercepts, calibration, elasticities, elasticity_factor, components]
     additionalProperties: false
@@ -2095,7 +2095,7 @@ properties:
     properties:
       enabled:
         type: boolean
-        description: "Master switch for the supply-response curves."
+        description: "Master switch for the market-response curves."
       n_blocks:
         type: integer
         minimum: 1

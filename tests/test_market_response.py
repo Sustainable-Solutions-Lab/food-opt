@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Tests for the convex piecewise-linear supply-response curves.
+"""Tests for the convex piecewise-linear market-response curves.
 
 Deliberately formulation-agnostic: each test drives a small LP through a real
 HiGHS solve and probes the resulting dispatch, so the suite pins the economic
@@ -20,9 +20,9 @@ import pandas as pd
 import pypsa
 import pytest
 
-from workflow.scripts.solve_model.supply_response import (
-    add_supply_response_curves,
-    extract_supply_response_intercepts,
+from workflow.scripts.solve_model.market_response import (
+    add_market_response_curves,
+    extract_market_response_intercepts,
 )
 
 BASELINE_MHA = (6.0, 4.0)  # two links in one (crop, country) group
@@ -126,7 +126,7 @@ def _make_network(
 def _solve(n: pypsa.Network, cfg: dict) -> float:
     """Create the model, add curves, solve, and return total group activity (Mha)."""
     n.optimize.create_model(include_objective_constant=False)
-    add_supply_response_curves(n, cfg)
+    add_market_response_curves(n, cfg)
     status, condition = n.model.solve(solver_name="highs")
     assert (status, condition) == ("ok", "optimal"), (status, condition)
     sol = n.model.variables["Link-p"].solution.sel(snapshot="now")
@@ -191,15 +191,15 @@ def test_zero_baseline_group_gets_no_curve():
     """A group with no observed activity has no point to build a curve through."""
     n = _make_network(COST * 2, baselines=(0.0, 0.0))
     n.optimize.create_model(include_objective_constant=False)
-    add_supply_response_curves(n, _cfg())
-    assert not [k for k in n.model.variables if "supply_response" in k]
+    add_market_response_curves(n, _cfg())
+    assert not [k for k in n.model.variables if "market_response" in k]
 
 
 def test_disabled_config_is_a_no_op():
     n = _make_network(COST)
     n.optimize.create_model(include_objective_constant=False)
-    add_supply_response_curves(n, _cfg(enabled=False))
-    assert not [k for k in n.model.variables if "supply_response" in k]
+    add_market_response_curves(n, _cfg(enabled=False))
+    assert not [k for k in n.model.variables if "market_response" in k]
 
 
 def test_non_positive_marginal_cost_raises():
@@ -207,14 +207,14 @@ def test_non_positive_marginal_cost_raises():
     n = _make_network(COST, cost=0.0)
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="non-positive"):
-        add_supply_response_curves(n, _cfg())
+        add_market_response_curves(n, _cfg())
 
 
 def test_invalid_block_count_raises():
     n = _make_network(COST)
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="n_blocks"):
-        add_supply_response_curves(n, _cfg(n_blocks=0))
+        add_market_response_curves(n, _cfg(n_blocks=0))
 
 
 def test_geometric_widths_reach_the_elasticity_with_far_fewer_blocks():
@@ -264,27 +264,27 @@ def test_link_granularity_curves_each_link_and_keeps_the_elasticity():
 def test_link_granularity_builds_one_group_per_link():
     n = _make_network(COST)
     n.optimize.create_model(include_objective_constant=False)
-    add_supply_response_curves(n, _cfg(granularity="link"))
-    var = n.model.variables["crops_supply_response_cost"]
-    assert var.sizes["sr_group"] == len(BASELINE_MHA)
+    add_market_response_curves(n, _cfg(granularity="link"))
+    var = n.model.variables["crops_market_response_cost"]
+    assert var.sizes["mr_group"] == len(BASELINE_MHA)
 
 
 def test_unknown_granularity_raises():
     n = _make_network(COST)
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="granularity"):
-        add_supply_response_curves(n, _cfg(granularity="continent"))
+        add_market_response_curves(n, _cfg(granularity="continent"))
 
 
 def _fit_intercepts(price: float, cfg: dict, tmp_path) -> str:
     """PMP phase 1 on the fixture: pinned solve, wedges written to a CSV."""
     n = _make_network(price)
     n.optimize.create_model(include_objective_constant=False)
-    add_supply_response_curves(n, {**cfg, "pin_baseline": True, "intercepts": None})
+    add_market_response_curves(n, {**cfg, "pin_baseline": True, "intercepts": None})
     status, condition = n.model.solve(solver_name="highs")
     assert (status, condition) == ("ok", "optimal"), (status, condition)
     path = tmp_path / "intercepts.csv"
-    extract_supply_response_intercepts(n).to_csv(path, index=False)
+    extract_market_response_intercepts(n).to_csv(path, index=False)
     return str(path)
 
 
@@ -292,7 +292,7 @@ def test_pinned_solve_holds_activity_at_baseline():
     """Phase 1 fixes the group at its observed activity whatever the price."""
     n = _make_network(COST * 3)
     n.optimize.create_model(include_objective_constant=False)
-    add_supply_response_curves(n, _cfg(pin_baseline=True))
+    add_market_response_curves(n, _cfg(pin_baseline=True))
     status, condition = n.model.solve(solver_name="highs")
     assert (status, condition) == ("ok", "optimal")
     sol = n.model.variables["Link-p"].solution.sel(snapshot="now")
@@ -345,10 +345,10 @@ def test_elastic_pin_survives_an_infeasible_reference_and_censors_the_dual():
     # Capacity below the observed activity: the pin cannot be met exactly.
     n.links.static.loc[n.links.static.index.str.startswith("produce"), "p_nom"] = 3.0
     n.optimize.create_model(include_objective_constant=False)
-    add_supply_response_curves(n, _cfg(pin_baseline=True, pin_slack_cost=slack_cost))
+    add_market_response_curves(n, _cfg(pin_baseline=True, pin_slack_cost=slack_cost))
     status, condition = n.model.solve(solver_name="highs")
     assert (status, condition) == ("ok", "optimal")
-    table = extract_supply_response_intercepts(n)
+    table = extract_market_response_intercepts(n)
     assert table["slack"].to_numpy() == pytest.approx(-4.0)  # 6 capped at 3, x2
     # Activity is stuck below the pin, so at the margin the pinned unit is
     # worth less than its cost by at least the slack price: censored at
@@ -361,7 +361,7 @@ def test_pin_and_intercepts_are_mutually_exclusive(tmp_path):
     n = _make_network(COST)
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="mutually exclusive"):
-        add_supply_response_curves(n, _cfg(pin_baseline=True, intercepts=path))
+        add_market_response_curves(n, _cfg(pin_baseline=True, intercepts=path))
 
 
 def test_intercepts_from_a_different_granularity_raise(tmp_path):
@@ -371,21 +371,21 @@ def test_intercepts_from_a_different_granularity_raise(tmp_path):
     n = _make_network(COST * 1.5)
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="no entry"):
-        add_supply_response_curves(n, _cfg(granularity="country", intercepts=path))
+        add_market_response_curves(n, _cfg(granularity="country", intercepts=path))
 
 
 def test_width_growth_below_one_raises():
     n = _make_network(COST)
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="width_growth"):
-        add_supply_response_curves(n, _cfg(width_growth=0.5))
+        add_market_response_curves(n, _cfg(width_growth=0.5))
 
 
 def test_contraction_range_above_one_raises():
     n = _make_network(COST)
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="contraction_range"):
-        add_supply_response_curves(n, _cfg(contraction_range=1.5))
+        add_market_response_curves(n, _cfg(contraction_range=1.5))
 
 
 # ---------------------------------------------------------------------------
@@ -444,7 +444,7 @@ def _make_demand_network(
 
 def _solve_demand(n: pypsa.Network, cfg: dict) -> float:
     n.optimize.create_model(include_objective_constant=False)
-    add_supply_response_curves(n, cfg)
+    add_market_response_curves(n, cfg)
     status, condition = n.model.solve(solver_name="highs")
     assert (status, condition) == ("ok", "optimal"), (status, condition)
     sol = n.model.variables["Link-p"].solution.sel(snapshot="now")
@@ -454,11 +454,11 @@ def _solve_demand(n: pypsa.Network, cfg: dict) -> float:
 def _fit_demand_intercepts(supply_price: float, cfg: dict, tmp_path) -> str:
     n = _make_demand_network(supply_price)
     n.optimize.create_model(include_objective_constant=False)
-    add_supply_response_curves(n, {**cfg, "pin_baseline": True, "intercepts": None})
+    add_market_response_curves(n, {**cfg, "pin_baseline": True, "intercepts": None})
     status, condition = n.model.solve(solver_name="highs")
     assert (status, condition) == ("ok", "optimal"), (status, condition)
     path = tmp_path / "demand_intercepts.csv"
-    table = extract_supply_response_intercepts(n)
+    table = extract_market_response_intercepts(n)
     # In this fixture supply is a bare generator at a fixed price, so the
     # slope-basis solve would measure the same wedge; the calibration driver
     # normally stitches this column from a separate zero-intercept solve.
@@ -507,7 +507,7 @@ def test_demand_curves_without_intercepts_raise():
     n = _make_demand_network(SUPPLY_PRICE)
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="demand curves require"):
-        add_supply_response_curves(n, _demand_cfg())
+        add_market_response_curves(n, _demand_cfg())
 
 
 def test_sequential_pin_list_pins_demand_against_elastic_supply(tmp_path):
@@ -534,7 +534,7 @@ def test_sequential_pin_list_pins_demand_against_elastic_supply(tmp_path):
     # No demand links in this fixture: the point is that the list form applies
     # curves to the unpinned crops component instead of raising the
     # pin-vs-intercepts exclusivity error, and reproduces the baseline.
-    add_supply_response_curves(n, cfg)
+    add_market_response_curves(n, cfg)
     status, condition = n.model.solve(solver_name="highs")
     assert (status, condition) == ("ok", "optimal")
     sol = n.model.variables["Link-p"].solution.sel(snapshot="now")
@@ -552,4 +552,4 @@ def test_pin_list_with_unknown_component_raises():
     cfg = _cfg()
     cfg["pin_baseline"] = ["croops"]
     with pytest.raises(ValueError, match="unknown components"):
-        add_supply_response_curves(n, cfg)
+        add_market_response_curves(n, cfg)

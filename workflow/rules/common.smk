@@ -339,8 +339,8 @@ def calibration_artefact_inputs(cfg):
     ):
         inputs["deviation_penalty_calibration"] = dp_cal_cfg["calibrated_yaml"]
 
-    sr_cfg = cfg["supply_response"]
+    sr_cfg = cfg["market_response"]
     if sr_cfg["enabled"] and sr_cfg["intercepts"] == "calibrated":
-        inputs["supply_response_calibration"] = sr_cfg["calibration"]["calibrated_csv"]
+        inputs["market_response_calibration"] = sr_cfg["calibration"]["calibrated_csv"]
 
     return inputs

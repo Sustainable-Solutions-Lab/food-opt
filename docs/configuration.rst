@@ -415,8 +415,8 @@ across components.
 **Configuration options**:
 
 * ``deviation_penalty.enabled``: master switch (default: ``false``;
-  production anchoring comes from the :ref:`supply-response curves
-  <supply-response-curves>` by default).
+  production anchoring comes from the :ref:`market-response curves
+  <market-response-curves>` by default).
 * ``deviation_penalty.penalty_mode``: ``hard``, ``l1``, or ``quadratic``.
 * ``deviation_penalty.deviation_type``: ``absolute`` or ``relative``.
 * ``deviation_penalty.quadratic_cost``: shared coefficient for quadratic mode.
@@ -456,12 +456,12 @@ with ``tools/calibrate stability`` and lands at
 ``data/curated/calibration/<source>/deviation_penalty.yaml`` (see
 :doc:`calibration`).
 
-.. _supply-response-curves:
+.. _market-response-curves:
 
-Supply Response
+Market Response
 ^^^^^^^^^^^^^^^
 
-The ``supply_response`` section (the default anchoring mechanism) prices
+The ``market_response`` section (the default anchoring mechanism) prices
 departure from the baseline in the tradition of positive mathematical
 programming. Where the deviation penalty prices every unit of departure from
 the baseline at the same rate, a supply curve prices the *next* unit more than
@@ -548,28 +548,28 @@ and is mutually exclusive with both, as well as with
 
 **Configuration options**:
 
-* ``supply_response.enabled``: master switch.
-* ``supply_response.n_blocks``: breakpoints per side of the baseline.
-* ``supply_response.expansion_range`` / ``contraction_range``: the
+* ``market_response.enabled``: master switch.
+* ``market_response.n_blocks``: breakpoints per side of the baseline.
+* ``market_response.expansion_range`` / ``contraction_range``: the
   directional range as a fraction of group baseline. The envelope extrapolates
   beyond the range, so ``expansion_range`` sets where the curve stops being
   resolved rather than a cap; contraction at ``1.0`` reaches zero activity.
-* ``supply_response.width_growth``: relative spacing of successive breakpoints.
+* ``market_response.width_growth``: relative spacing of successive breakpoints.
   ``1.0`` gives equal spacing; above 1 concentrates resolution near the
   baseline.
-* ``supply_response.granularity``: spatial resolution of the curves,
+* ``market_response.granularity``: spatial resolution of the curves,
   ``country`` / ``region`` / ``link``.
-* ``supply_response.pin_baseline``: phase-1 calibration switch -- ``true``
+* ``market_response.pin_baseline``: phase-1 calibration switch -- ``true``
   pins every enabled component, a list of component names pins only those
   while the rest carry curves from ``intercepts`` (the sequential demand
   fit). The pin is elastic: reference data is never perfectly consistent with
   every hard constraint, so deviating from the pin is allowed at
   ``pin_slack_cost``, and groups that use slack get their intercept censored
   at that price and flagged in the log.
-* ``supply_response.intercepts``: path to the intercepts CSV from the
+* ``market_response.intercepts``: path to the intercepts CSV from the
   calibration of the same model at the same granularity, the sentinel
   ``"calibrated"``, or ``null``.
-* ``supply_response.elasticities.{crops,multi_crops,grassland,animals}``:
+* ``market_response.elasticities.{crops,multi_crops,grassland,animals}``:
   own-price supply elasticity per production component;
   ``elasticities.demand`` is the own-price food demand elasticity in
   magnitude. The defaults are central values from the empirical literature.
@@ -586,9 +586,9 @@ and is mutually exclusive with both, as well as with
   *American Journal of Public Health* 2010; Green et al., *BMJ* 2013) --
   hence 0.4 as a single central value. ``elasticity_factor`` exists
   precisely so sensitivity analyses can sweep these assumptions.
-* ``supply_response.elasticity_factor``: global multiplier on every elasticity,
+* ``market_response.elasticity_factor``: global multiplier on every elasticity,
   for scanning the assumption.
-* ``supply_response.components.{crops,multi_crops,grassland,animals,demand}``:
+* ``market_response.components.{crops,multi_crops,grassland,animals,demand}``:
   which components carry curves.
 
 **Behavior notes**:

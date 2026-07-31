@@ -2,18 +2,18 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""PMP calibration of the supply-response curve intercepts.
+"""PMP calibration of the market-response curve intercepts.
 
 One baseline-pinned solve, run in-process by the script; the duals of the
 pinning constraints are the per-group price wedges written to the artefact.
 """
 
 
-_sr_cal_cfg = config["supply_response"]["calibration"]
+_sr_cal_cfg = config["market_response"]["calibration"]
 
 if _sr_cal_cfg["generate"]:
 
-    rule calibrate_supply_response:
+    rule calibrate_market_response:
         input:
             # The pinned solve reads the same calibration artefacts an ordinary
             # solve does (its own output is gated off by generate mode), plus
@@ -37,8 +37,8 @@ if _sr_cal_cfg["generate"]:
             runtime=lambda w, attempt: 60 * (1 + attempt),
             mem_mb=lambda w, attempt: 12000 * attempt,
         log:
-            f"<logs>/{name}/calibrate_supply_response.log",
+            f"<logs>/{name}/calibrate_market_response.log",
         benchmark:
-            f"<benchmarks>/{name}/calibrate_supply_response.tsv"
+            f"<benchmarks>/{name}/calibrate_market_response.tsv"
         script:
-            "../scripts/calibrate_supply_response.py"
+            "../scripts/calibrate_market_response.py"

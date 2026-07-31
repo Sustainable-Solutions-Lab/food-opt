@@ -40,7 +40,7 @@ SOLVE_TIME_CONFIG_PREFIXES = {
     "validation.animal_growth_cap",
     "validation.crop_growth_cap",
     "deviation_penalty",
-    "supply_response",
+    "market_response",
     "macronutrients",
     "food_utility_piecewise",
     "food_incentives",
@@ -432,9 +432,9 @@ def build_scenario_entry(
     if dp_cal_cfg["enabled"] and deviation_penalty_uses_calibrated(dp_cfg):
         inputs["deviation_penalty_calibration"] = dp_cal_cfg["calibrated_yaml"]
 
-    sr_cfg = eff["supply_response"]
+    sr_cfg = eff["market_response"]
     if sr_cfg["enabled"] and sr_cfg["intercepts"] == CALIBRATED_SENTINEL:
-        inputs["supply_response_calibration"] = sr_cfg["calibration"]["calibrated_csv"]
+        inputs["market_response_calibration"] = sr_cfg["calibration"]["calibrated_csv"]
 
     if inline_analysis:
         inputs["population"] = rp("<processing>/{name}/population.csv")
@@ -459,7 +459,7 @@ def build_scenario_entry(
         "food_group_constraints": eff["food_groups"]["constraints"],
         "enforce_baseline": eff["validation"]["enforce_baseline_diet"],
         "deviation_penalty": eff["deviation_penalty"],
-        "supply_response": eff["supply_response"],
+        "market_response": eff["market_response"],
         "animal_growth_cap": eff["validation"]["animal_growth_cap"],
         "crop_growth_cap": eff["validation"]["crop_growth_cap"],
         "food_utility_piecewise": utility_cfg,

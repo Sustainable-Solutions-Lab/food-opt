@@ -215,12 +215,12 @@ sensitivity_analysis:
       units: Mha
 
 # Block-based diminishing marginal utility for food consumption. This config
-# keeps the consumer-values / utility-blocks mechanism; the supply_response
+# keeps the consumer-values / utility-blocks mechanism; the market_response
 # demand component is its successor and must stay off alongside it.
 food_utility_piecewise:
   enabled: true
 
-supply_response:
+market_response:
   components:
     demand: false
 

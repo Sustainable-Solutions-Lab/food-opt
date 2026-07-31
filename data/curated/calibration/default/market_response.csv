@@ -1,4 +1,4 @@
-component,sr_group,intercept,slack
+component,mr_group,intercept,slack
 crops,produce:alfalfa_irrigated:region0000_c0,-0.908455,0
 crops,produce:alfalfa_irrigated:region0000_c1,-0.95091,0
 crops,produce:alfalfa_irrigated:region0000_c2,-92.7149,0

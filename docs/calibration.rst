@@ -98,9 +98,9 @@ so that ordinary builds don't need to re-solve anything. See
        ``animal_cost.csv``
      - Additive production-cost corrections derived from stability-
        constraint duals (observed allocation -> optimal allocation).
-   * - :ref:`supply_response <supply-response-calibration>`
-     - ``config/calibration/supply_response.yaml``
-     - ``supply_response.csv``
+   * - :ref:`market_response <market-response-calibration>`
+     - ``config/calibration/market_response.yaml``
+     - ``market_response.csv``
      - Per-group supply-curve intercepts (price wedges from one
        baseline-pinned solve) that make the observed allocation the
        exact optimum of the unpinned model.
@@ -109,7 +109,7 @@ so that ordinary builds don't need to re-solve anything. See
      - ``deviation_penalty.yaml``
      - The L1 penalty pair :math:`(\ell^c_1, \ell^a_1)` that brings both
        land-use and animal-feed deviations to ~5 % of observed totals.
-       Superseded by ``supply_response`` in the default chain; run
+       Superseded by ``market_response`` in the default chain; run
        explicitly for configs still using the deviation penalty.
 
 Dependency order
@@ -133,7 +133,7 @@ When upstream data or build logic changes, rerun in this order:
    per-food mismatch leaks into the cost-calibration duals as spurious
    sign (e.g. olive-oil cost driven negative, coffee/cocoa pegged at
    the slack ceiling) and inflates the stability L1 cost downstream.
-#. :ref:`supply_response <supply-response-calibration>` — the pinned
+#. :ref:`market_response <market-response-calibration>` — the pinned
    solve measures each group's residual price wedge against the fully
    calibrated feed, waste, demand, and cost behaviour, so the intercepts
    absorb exactly what the earlier steps could not.
@@ -155,7 +155,7 @@ Everything is wrapped by ``tools/calibrate``:
    tools/calibrate food_waste
    tools/calibrate food_demand
    tools/calibrate cost
-   tools/calibrate supply_response
+   tools/calibrate market_response
    tools/calibrate stability    # legacy L1 step, not in the default chain
    tools/calibrate --check      # per-step staleness + provenance, no execution
    tools/calibrate --record     # re-stamp the set as it stands, no execution
@@ -375,19 +375,19 @@ Script: ``workflow/scripts/extract_cost_calibration.py``. The two
 scenarios (``baseline`` and ``calibration``) live in
 ``config/calibration/cost.yaml``.
 
-.. _supply-response-calibration:
+.. _market-response-calibration:
 
-Supply-response intercept calibration
+Market-response intercept calibration
 -------------------------------------
 
 The default production-anchoring mechanism is the set of convex
-piecewise-linear supply curves described under :ref:`Supply Response
-<supply-response-curves>`. Their calibration is the standard two-phase
+piecewise-linear supply curves described under :ref:`Market Response
+<market-response-curves>`. Their calibration is the standard two-phase
 positive-mathematical-programming procedure: one solve with every curve
 group held at its observed activity behind an elastic pin
-(``supply_response.pin_baseline``), whose pinning duals -- the per-group
+(``market_response.pin_baseline``), whose pinning duals -- the per-group
 price wedges between marginal value and accounting cost -- are written
-to ``supply_response.csv`` and fed back as curve intercepts. With the
+to ``market_response.csv`` and fed back as curve intercepts. With the
 intercepts in place the observed allocation satisfies the optimality
 conditions of the unpinned model and is reproduced exactly, with no
 hard constraints and no tuned deviation target; the configured
@@ -415,7 +415,7 @@ marginal-utility slopes; (3) the demand pin runs again against the
 measured against exactly the supply side ordinary solves carry; (4) the
 production pin repeats with the fitted demand curves active and the
 demand intercepts are refit against the refined production curves, for
-``supply_response.calibration.sweeps`` passes in total, so each side's
+``market_response.calibration.sweeps`` passes in total, so each side's
 wedges converge to consistency with the other side's deployed
 behaviour (residual cross-side drift contracts roughly 4x per sweep).
 
@@ -430,13 +430,13 @@ The intercepts are keyed by curve group, so they are specific to both
 the ``granularity`` setting and -- at ``link`` granularity -- the exact
 model structure. A solve against intercepts from a structurally
 different build fails loudly on the missing group keys; regenerate with
-``tools/calibrate supply_response`` (or ``--base config/<name>.yaml``
+``tools/calibrate market_response`` (or ``--base config/<name>.yaml``
 for a dedicated artefact set).
 
-Rule: ``calibrate_supply_response`` in
-``workflow/rules/supply_response.smk``. Script:
-``workflow/scripts/calibrate_supply_response.py``. Config:
-``config/calibration/supply_response.yaml``.
+Rule: ``calibrate_market_response`` in
+``workflow/rules/market_response.smk``. Script:
+``workflow/scripts/calibrate_market_response.py``. Config:
+``config/calibration/market_response.yaml``.
 
 .. _prod-stability-calibration:
 

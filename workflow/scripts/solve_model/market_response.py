@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Convex piecewise-linear supply response (positive mathematical programming).
+"""Convex piecewise-linear market response (positive mathematical programming).
 
 The deviation penalty in :mod:`production_stability` anchors production with a
 single kink at the baseline: one absolute-value term per link, priced at a
@@ -150,7 +150,7 @@ def _evaluate_curve_cost(n: pypsa.Network, components) -> float:
     return sum(
         float(m.variables[name].solution.sum())
         for component in components
-        if (name := f"{component}_supply_response_cost") in m.variables
+        if (name := f"{component}_market_response_cost") in m.variables
     )
 
 
@@ -169,31 +169,31 @@ def evaluate_demand_response_cost(n: pypsa.Network) -> float:
     return _evaluate_curve_cost(n, DEMAND_COMPONENTS)
 
 
-def extract_supply_response_intercepts(n: pypsa.Network) -> pd.DataFrame:
+def extract_market_response_intercepts(n: pypsa.Network) -> pd.DataFrame:
     """Per-group price wedges from a baseline-pinned solve (PMP phase 1).
 
     The dual of each group's pinning constraint is the gap between the marginal
     value of the group's output and its marginal cost at the observed activity.
-    Returned as a frame with columns ``component``, ``sr_group``, ``intercept``;
-    fed back via ``supply_response.intercepts``, the wedges make the observed
+    Returned as a frame with columns ``component``, ``mr_group``, ``intercept``;
+    fed back via ``market_response.intercepts``, the wedges make the observed
     allocation the exact optimum of the unpinned model.
     """
     m = n.model
     frames = []
     for component in COMPONENTS:
-        name = f"GlobalConstraint-{component}_supply_response_balance"
+        name = f"GlobalConstraint-{component}_market_response_balance"
         if name not in m.constraints:
             continue
         dual = m.constraints[name].dual
         slack = (
-            m.variables[f"{component}_supply_response_pin_slack_up"].solution
-            - m.variables[f"{component}_supply_response_pin_slack_down"].solution
+            m.variables[f"{component}_market_response_pin_slack_up"].solution
+            - m.variables[f"{component}_market_response_pin_slack_down"].solution
         )
         frames.append(
             pd.DataFrame(
                 {
                     "component": component,
-                    "sr_group": dual.coords["sr_group"].values,
+                    "mr_group": dual.coords["mr_group"].values,
                     # The constraint reads activity == baseline, so the dual is
                     # the objective change per unit of *required* activity: the
                     # cost of producing one more unit minus the value gained.
@@ -209,8 +209,8 @@ def extract_supply_response_intercepts(n: pypsa.Network) -> pd.DataFrame:
         )
     if not frames:
         raise ValueError(
-            "no supply-response pinning constraints found; intercepts can only "
-            "be extracted from a solve with supply_response.pin_baseline: true"
+            "no market-response pinning constraints found; intercepts can only "
+            "be extracted from a solve with market_response.pin_baseline: true"
         )
     table = pd.concat(frames, ignore_index=True)
     slacked = table["slack"].abs() > 1e-6
@@ -219,18 +219,18 @@ def extract_supply_response_intercepts(n: pypsa.Network) -> pd.DataFrame:
             table.loc[slacked, "slack"].abs().sort_values(ascending=False).index
         )
         logger.warning(
-            "%d of %d pinned supply-response groups used pin slack (total "
+            "%d of %d pinned market-response groups used pin slack (total "
             "|slack| %.3f); their intercepts are censored at the slack price. "
             "Worst: %s",
             int(slacked.sum()),
             len(table),
             float(table["slack"].abs().sum()),
-            worst[["component", "sr_group", "slack"]].head(5).to_dict("records"),
+            worst[["component", "mr_group", "slack"]].head(5).to_dict("records"),
         )
     return table
 
 
-def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
+def add_market_response_curves(n: pypsa.Network, cfg: dict) -> None:
     """Add convex piecewise-linear supply curves to the objective.
 
     Parameters
@@ -238,32 +238,32 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
     n : pypsa.Network
         Network whose ``model`` has already been created.
     cfg : dict
-        The resolved ``supply_response`` configuration block.
+        The resolved ``market_response`` configuration block.
     """
     if not cfg["enabled"]:
         return
 
     n_blocks = int(cfg["n_blocks"])
     if n_blocks < 1:
-        raise ValueError(f"supply_response.n_blocks must be >= 1, got {n_blocks}")
+        raise ValueError(f"market_response.n_blocks must be >= 1, got {n_blocks}")
     expansion = float(cfg["expansion_range"])
     contraction = float(cfg["contraction_range"])
     if expansion <= 0:
         raise ValueError(
-            f"supply_response.expansion_range must be > 0, got {expansion}"
+            f"market_response.expansion_range must be > 0, got {expansion}"
         )
     if not 0 < contraction <= 1:
         raise ValueError(
-            "supply_response.contraction_range must satisfy 0 < r <= 1, got "
+            "market_response.contraction_range must satisfy 0 < r <= 1, got "
             f"{contraction}"
         )
     factor = float(cfg["elasticity_factor"])
     if factor <= 0:
-        raise ValueError(f"supply_response.elasticity_factor must be > 0, got {factor}")
+        raise ValueError(f"market_response.elasticity_factor must be > 0, got {factor}")
     width_growth = float(cfg["width_growth"])
     if width_growth < 1:
         raise ValueError(
-            f"supply_response.width_growth must be >= 1, got {width_growth}; "
+            f"market_response.width_growth must be >= 1, got {width_growth}; "
             "below 1 the breakpoints would spread toward the baseline, putting "
             "the coarsest resolution where groups actually sit"
         )
@@ -271,7 +271,7 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
     granularity = str(cfg["granularity"])
     if granularity not in GRANULARITY_COLUMNS:
         raise ValueError(
-            f"supply_response.granularity must be one of "
+            f"market_response.granularity must be one of "
             f"{sorted(GRANULARITY_COLUMNS)}, got '{granularity}'"
         )
     spatial_cols = GRANULARITY_COLUMNS[granularity]
@@ -287,7 +287,7 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
         unknown = set(pin_cfg) - set(COMPONENTS)
         if unknown:
             raise ValueError(
-                f"supply_response.pin_baseline names unknown components "
+                f"market_response.pin_baseline names unknown components "
                 f"{sorted(unknown)}; valid components: {sorted(COMPONENTS)}"
             )
         pinned_components = set(pin_cfg)
@@ -295,7 +295,7 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
         pinned_components = set(COMPONENTS) if pin_cfg else set()
     if pinned_components == set(COMPONENTS) and cfg["intercepts"]:
         raise ValueError(
-            "supply_response.pin_baseline and supply_response.intercepts are "
+            "market_response.pin_baseline and market_response.intercepts are "
             "mutually exclusive when every component is pinned: the pinned "
             "solve fits the intercepts against the accounting costs, so it "
             "must not itself carry intercepts"
@@ -304,7 +304,7 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
     intercepts = None
     if cfg["intercepts"]:
         intercepts_table = pd.read_csv(cfg["intercepts"]).set_index(
-            ["component", "sr_group"]
+            ["component", "mr_group"]
         )
         intercepts = intercepts_table["intercept"]
 
@@ -315,23 +315,23 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
         elasticity = float(cfg["elasticities"][component]) * factor
         if elasticity <= 0:
             raise ValueError(
-                f"supply_response.elasticities.{component} must be > 0 after "
+                f"market_response.elasticities.{component} must be > 0 after "
                 f"applying elasticity_factor, got {elasticity}"
             )
         if component in DEMAND_COMPONENTS and not pin and intercepts is None:
             raise ValueError(
-                "supply_response demand curves require fitted intercepts: the "
+                "market_response demand curves require fitted intercepts: the "
                 "marginal-utility level comes from the fitted willingness to "
                 "pay, so there is no uncalibrated variant. Provide "
-                "supply_response.intercepts or disable "
-                "supply_response.components.demand"
+                "market_response.intercepts or disable "
+                "market_response.components.demand"
             )
         component_intercepts = None
         component_slope_basis = None
         if intercepts is not None and not pin:
             if component not in intercepts.index.get_level_values("component"):
                 raise ValueError(
-                    f"supply_response.intercepts has no entries for component "
+                    f"market_response.intercepts has no entries for component "
                     f"'{component}'; the intercepts must come from a pinned "
                     "solve covering the same components"
                 )
@@ -339,10 +339,10 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
             if component in DEMAND_COMPONENTS:
                 if "slope_basis" not in intercepts_table.columns:
                     raise ValueError(
-                        "supply_response.intercepts has no slope_basis column; "
+                        "market_response.intercepts has no slope_basis column; "
                         "demand curves need the reference-price basis from the "
                         "sequential calibration (tools/calibrate "
-                        "supply_response)"
+                        "market_response)"
                     )
                 component_slope_basis = intercepts_table.xs(
                     component, level="component"
@@ -427,7 +427,7 @@ def _add_component_curves(
     links = links_df[links_df["carrier"].isin(carriers)]
     if links.empty or baseline_col not in links.columns:
         logger.info(
-            "No %s links with %s; skipping supply-response curves",
+            "No %s links with %s; skipping market-response curves",
             "/".join(carriers),
             baseline_col,
         )
@@ -450,18 +450,18 @@ def _add_component_curves(
         work["_group"].to_numpy(),
         coords={"name": work.index},
         dims="name",
-        name="sr_group",
+        name="mr_group",
     )
     activity = link_p.sel(name=work.index).groupby(group_map).sum()
     # groupby orders groups lexicographically, matching the sorted group table.
-    group_index = pd.Index(activity.coords["sr_group"].values)
+    group_index = pd.Index(activity.coords["mr_group"].values)
     if not group_index.equals(groups.index):
         groups = groups.reindex(group_index)
 
     if pin:
         # PMP phase 1: hold every group at its observed activity. The dual of
         # this constraint is the group's price wedge, extracted after the solve
-        # by extract_supply_response_intercepts. The pin is elastic -- slack at
+        # by extract_market_response_intercepts. The pin is elastic -- slack at
         # a high finite price -- because the reference data is never perfectly
         # consistent with every other constraint (land availability, water,
         # feed balances), and a hard pin would make the whole solve infeasible
@@ -471,29 +471,29 @@ def _add_component_curves(
         slack_cost = float(pin_slack_cost)
         if slack_cost <= 0:
             raise ValueError(
-                f"supply_response.pin_slack_cost must be > 0, got {slack_cost}"
+                f"market_response.pin_slack_cost must be > 0, got {slack_cost}"
             )
         baseline_da = xr.DataArray(
             groups["baseline"].to_numpy(),
-            coords={"sr_group": group_index.to_numpy()},
-            dims="sr_group",
+            coords={"mr_group": group_index.to_numpy()},
+            dims="mr_group",
         )
-        slack_coords = {"sr_group": group_index.to_numpy()}
+        slack_coords = {"mr_group": group_index.to_numpy()}
         slack_up = m.add_variables(
             lower=0,
             coords=slack_coords,
-            dims=("sr_group",),
-            name=f"{component}_supply_response_pin_slack_up",
+            dims=("mr_group",),
+            name=f"{component}_market_response_pin_slack_up",
         )
         slack_down = m.add_variables(
             lower=0,
             coords=slack_coords,
-            dims=("sr_group",),
-            name=f"{component}_supply_response_pin_slack_down",
+            dims=("mr_group",),
+            name=f"{component}_market_response_pin_slack_down",
         )
         m.add_constraints(
             activity - slack_up + slack_down == baseline_da,
-            name=f"GlobalConstraint-{component}_supply_response_balance",
+            name=f"GlobalConstraint-{component}_market_response_balance",
         )
         m.objective += slack_cost * (slack_up.sum() + slack_down.sum())
         logger.info(
@@ -513,7 +513,7 @@ def _add_component_curves(
             missing = lam.index[lam.isna()][:5].tolist()
             raise ValueError(
                 f"{int(lam.isna().sum())} {component} group(s) have no entry in "
-                f"supply_response.intercepts (e.g. {missing}); the intercepts "
+                f"market_response.intercepts (e.g. {missing}); the intercepts "
                 "must come from a pinned solve of the same model at the same "
                 "granularity"
             )
@@ -594,10 +594,10 @@ def _add_component_curves(
     # hidden activity bound.
     deviation = groups["baseline"].to_numpy()[:, None] * offsets[None, :]
     bp_coords = {
-        "sr_group": group_index.to_numpy(),
+        "mr_group": group_index.to_numpy(),
         BREAKPOINT_DIM: np.arange(len(offsets)),
     }
-    bp_dims = ("sr_group", BREAKPOINT_DIM)
+    bp_dims = ("mr_group", BREAKPOINT_DIM)
     x_points = xr.DataArray(
         groups["baseline"].to_numpy()[:, None] + deviation, bp_coords, bp_dims
     )
@@ -608,9 +608,9 @@ def _add_component_curves(
         bp_dims,
     )
     cost = m.add_variables(
-        coords={"sr_group": group_index.to_numpy()},
-        dims=("sr_group",),
-        name=f"{component}_supply_response_cost",
+        coords={"mr_group": group_index.to_numpy()},
+        dims=("mr_group",),
+        name=f"{component}_market_response_cost",
     )
     with warnings.catch_warnings():
         # The piecewise API is marked evolving upstream; our linopy fork is
@@ -619,12 +619,12 @@ def _add_component_curves(
         chords = tangent_lines(activity, x_points, y_points)
     m.add_constraints(
         cost >= chords,
-        name=f"GlobalConstraint-{component}_supply_response_curve",
+        name=f"GlobalConstraint-{component}_market_response_curve",
     )
     m.objective += cost.sum()
 
     logger.info(
-        "Added %s supply-response curves: %d groups x %d breakpoints/side "
+        "Added %s market-response curves: %d groups x %d breakpoints/side "
         "(elasticity=%.3f, baseline=%.1f, slope median=%.4g, intercept "
         "median=%.4g)",
         component,

@@ -246,7 +246,7 @@ def extract_objective_breakdown(n: pypsa.Network) -> pd.DataFrame:
             total.get("Production stability", 0.0) + stability_cost
         )
 
-    # Supply-response curves: a distinct anchoring mechanism from the deviation
+    # Market-response curves: a distinct anchoring mechanism from the deviation
     # penalty above, reported separately so a run using both can be read.
     supply_response_cost = n.meta.get("supply_response_cost", 0.0)
     if supply_response_cost:

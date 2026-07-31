@@ -135,7 +135,7 @@ calibration:
 
 # The diet is held fixed by the GBD group anchoring; demand curves would
 # soften that, so they stay off.
-supply_response:
+market_response:
   components:
     demand: false
 

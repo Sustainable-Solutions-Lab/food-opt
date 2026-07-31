@@ -2,19 +2,19 @@
 #
 # SPDX-License-Identifier: CC-BY-4.0
 
-# Supply-response intercept calibration (PMP phase 1)
+# Market-response intercept calibration (PMP phase 1)
 # ---------------------------------------------------
-# Sequential pinned solves driven by calibrate_supply_response.py: production
+# Sequential pinned solves driven by calibrate_market_response.py: production
 # groups pinned first (their duals are the production price wedges), then --
 # when the demand component is enabled -- the demand pin runs twice against
 # the production curves (zero-intercept for the slope-basis reference prices,
 # calibrated for the demand wedges). The stages are driven via per-stage
 # overrides of pin_baseline/intercepts; the values below only mark this config
 # as the fitting config. Everything lands in
-# data/curated/calibration/<source>/supply_response.csv.
+# data/curated/calibration/<source>/market_response.csv.
 #
 # Usage:
-#   tools/calibrate supply_response
+#   tools/calibrate market_response
 
 # ``tools/calibrate`` overrides this with a source- and step-specific name so
 # another calibration config cannot overwrite this step's intermediates.
@@ -45,7 +45,7 @@ deviation_penalty:
 food_utility_piecewise:
   enabled: false
 
-supply_response:
+market_response:
   enabled: true
   pin_baseline: true
   intercepts: null

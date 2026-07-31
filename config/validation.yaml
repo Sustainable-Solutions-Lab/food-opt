@@ -30,7 +30,7 @@ deviation_penalty:
 
 # Production is pinned via use_actual_production; the supply curves would
 # double-anchor it and require an intercepts artefact this config never fits.
-supply_response:
+market_response:
   enabled: false
 
 cost_calibration:

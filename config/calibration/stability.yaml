@@ -47,7 +47,7 @@ validation:
   use_actual_yields: true
 
 # The L1 being calibrated must be the only production anchoring in the solve.
-supply_response:
+market_response:
   enabled: false
 
 # Per-iteration scenarios override these; the baseline iteration disables

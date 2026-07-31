@@ -141,7 +141,7 @@ validation:
 # scenarios scan around the calibrated central value without hard-coding
 # absolute numbers (e.g. gsa.yaml's lower/higher regimes).
 deviation_penalty:
-  # Off by default: production anchoring comes from the supply_response curves
+  # Off by default: production anchoring comes from the market_response curves
   # below, which price spatial reallocation per link. The penalty machinery
   # remains available for configs and scenarios that re-enable it.
   enabled: false
@@ -219,7 +219,7 @@ deviation_penalty:
       feed: 0.03
       diet: 3.0
 
-# --- section: supply_response ---
+# --- section: market_response ---
 # Convex piecewise-linear supply curves through observed production, in the
 # positive-mathematical-programming tradition. Each production group gets a
 # marginal-cost curve through its observed activity whose slope reproduces the
@@ -227,7 +227,7 @@ deviation_penalty:
 # the dead-band-then-jump of an L1 kink, and the curvature comes from an
 # exogenous elasticity rather than a fitted deviation target. This is the
 # default production-anchoring mechanism, replacing the L1 deviation_penalty.
-supply_response:
+market_response:
   enabled: true
   n_blocks: 6            # Breakpoints per side of the baseline sampling the quadratic
   expansion_range: 0.5   # Up-range as a fraction of group baseline (extrapolates beyond)
@@ -246,7 +246,7 @@ supply_response:
   # curves leave that reallocation to it.
   granularity: "link"
   # PMP two-phase calibration. pin_baseline fixes every group at its observed
-  # activity (phase 1, run by ``tools/calibrate supply_response``); the pinning
+  # activity (phase 1, run by ``tools/calibrate market_response``); the pinning
   # duals -- per-group price wedges -- become intercepts that shift each curve
   # so its marginal cost at the baseline equals the marginal value there,
   # making the observed allocation the exact unconstrained optimum. intercepts
@@ -263,7 +263,7 @@ supply_response:
   intercepts: "calibrated"
   calibration:
     generate: false  # Generate the artefact via pinned solves (breaks DAG cycle when true)
-    calibrated_csv: "data/curated/calibration/{calibration_source}/supply_response.csv"
+    calibrated_csv: "data/curated/calibration/{calibration_source}/market_response.csv"
     # Production-fit passes in the sequential demand calibration. Each pass
     # after the first re-pins production with the fitted demand curves active
     # and refits the demand intercepts, contracting the residual

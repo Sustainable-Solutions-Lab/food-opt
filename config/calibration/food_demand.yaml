@@ -72,9 +72,9 @@ cost_calibration:
 deviation_penalty:
   enabled: false
 
-# Later-step calibration (lower-triangle rule): the supply-response curves
+# Later-step calibration (lower-triangle rule): the market-response curves
 # and their intercept artefact must not influence this step's fit.
-supply_response:
+market_response:
   enabled: false
 
 food_demand_calibration:

@@ -26,7 +26,7 @@ introduce breaking changes to configuration and outputs.
   the mirror to a new FAO release with `tools/mirror_faostat.py`.
 
 - Production anchoring is now done by exactly calibrated convex
-  piecewise-linear supply curves (new `supply_response` configuration
+  piecewise-linear supply curves (new `market_response` configuration
   section), replacing the L1 `deviation_penalty` as the default mechanism.
   Each production group -- including multi-cropping bundles -- gets a
   marginal-cost curve through its observed activity whose slope reproduces a
@@ -34,20 +34,20 @@ introduce breaking changes to configuration and outputs.
   and its strength follows from an elasticity assumption rather than from a
   fitted deviation target. The curves calibrate exactly by the standard
   two-phase positive-mathematical-programming procedure: a new
-  `supply_response` calibration step (one baseline-pinned solve, replacing the
+  `market_response` calibration step (one baseline-pinned solve, replacing the
   L1 `stability` step in the `tools/calibrate` chain) writes each group's
-  price wedge to `supply_response.csv`, and solves feed the wedges back as
+  price wedge to `market_response.csv`, and solves feed the wedges back as
   curve intercepts, reproducing the observed allocation as the exact
   unconstrained optimum -- no hard constraints, no tuned deviation target.
   The spatial resolution of the curves is configurable (`granularity`); the
   default is per production link, which prices spatial reallocation and makes
   the per-link deviation penalty redundant, and per-country or per-region
   curves are available where a coarser anchor is wanted. The curve cost
-  appears as its own `supply_response` category in the objective breakdown.
+  appears as its own `market_response` category in the objective breakdown.
   The deviation-penalty machinery remains available for configs that
   re-enable it, and its artefacts stay in the calibration sets; configs on
   the `gbd-anchored` set need `tools/calibrate --base <config>
-  supply_response` before solving with the curves. See "Supply Response" in
+  market_response` before solving with the curves. See "Market Response" in
   the configuration reference and the calibration documentation.
 
 - The same mechanism now calibrates the demand side: a `demand` component
@@ -55,11 +55,11 @@ introduce breaking changes to configuration and outputs.
   marginal-utility curve through its observed intake, with the willingness to
   pay fitted sequentially against the calibrated supply curves and the curve
   stiffness governed by an own-price food demand elasticity
-  (`supply_response.elasticities.demand`). Ordinary solves previously had no
+  (`market_response.elasticities.demand`). Ordinary solves previously had no
   demand-side valuation at all unless a config enabled the consumer-values /
   piecewise-utility mechanism; the demand component replaces that pattern (the
   two are mutually exclusive, and `food_utility_piecewise` remains available
-  for configs that keep it, with `supply_response.components.demand: false`).
+  for configs that keep it, with `market_response.components.demand: false`).
   The demand curves' cost appears as its own `demand_response` category in the
   objective breakdown.
 

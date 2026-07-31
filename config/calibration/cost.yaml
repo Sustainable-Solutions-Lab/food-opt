@@ -92,9 +92,9 @@ scenarios:
 food_utility_piecewise:
   enabled: true
 
-# Later-step calibration (lower-triangle rule): the supply-response curves
+# Later-step calibration (lower-triangle rule): the market-response curves
 # and their intercept artefact must not influence the cost duals.
-supply_response:
+market_response:
   enabled: false
 
 cost_calibration:

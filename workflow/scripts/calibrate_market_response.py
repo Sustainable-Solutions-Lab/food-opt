@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""PMP phase 1: fit the supply-response curve intercepts.
+"""PMP phase 1: fit the market-response curve intercepts.
 
 Sequential procedure (see the module docstring of
-``workflow.scripts.solve_model.supply_response`` for the reasoning):
+``workflow.scripts.solve_model.market_response`` for the reasoning):
 
 1. **Production pin** (stage A): every production group pinned to its observed
    activity, demand left to the base config's own regime. The pinning duals
@@ -17,7 +17,7 @@ Sequential procedure (see the module docstring of
 3. **Demand intercepts** (stage B1): the demand pin against the *calibrated*
    supply curves from stage A. The duals are the demand wedges consistent with
    exactly the supply side deployed solves carry.
-4. **Refinement sweeps** (``supply_response.calibration.sweeps``): the
+4. **Refinement sweeps** (``market_response.calibration.sweeps``): the
    production pin repeats with the fitted demand curves active -- stage A
    measured the production wedges under the base regime's demand, while
    deployed solves carry the demand curves -- and the demand intercepts are
@@ -30,7 +30,7 @@ chain, leaving the producer/consumer split of each chain's wedge undetermined
 
 The artefact concatenates the production wedges (stage A') with the demand
 rows (intercept from B1', ``slope_basis`` from B0), written to the path the
-``supply_response.intercepts: "calibrated"`` sentinel resolves to.
+``market_response.intercepts: "calibrated"`` sentinel resolves to.
 """
 
 import logging
@@ -40,7 +40,7 @@ import pandas as pd
 
 from workflow.scripts.logging_config import setup_script_logging
 from workflow.scripts.solve_model.core import _ShadowPriceLogFilter, run_solve
-from workflow.scripts.solve_model.supply_response import (
+from workflow.scripts.solve_model.market_response import (
     COMPONENTS,
     DEMAND_COMPONENTS,
 )
@@ -70,8 +70,8 @@ def _pinned_solve(
         skip_assign_duals=True,
     )
     if n is None:
-        raise RuntimeError(f"pinned supply-response solve '{scenario}' failed")
-    return n._supply_response_intercepts
+        raise RuntimeError(f"pinned market-response solve '{scenario}' failed")
+    return n._market_response_intercepts
 
 
 def _log_component_stats(table: pd.DataFrame) -> None:
@@ -95,7 +95,7 @@ def main() -> None:
     base_config = dict(smk.config)
     base_config.pop("scenarios", None)
     path_roots = default_path_roots(base_config)
-    demand_enabled = bool(base_config["supply_response"]["components"]["demand"])
+    demand_enabled = bool(base_config["market_response"]["components"]["demand"])
 
     # Stage A: pin production, demand in the base config's own regime.
     production = _pinned_solve(
@@ -104,7 +104,7 @@ def main() -> None:
         path_roots,
         "_sr_pin",
         {
-            "supply_response": {
+            "market_response": {
                 "pin_baseline": True,
                 "intercepts": None,
                 "components": {"demand": False},
@@ -124,17 +124,17 @@ def main() -> None:
             name,
             path_roots,
             "_sr_basis",
-            {"supply_response": {"pin_baseline": ["demand"], "intercepts": None}},
+            {"market_response": {"pin_baseline": ["demand"], "intercepts": None}},
         )
         basis = (
             basis[basis["component"] == "demand"]
-            .set_index("sr_group")["intercept"]
+            .set_index("mr_group")["intercept"]
             .abs()
         )
 
         def _fit_demand(stage: str, production_table: pd.DataFrame) -> pd.DataFrame:
             """Demand pin against the given production curves (stages B1/B1')."""
-            csv = stage_dir / f"supply_response_{stage}.csv"
+            csv = stage_dir / f"market_response_{stage}.csv"
             production_table.to_csv(csv, index=False, float_format="%.6g")
             fitted = _pinned_solve(
                 base_config,
@@ -142,14 +142,14 @@ def main() -> None:
                 path_roots,
                 f"_sr_{stage}",
                 {
-                    "supply_response": {
+                    "market_response": {
                         "pin_baseline": ["demand"],
                         "intercepts": str(csv),
                     }
                 },
             )
             fitted = fitted[fitted["component"] == "demand"].copy()
-            fitted["slope_basis"] = basis.reindex(fitted["sr_group"]).to_numpy()
+            fitted["slope_basis"] = basis.reindex(fitted["mr_group"]).to_numpy()
             if fitted["slope_basis"].isna().any():
                 raise RuntimeError(
                     "slope-basis solve is missing demand groups present in the "
@@ -165,9 +165,9 @@ def main() -> None:
         # instead of the base regime's), then the demand intercepts refit
         # against the refined production curves. Each sweep contracts the
         # residual cross-side drift by roughly 4x.
-        sweeps = int(base_config["supply_response"]["calibration"]["sweeps"])
+        sweeps = int(base_config["market_response"]["calibration"]["sweeps"])
         for sweep in range(1, sweeps):
-            interim_csv = stage_dir / f"supply_response_interim_{sweep}.csv"
+            interim_csv = stage_dir / f"market_response_interim_{sweep}.csv"
             pd.concat([production, demand], ignore_index=True).to_csv(
                 interim_csv, index=False, float_format="%.6g"
             )
@@ -177,7 +177,7 @@ def main() -> None:
                 path_roots,
                 f"_sr_refine_{sweep}",
                 {
-                    "supply_response": {
+                    "market_response": {
                         "pin_baseline": PRODUCTION_COMPONENTS,
                         "intercepts": str(interim_csv),
                     }
@@ -193,7 +193,7 @@ def main() -> None:
     table.to_csv(out_path, index=False, float_format="%.6g")
 
     _log_component_stats(table)
-    logger.info("Wrote %d supply-response intercepts to %s", len(table), out_path)
+    logger.info("Wrote %d market-response intercepts to %s", len(table), out_path)
 
 
 if __name__ == "__main__":

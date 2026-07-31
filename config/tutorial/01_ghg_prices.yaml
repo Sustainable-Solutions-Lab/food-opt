@@ -54,9 +54,9 @@ plotting:
   comparison_scenarios: "all"
 
 # This config's build differs structurally from the default, so the default
-# set's link-keyed supply-response intercepts do not apply; production
+# set's link-keyed market-response intercepts do not apply; production
 # anchoring stays with the L1 deviation penalty.
-supply_response:
+market_response:
   enabled: false
 deviation_penalty:
   enabled: true

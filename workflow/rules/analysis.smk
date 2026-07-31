@@ -95,8 +95,8 @@ if config["solving"]["inline_analysis"]:
             deviation_penalty=lambda w: get_effective_config(w.scenario)[
                 "deviation_penalty"
             ],
-            supply_response=lambda w: get_effective_config(w.scenario)[
-                "supply_response"
+            market_response=lambda w: get_effective_config(w.scenario)[
+                "market_response"
             ],
             animal_growth_cap=lambda w: get_effective_config(w.scenario)["validation"][
                 "animal_growth_cap"
