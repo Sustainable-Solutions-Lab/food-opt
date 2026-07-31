@@ -53,9 +53,10 @@ in objective per unit of relaxed consumption:
      = \frac{\partial (\text{total cost})}{\partial p_{\text{set}}(f, c)}.
 
 Sign convention in ``extract_consumer_values.py``:
-``value_bnusd_per_mt = -mu_p_set`` so that positive values mean *consumption
-is valuable to the consumer* (the model would pay this much per Mt to be
-allowed to consume more).
+``value_bnusd_per_mt = mu_p_set`` (and ``adjustment_bnusd_per_mt`` its
+negation) so that positive values mean *consumption is valuable to the
+consumer* (the model would pay this much per Mt to be allowed to consume
+more).
 
 Read carefully, a positive dual is **not** a "preference" in the everyday
 sense — it is whatever marginal cost the supply chain has to incur to deliver
@@ -67,15 +68,12 @@ to pay — i.e. that observed consumption is approximately at the equilibrium
 of supply cost and demand value. That is a common revealed-preference
 assumption in food-system modelling.
 
-**Negative duals are floored at zero.** A negative ``mu_p_set`` would mean
-the consumer pays the model to take more of the food, which is semantically
-backwards as a preference signal — it always indicates a supply-side
-artifact (e.g. forced co-product disposal, L1 production-stability dragging
-production toward baseline through binding caps elsewhere). The extractor
-floors these at zero so downstream consumers see consistent non-negative
-values. The clipped count and the most-negative foods are logged for
-traceability; the *Preconditions* section below catalogs the structural
-issues that produce them.
+**Negative duals are kept as-is.** A negative ``mu_p_set`` means the system
+saves cost when required to consume more of the food — typically a
+supply-side artifact (e.g. forced co-product disposal, or production
+anchoring dragging output toward baseline through binding caps elsewhere).
+The most-negative foods are logged for traceability; the *Preconditions*
+section below catalogs the structural issues that produce them.
 
 Visualisation
 -------------
