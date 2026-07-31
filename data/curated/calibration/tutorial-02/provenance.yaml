@@ -3,15 +3,15 @@
 # workflow/scripts/write_calibration_provenance.py via
 # tools/calibrate; do not edit by hand.
 # Licensing: see the annotation in REUSE.toml.
-base_config: config/gbd_anchored.yaml
-generated_at: '2026-07-31T22:28:16+00:00'
+base_config: config/tutorial/02_demand_response.yaml
+generated_at: '2026-07-31T22:33:29+00:00'
 git_commit: 4492a036cad165a3624d950ac1aebd8df1170d17
-source: gbd-anchored
+source: tutorial-02
 structural_config:
   aggregation.irrigated_area_source: current
   aggregation.regions.basin_scarcity_weight: 2.0
   aggregation.regions.method: kmeans
-  aggregation.regions.target_count: 750
+  aggregation.regions.target_count: 200
   aggregation.resource_class_quantiles:
   - 0.25
   - 0.5
@@ -829,7 +829,7 @@ structural_config:
       water_supplies:
       - r
       - i
-  diet.anchor_groups_to_gbd: true
+  diet.anchor_groups_to_gbd: false
   diet.baseline_age: All ages
   diet.fbs_override_foods:
   - yam

@@ -49,8 +49,7 @@ def validate_diet_basis(config: dict, project_root: Path) -> None:
         m = TABLE_NAME_RE.match(table_name)
         if not m:
             errors.append(
-                f"weight_conversion.{table_name}: name does not match "
-                "'<from>_to_<to>'"
+                f"weight_conversion.{table_name}: name does not match '<from>_to_<to>'"
             )
             continue
         src, dst = m.group(1), m.group(2)

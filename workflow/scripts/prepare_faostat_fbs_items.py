@@ -193,7 +193,7 @@ def main():
     needs_fallback = non_fbs_cells[non_fbs_cells > 0].sort_values(ascending=False)
     if len(needs_fallback) > 0:
         logger.info(
-            "%d countries used a fallback for at least one item " "(top: %s)",
+            "%d countries used a fallback for at least one item (top: %s)",
             len(needs_fallback),
             ", ".join(needs_fallback.head(10).index),
         )

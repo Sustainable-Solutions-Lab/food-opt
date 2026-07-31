@@ -169,8 +169,7 @@ def fetch_gdp_per_capita(
     # Log summary statistics
     n_imputed = df["imputed"].sum()
     logger.info(
-        f"Final dataset: {len(df)} countries "
-        f"({n_imputed} imputed from regional means)"
+        f"Final dataset: {len(df)} countries ({n_imputed} imputed from regional means)"
     )
     logger.info(
         f"GDP per capita range: ${df['gdp_per_capita'].min():,.0f} - "

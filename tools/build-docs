@@ -64,9 +64,8 @@ echo "=== Step 2/3: Solving tutorial scenarios and executing notebooks ==="
 # scenarios whose inputs changed, so repeated runs are cheap.
 tools/smk "${SMK_ARGS[@]}" --configfile config/tutorial/01_ghg_prices.yaml -- \
     analyze_all_scenarios
-tools/smk "${SMK_ARGS[@]}" --configfile config/tutorial/02_consumer_values.yaml -- \
-    analyze_all_scenarios \
-    results/tutorial_02/consumer_values/baseline/values.csv
+tools/smk "${SMK_ARGS[@]}" --configfile config/tutorial/02_demand_response.yaml -- \
+    analyze_all_scenarios
 
 # Bake the current solve outputs into the committed notebooks so MyST-NB can
 # render them. Executed in place; nbstripout is disabled for this subtree

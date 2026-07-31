@@ -42,9 +42,6 @@ health:
 deviation_penalty:
   enabled: false
 
-food_utility_piecewise:
-  enabled: false
-
 market_response:
   enabled: true
   pin_baseline: true

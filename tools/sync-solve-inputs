@@ -71,11 +71,6 @@ if [[ -d "data/curated/calibration" ]]; then
     SOURCES+=("data/curated/calibration/")
 fi
 
-# Consumer value files (if they exist).
-if [[ -d "results/${CONFIG_NAME}/consumer_values" ]]; then
-    SOURCES+=("results/${CONFIG_NAME}/consumer_values/")
-fi
-
 # Manifest file for cluster-solve (if it exists).
 if [[ -f ".batch/manifest_${CONFIG_NAME}.json" ]]; then
     SOURCES+=(".batch/manifest_${CONFIG_NAME}.json")

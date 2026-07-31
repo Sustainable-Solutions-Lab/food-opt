@@ -150,144 +150,130 @@ reduce emissions more cheaply — the model had no way to weigh "change what
 people eat" against "change how food is produced". Part 2 adds that missing
 piece.
 
-Part 2 — Letting diet respond via consumer values
--------------------------------------------------
+Part 2 — Letting the diet respond to policy
+--------------------------------------------
 
 In Part 1, we fixed consumption with ``enforce_baseline_diet: true``. That
 guarantees realism (nobody is forced to eat something unusual), but it also
-rules out dietary shift as a mitigation option. A more interesting model
-lets the optimiser decide when giving up some of today's diet is worth the
-GHG savings — which requires pricing the cost of deviating from today's
-diet.
+rules out dietary shift as a mitigation option. A more interesting model lets
+the optimiser decide when giving up some of today's diet is worth the GHG
+savings — which requires pricing how much today's diet is *worth*.
 
-GLADE does that by **deriving consumer values from a baseline
-solve**:
+GLADE prices it with **calibrated demand curves**, using the same
+positive-mathematical-programming machinery that anchors production (the
+``market_response`` mechanism, :doc:`calibration`). The idea rests on revealed
+preference: today's diet is what consumers actually chose at today's prices,
+so treat it as an economic equilibrium rather than a constraint.
+Operationally:
 
-1. Solve a baseline scenario with ``enforce_baseline_diet: true``. The
-   per-(food, country) equality constraints on the ``food_consumption``
-   links are binding, and their **dual variables** (shadow prices) represent
-   each food's marginal utility under today's diet — expressed as bn USD
-   per Mt.
-2. Feed those consumer values into a **piecewise diminishing-marginal-utility
-   curve** centred at baseline consumption. Each block represents an
-   additional increment of consumption beyond (or below) baseline, with
-   decreasing utility.
-3. In subsequent scenarios, drop ``enforce_baseline_diet`` and enable the
-   piecewise curve. Consumption is now free to move, but the optimiser
-   "pays" for deviations — so small dietary shifts are cheap while large
-   ones become expensive.
+1. **Measure** (calibration): solve the model once with every (food, country)
+   consumption pinned at its observed intake. The shadow price of each pin is
+   the gap between what supplying that food costs and what consumers evidently
+   value it at — a per-food willingness to pay.
+2. **Reproduce**: attach to each consumption link a marginal-utility curve
+   through the observed point, with the fitted willingness to pay as its
+   level. Today's diet is now the model's *unconstrained* optimum: solve with
+   no policy pressure and you get the observed food system back, with nothing
+   pinning it there.
+3. **Respond**: away from the observed point the curve falls off at a rate
+   set by literature demand elasticities (per food group, e.g. staples ~0.55,
+   meat and dairy ~0.72). Under a carbon price, emission-intensive foods
+   become dearer and consumption slides down each curve — by a lot where
+   demand is elastic, barely at all where it is not.
 
-The workflow automates steps 1–2: the ``extract_consumer_values`` and
-``calibrate_food_utility_blocks`` rules run automatically whenever a
-scenario needs the calibrated blocks.
+Step 1 — Calibrate the curves
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Step 1 — Look at the config
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Open ``config/tutorial/02_demand_response.yaml``:
 
-Open ``config/tutorial/02_consumer_values.yaml``:
-
-.. literalinclude:: ../config/tutorial/02_consumer_values.yaml
+.. literalinclude:: ../config/tutorial/02_demand_response.yaml
    :language: yaml
 
-The key differences from Part 1:
-
-* ``food_utility_piecewise.enabled: true`` at the top level turns on the
-  piecewise utility curve globally.
-* ``consumer_values.baseline_scenario: "baseline"`` tells the calibration
-  step which scenario's dual variables to extract. The name must match one
-  of the scenarios below.
-* The ``baseline`` scenario keeps ``enforce_baseline_diet: true`` and
-  **explicitly disables** the piecewise curve
-  (``food_utility_piecewise.enabled: false``). These two settings are
-  mutually exclusive — attempting to combine them raises a validation
-  error.
-* The ``ghg_mid`` and ``ghg_high`` scenarios inherit the top-level
-  ``food_utility_piecewise`` settings and do not set
-  ``enforce_baseline_diet``, so consumption is free.
-
-The piecewise-utility parameters themselves are worth a brief look:
-
-* ``n_blocks: 4`` — the curve has four steps above and below baseline.
-* ``decline_factor: 0.7`` — each successive block is worth 70% of the
-  previous one, giving diminishing returns.
-* ``total_width_multiplier: 2.0`` — the curve spans from 0 up to twice
-  baseline consumption.
-
-See :doc:`configuration` for the full description.
-
-Step 2 — Solve the baseline first
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Part 2 involves two sequential steps: the baseline must be solved before
-consumer values can be extracted and the other scenarios can build their
-utility blocks. Snakemake handles the dependency automatically, but it is
-instructive to do the baseline on its own first:
+The config inherits the market-response defaults; what it declares is a
+dedicated artefact set (``calibration.source: "tutorial-02"``). The curves are
+keyed to the exact model structure — at the default ``link`` granularity every
+production link carries its own curve — so a 200-region tutorial model cannot
+reuse the artefacts fit for the full-resolution default config. Fit the
+tutorial's own set (one command, roughly 10–20 minutes; add
+``CALIBRATE_PIXI_ENV=default`` to use the open-source solver):
 
 .. code-block:: bash
 
-   tools/smk -j4 --configfile config/tutorial/02_consumer_values.yaml -- \
-       results/tutorial_02/solved/model_scen-baseline.nc
+   tools/calibrate --base config/tutorial/02_demand_response.yaml
 
-After this finishes you will have:
+The result lands in ``data/curated/calibration/tutorial-02/``. The file to
+look at is ``market_response.csv``: one row per curve group, whose
+``intercept`` column holds the fitted wedges — for ``demand`` rows, minus the
+willingness to pay (bn USD/Mt, numerically USD/kg). Skim the beef and tomato
+rows for a feel of what the calibration inferred about consumer valuations.
 
-* ``results/tutorial_02/solved/model_scen-baseline.nc`` — the baseline
-  solution.
-* ``results/tutorial_02/consumer_values/baseline/values.csv`` — the
-  extracted dual variables.
-* ``results/tutorial_02/consumer_values/baseline/utility_blocks.csv`` — the
-  calibrated piecewise utility curve.
+Step 2 — The reference solve
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The companion notebook :doc:`tutorials/tutorial_02_analysis` begins with a
-quick look at the extracted values — the ``value_bnusd_per_mt`` column of
-``values.csv`` ranks each (food, country) pair by the marginal utility the
-baseline implies.
-
-Step 3 — Solve the remaining scenarios
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The ``reference`` scenario turns GHG pricing off and nothing else:
 
 .. code-block:: bash
 
-   tools/smk -j4 --configfile config/tutorial/02_consumer_values.yaml
+   tools/smk -j4 --configfile config/tutorial/02_demand_response.yaml -- \
+       results/tutorial_02/solved/model_scen-reference.nc
 
-Now both the mid- and high-GHG scenarios solve, using the same calibrated
-utility blocks. On a laptop, each solve takes a few minutes longer than
-Part 1 because the LP has extra variables for the piecewise blocks.
+This solve has **no baseline enforcement, no deviation penalty, and no hard
+anchoring constraints** — yet it lands within a fraction of a percent of
+observed 2020 production and consumption. That is the exact-calibration
+property doing its work, and it is worth pausing on: the observed food system
+is now the model's own economic optimum, so every later scenario measures a
+*departure caused by policy*, not an artefact of loose calibration.
 
-Step 4 — Compare against Tutorial 1 in a notebook
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Step 3 — Price the carbon
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The companion notebook :doc:`tutorials/tutorial_02_analysis` covers three
+Solve the remaining scenarios:
+
+.. code-block:: bash
+
+   tools/smk -j4 --configfile config/tutorial/02_demand_response.yaml
+
+Alongside the ``ghg_mid``/``ghg_high`` ladder, two variants make the demand
+side itself the experiment:
+
+* ``ghg_high_fixed`` freezes the diet at the observed baseline
+  (``components.demand: false`` + ``enforce_baseline_diet``) under the same
+  $200 carbon price — production-side mitigation only.
+* ``ghg_high_stiff`` halves every demand elasticity via
+  ``elasticity_factor: 0.5``. Elasticities enter only at solve time, so
+  scanning them needs no recalibration.
+
+Step 4 — Compare in the notebook
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The companion notebook :doc:`tutorials/tutorial_02_analysis` builds three
 comparisons:
 
-* Global food-group consumption across the three scenarios, to see whether —
-  and which — food groups actually shift once the diet is free.
-* The objective breakdown with the ``consumer_values`` column visible
-  alongside ``ghg_cost`` (the two forces trading off against each other).
-* A side-by-side comparison of net GHG emissions between Tutorial 1
-  (fixed diet) and Tutorial 2 (flexible diet) at identical GHG prices. The
-  gap between the two is a rough measure of the demand-side mitigation
-  potential.
-
-Also have a look at the auto-generated comparison plot at
-``results/tutorial_02/plots/consumer_values/consumption_comparison.pdf``,
-which shows the same pattern per food group.
+* **What shifts**: global food-group consumption across the price ladder —
+  which foods absorb the carbon price and which barely move.
+* **The two sides of the market**: the objective breakdown now carries
+  ``supply_response`` and ``demand_response`` columns — the cost of moving
+  production and consumption off their observed patterns — next to
+  ``ghg_cost``, the force pushing them.
+* **The value of flexibility**: net emissions and total cost of ``ghg_high``
+  vs ``ghg_high_fixed`` vs ``ghg_high_stiff``. The fixed-vs-flexible gap is a
+  direct measure of demand-side mitigation potential; the stiff variant shows
+  how much of it hinges on the elasticity assumption.
 
 Gotchas
 ~~~~~~~
 
-A few things that commonly trip people up:
-
-* ``food_utility_piecewise.enabled: true`` and
-  ``validation.enforce_baseline_diet: true`` cannot be active for the same
-  scenario. The baseline scenario enables the latter and disables the
-  former; all other scenarios do the opposite.
-* ``consumer_values.baseline_scenario`` must name a scenario that exists and
-  that has ``enforce_baseline_diet: true``. If it doesn't, the calibration
-  rule fails with a validation error.
-* The calibrated utility blocks are **specific to the baseline scenario**
-  that produced them. If you change the baseline (e.g. different
-  ``planning_horizon`` or ``baseline_year``), rerun the baseline solve so
-  the values and blocks are regenerated.
+* The intercept artefact is **specific to the model structure it was fit
+  against**. Change the region count, crop set, or diet source and the solve
+  fails loudly on missing curve groups — rerun
+  ``tools/calibrate --base <config>`` for the new structure.
+* ``market_response.components.demand`` and
+  ``validation.enforce_baseline_diet`` are mutually exclusive: a scenario
+  pinning the diet must switch the demand component off (see
+  ``ghg_high_fixed``).
+* Demand curves value consumption; they do not guarantee adequacy. The
+  nutrition constraints (:doc:`nutrition`) still put floors under nutrients,
+  so extreme carbon prices reshape diets rather than shrinking them away.
 
 Where to go from here
 ---------------------

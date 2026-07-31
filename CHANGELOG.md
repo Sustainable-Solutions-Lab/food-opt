@@ -67,9 +67,8 @@ introduce breaking changes to configuration and outputs.
   (`market_response.elasticities.demand`, central values from the Green et
   al. 2013 meta-regression). Ordinary solves previously had no
   demand-side valuation at all unless a config enabled the consumer-values /
-  piecewise-utility mechanism; the demand component replaces that pattern (the
-  two are mutually exclusive, and `food_utility_piecewise` remains available
-  for configs that keep it, with `market_response.components.demand: false`).
+  piecewise-utility mechanism; the demand component replaces that mechanism
+  (removed below).
   The demand curves' cost appears as its own `demand_response` category in the
   objective breakdown. Demand groups whose marginal utility is still positive
   at the outer end of the sampled range have their unbounded expansion tail
@@ -345,6 +344,19 @@ introduce breaking changes to configuration and outputs.
 
 ### Removed
 
+- The legacy demand-side mechanisms superseded by the `market_response` demand
+  component: the consumer-values workflow (baseline dual extraction and its
+  `results/{name}/consumer_values/` outputs), `food_utility_piecewise`
+  (piecewise utility blocks calibrated from consumer values),
+  `food_incentives` (flat per-food objective adjustments), and the
+  `optimal_taxes` workflow. Configs using these keys must migrate to
+  `market_response.components.demand` (with a calibrated artefact set for
+  their structure) or, for fixed-diet runs, `validation.enforce_baseline_diet`.
+  The GSA and documentation-figure configs now use the demand component, and
+  GSA runs no longer need a locally solved `baseline` scenario. The cost
+  calibration's tight-band solve now keeps the diet pinned to baseline instead
+  of using utility blocks, and the legacy `stability` calibration runs under
+  the base config's own demand regime.
 - The MARS surrogate method; supported surrogates are now `pce`, `rf`, `xgb`
   and `mlp`.
 - Unused configuration keys `health.ssb_sugar_g_per_100g`,

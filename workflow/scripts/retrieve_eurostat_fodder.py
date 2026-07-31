@@ -97,8 +97,7 @@ def _fetch_eurostat_apro_cpsh1(
     )
 
     base_url = (
-        "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/"
-        "apro_cpsh1"
+        "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/apro_cpsh1"
     )
     params = {
         "crops": list(EUROSTAT_CROP_CODES.keys()),

@@ -238,19 +238,6 @@ def solve_model_inputs(w):
         inputs.update(health_input_paths(w.name))
 
     # Add food incentives input if enabled for this scenario
-    if eff_cfg["food_incentives"]["enabled"]:
-        sources = eff_cfg["food_incentives"]["sources"]
-        if not sources:
-            raise ValueError("food_incentives enabled but sources is empty")
-        inputs["food_incentives"] = [
-            source.format(name=w.name, scenario=w.scenario) for source in sources
-        ]
-    utility_cfg = eff_cfg["food_utility_piecewise"]
-    if utility_cfg["enabled"]:
-        baseline_name = eff_cfg["consumer_values"]["baseline_scenario"]
-        inputs["food_utility_piecewise"] = (
-            f"<results>/{w.name}/consumer_values/{baseline_name}/utility_blocks.csv"
-        )
     equal_source = eff_cfg["food_groups"]["equal_by_country_source"]
     if equal_source:
         inputs["food_group_equal"] = equal_source.format(
@@ -374,9 +361,6 @@ rule solve_model:
         crop_growth_cap=lambda w: get_effective_config(w.scenario)["validation"][
             "crop_growth_cap"
         ],
-        food_utility_piecewise=lambda w: get_effective_config(w.scenario)[
-            "food_utility_piecewise"
-        ],
         fix_within_group_ratios=lambda w: get_effective_config(w.scenario)[
             "food_groups"
         ]["fix_within_group_ratios"],
@@ -424,9 +408,6 @@ rule solve_model:
         groundwater_cap=lambda w: get_effective_config(w.scenario)[
             "groundwater_depletion"
         ]["cap_mm3"],
-        food_incentives_enabled=lambda w: get_effective_config(w.scenario)[
-            "food_incentives"
-        ]["enabled"],
         equal_by_country_source=lambda w: get_effective_config(w.scenario)[
             "food_groups"
         ]["equal_by_country_source"],

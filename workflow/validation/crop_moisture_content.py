@@ -58,7 +58,7 @@ def validate_crop_moisture_content(config: dict, project_root: Path) -> None:
     if missing:
         missing_text = ", ".join(missing)
         raise ValueError(
-            "Config crops missing rows in crop_moisture_content.csv: " f"{missing_text}"
+            f"Config crops missing rows in crop_moisture_content.csv: {missing_text}"
         )
 
     unused = sorted(mapped_crops - config_crops)

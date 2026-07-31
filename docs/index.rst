@@ -99,7 +99,6 @@ Dietary constraints ensure that each country's population meets nutritional requ
    food_processing
    nutrition
    current_diets
-   consumer_values
    health
    environment
    costs

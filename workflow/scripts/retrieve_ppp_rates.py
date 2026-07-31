@@ -120,7 +120,7 @@ def fetch_eurozone_ppp(start_year: int, end_year: int) -> float:
     logger.info(
         f"Overall average PPP rate {start_year}-{end_year}: {avg_ppp:.4f} EUR per international $"
     )
-    logger.info(f"This implies: 1 EUR = {1/avg_ppp:.4f} international $")
+    logger.info(f"This implies: 1 EUR = {1 / avg_ppp:.4f} international $")
 
     return avg_ppp
 

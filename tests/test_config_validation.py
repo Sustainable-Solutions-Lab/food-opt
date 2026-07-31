@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from copy import deepcopy
 
 import pytest
 import yaml
 
-from workflow.validation.consumer_values import validate_consumer_values
+from workflow.validation.calibration import validate_calibration
 
 
 @pytest.fixture
@@ -26,42 +25,43 @@ def test_schema_requires_fixed_default_sections(default_config) -> None:
         assert set(default_config[section]) <= set(section_schema["required"])
 
 
-def test_disabled_piecewise_utility_needs_no_baseline(default_config) -> None:
-    validate_consumer_values(default_config)
+class TestStabilityYamlExistenceGate:
+    """The legacy stability yaml is required only when a solve would open it."""
 
+    @staticmethod
+    def _config(dp_enabled: bool, l1_cost) -> dict:
+        disabled = {"enabled": False, "generate": False, "scenario": "calibration"}
+        return {
+            "scenarios": {"default": {}},
+            "grazing": {"grassland_forage_calibration": dict(disabled)},
+            "exogenous_feed_calibration": dict(disabled),
+            "food_loss_waste_calibration": dict(disabled),
+            "food_demand_calibration": dict(disabled),
+            "cost_calibration": dict(disabled),
+            "deviation_penalty": {
+                "enabled": dp_enabled,
+                "penalty_mode": "l1",
+                "deviation_type": "absolute",
+                "land": {
+                    "crops": {"l1_cost": l1_cost},
+                    "grassland": {"l1_cost": l1_cost},
+                },
+                "feed": {"l1_cost": l1_cost},
+                "diet": {"l1_cost": 0.0},
+                "calibration": {
+                    "enabled": True,
+                    "generate": False,
+                    "calibrated_yaml": "missing/deviation_penalty.yaml",
+                },
+            },
+        }
 
-def test_piecewise_utility_requires_configured_baseline(default_config) -> None:
-    config = deepcopy(default_config)
-    config["food_utility_piecewise"]["enabled"] = True
+    def test_missing_yaml_accepted_when_penalty_is_off(self, tmp_path):
+        validate_calibration(self._config(False, "calibrated"), tmp_path)
 
-    with pytest.raises(ValueError, match="baseline scenario 'baseline' is not defined"):
-        validate_consumer_values(config)
+    def test_missing_yaml_accepted_without_calibrated_sentinel(self, tmp_path):
+        validate_calibration(self._config(True, 0.1), tmp_path)
 
-
-def test_piecewise_utility_requires_enforced_baseline(default_config) -> None:
-    config = deepcopy(default_config)
-    config["scenarios"]["baseline"] = {}
-    config["food_utility_piecewise"]["enabled"] = True
-
-    with pytest.raises(ValueError, match="enforce_baseline_diet=true"):
-        validate_consumer_values(config)
-
-
-def test_deviation_penalty_generation_skips_baseline_check(default_config) -> None:
-    """The Broyden iteration names a scenario it synthesizes per iteration."""
-    config = deepcopy(default_config)
-    config["food_utility_piecewise"]["enabled"] = True
-    config["consumer_values"]["baseline_scenario"] = "_cal_baseline_iter00"
-    config["deviation_penalty"]["calibration"]["generate"] = True
-
-    validate_consumer_values(config)
-
-
-def test_scenario_piecewise_utility_accepts_enforced_baseline(default_config) -> None:
-    config = deepcopy(default_config)
-    config["scenarios"] = {
-        "baseline": {"validation": {"enforce_baseline_diet": True}},
-        "utility": {"food_utility_piecewise": {"enabled": True}},
-    }
-
-    validate_consumer_values(config)
+    def test_missing_yaml_rejected_when_sentinel_resolves(self, tmp_path):
+        with pytest.raises(ValueError, match="calibrated_yaml"):
+            validate_calibration(self._config(True, "calibrated"), tmp_path)

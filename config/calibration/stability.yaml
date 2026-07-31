@@ -7,8 +7,8 @@
 # Drives the land and animal-feed deviation simultaneously to
 # `target_deviation_pct` (default 5% of observed 2020 totals) by running
 # Broyden's quasi-Newton iteration in log-log coordinates. Each iteration is
-# one paired solve (baseline with `enforce_baseline_diet=true` to derive
-# consumer values, then main with piecewise utility active).
+# one paired solve (baseline with `enforce_baseline_diet=true`, then main
+# under the base config's own demand regime).
 #
 # Warm-starts from an existing calibrated YAML when one exists on disk;
 # otherwise uses the seed values in `deviation_penalty.calibration.seeds`.
@@ -25,23 +25,13 @@
 name: "calibration"
 
 # Pin the calibration regime explicitly: the main solve inherits these
-# values (the baseline solve is always forced to 0/0 in the script so that
-# consumer values reflect raw revealed preferences).
+# values (the baseline solve is always forced to 0/0 in the script,
+# independent of any policy regime under investigation).
 emissions:
   ghg_pricing_enabled: false
 health:
   enabled: false
   value_per_yll: 0
-
-# Block-based diminishing marginal utility for food consumption (used by main
-# solves; baseline solves disable this inside the calibration script).
-food_utility_piecewise:
-  enabled: true
-
-# Fallback consumer_values baseline; the script overrides this per iteration
-# to point at that iteration's baseline scenario.
-consumer_values:
-  baseline_scenario: "_cal_baseline_iter00"
 
 validation:
   use_actual_yields: true

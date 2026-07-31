@@ -363,25 +363,21 @@ Cost calibration
 
 The cost calibration is a two-step paired solve:
 
-**Step 1 (consumer-value extraction).** A baseline solve with
-``enforce_baseline_diet: true`` extracts food-bus duals to build the
-piecewise consumer-utility blocks used downstream. Step 1 enables hard
-production-stability bounds at **+/-20 %** for crops, grassland, and
-animals; this prevents the LP from idealising supply patterns and
-pushing the consumer-value duals below realistic supply cost, which in
-earlier versions forced step 2 to absorb a large negative correction.
-The +/-20 % band is loose enough to accommodate the structural
-FAOSTAT-vs-FBS mismatch carried by most foods. For the small set of
-foods whose mismatch still exceeds the band (buckwheat, plantain,
-coffee, tea, olive-oil), a file-level
-``validation.slack_marginal_cost: 5.0`` ($5 000/t) override caps the
+**Step 1 (mismatch absorption).** A baseline solve with
+``enforce_baseline_diet: true`` and hard production-stability bounds at
+**+/-5 %** for crops, grassland, and animals absorbs the residual
+FAOSTAT-vs-FBS mismatch the food-demand calibration could not close.
+For the small set of foods whose mismatch exceeds the band (buckwheat,
+plantain, coffee, tea, olive-oil), a file-level
+``validation.slack_marginal_cost: 7.5`` ($7 500/t) override caps the
 slack-driven duals at the upper end of realistic wholesale prices --
 instead of the default ~$50 000/t slack ceiling -- while leaving
 enough headroom for legitimately high-value foods.
 
-**Step 2 (cost-correction extraction).** A second solve activates the
-piecewise utility built in step 1 and tightens production stability to
-**+/-1 %**. The dual :math:`\mu^+_\ell - \mu^-_\ell` on each tight
+**Step 2 (cost-correction extraction).** A second solve keeps the diet
+pinned to baseline and tightens production stability to **+/-1 %**, so
+the duals measure the marginal cost of holding observed production
+under the observed diet. The dual :math:`\mu^+_\ell - \mu^-_\ell` on each tight
 production-stability constraint indicates how much the link's marginal
 cost would need to shift for the observed allocation to be
 cost-optimal; the per-group median becomes an additive correction. See
@@ -626,8 +622,8 @@ A trust-region cap of :math:`\lvert \Delta x \rvert_\infty \le \log 2`
 prevents single-step overshoot near the zero-baseline growth caps.
 
 Each iteration is one paired solve (baseline with
-``enforce_baseline_diet=true`` to derive consumer values, then main
-with piecewise utility active). Convergence is typically reached in
+``enforce_baseline_diet=true``, then main under the base config's own
+demand regime). Convergence is typically reached in
 3–5 iterations from a cold start and 1–2 from a warm start (the
 existing calibrated YAML is auto-detected and used as the seed). The
 initial Jacobian is :math:`\mathrm{diag}(-1, -1)`, which is the exact
