@@ -179,10 +179,10 @@ steps:
       workflow/scripts/population.py: b45821fb719171d516083bf3ff8a4186b4424b22dd8a24216d199bf5ff70a13d
       workflow/scripts/snakemake_utils.py: 52c6bb89c4efe655aa5f41d0cd850b0c2894c9dd72c644f9c0633c04a503989e
       workflow/scripts/solve_model/__init__.py: 23fb1fde8c5d964c8fda94020ff41ce9fdeefd04f6334a1ab3e7e755c93af04c
-      workflow/scripts/solve_model/core.py: 7e8de2d65b3115fba1dd6826eefbf37a25051c0ff4f10495e9a125d57c1dab59
+      workflow/scripts/solve_model/core.py: 5c44e791272a875ccc5e7c8591fb58d3c82c2cd34c6b64932824bf0ca2231600
       workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
       workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
-      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/health.py: 4e8b34555c4a7aaf94b59f081c0ba5e89a3369eaaf7c8e918ef5e660eb9d37a5
       workflow/scripts/solve_model/market_response.py: 1631f6caa6b3aff1bca04a175015b3ab59c06379a386075f75ed90e00eb69e3c
       workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
       workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
@@ -357,10 +357,10 @@ steps:
       workflow/scripts/population.py: b45821fb719171d516083bf3ff8a4186b4424b22dd8a24216d199bf5ff70a13d
       workflow/scripts/snakemake_utils.py: 52c6bb89c4efe655aa5f41d0cd850b0c2894c9dd72c644f9c0633c04a503989e
       workflow/scripts/solve_model/__init__.py: 23fb1fde8c5d964c8fda94020ff41ce9fdeefd04f6334a1ab3e7e755c93af04c
-      workflow/scripts/solve_model/core.py: 7e8de2d65b3115fba1dd6826eefbf37a25051c0ff4f10495e9a125d57c1dab59
+      workflow/scripts/solve_model/core.py: 5c44e791272a875ccc5e7c8591fb58d3c82c2cd34c6b64932824bf0ca2231600
       workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
       workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
-      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/health.py: 4e8b34555c4a7aaf94b59f081c0ba5e89a3369eaaf7c8e918ef5e660eb9d37a5
       workflow/scripts/solve_model/market_response.py: 1631f6caa6b3aff1bca04a175015b3ab59c06379a386075f75ed90e00eb69e3c
       workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
       workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
@@ -536,10 +536,10 @@ steps:
       workflow/scripts/population.py: b45821fb719171d516083bf3ff8a4186b4424b22dd8a24216d199bf5ff70a13d
       workflow/scripts/snakemake_utils.py: 52c6bb89c4efe655aa5f41d0cd850b0c2894c9dd72c644f9c0633c04a503989e
       workflow/scripts/solve_model/__init__.py: 23fb1fde8c5d964c8fda94020ff41ce9fdeefd04f6334a1ab3e7e755c93af04c
-      workflow/scripts/solve_model/core.py: 7e8de2d65b3115fba1dd6826eefbf37a25051c0ff4f10495e9a125d57c1dab59
+      workflow/scripts/solve_model/core.py: 5c44e791272a875ccc5e7c8591fb58d3c82c2cd34c6b64932824bf0ca2231600
       workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
       workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
-      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/health.py: 4e8b34555c4a7aaf94b59f081c0ba5e89a3369eaaf7c8e918ef5e660eb9d37a5
       workflow/scripts/solve_model/market_response.py: 1631f6caa6b3aff1bca04a175015b3ab59c06379a386075f75ed90e00eb69e3c
       workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
       workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
@@ -714,10 +714,10 @@ steps:
       workflow/scripts/population.py: b45821fb719171d516083bf3ff8a4186b4424b22dd8a24216d199bf5ff70a13d
       workflow/scripts/snakemake_utils.py: 52c6bb89c4efe655aa5f41d0cd850b0c2894c9dd72c644f9c0633c04a503989e
       workflow/scripts/solve_model/__init__.py: 23fb1fde8c5d964c8fda94020ff41ce9fdeefd04f6334a1ab3e7e755c93af04c
-      workflow/scripts/solve_model/core.py: 7e8de2d65b3115fba1dd6826eefbf37a25051c0ff4f10495e9a125d57c1dab59
+      workflow/scripts/solve_model/core.py: 5c44e791272a875ccc5e7c8591fb58d3c82c2cd34c6b64932824bf0ca2231600
       workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
       workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
-      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/health.py: 4e8b34555c4a7aaf94b59f081c0ba5e89a3369eaaf7c8e918ef5e660eb9d37a5
       workflow/scripts/solve_model/market_response.py: 1631f6caa6b3aff1bca04a175015b3ab59c06379a386075f75ed90e00eb69e3c
       workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
       workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
@@ -861,16 +861,12 @@ steps:
       data/bundled/gleam3/production.csv: eb85e82ba9a61c71c6cd33ab36c00b5d844f2550e1caa45b6b250410adc6f2b5
       data/curated/M49-codes.csv: 10ae52e639e62f07ce992ead08536167d0c8aa9f467870dbfcfbf465ef3aa9be
       data/curated/biogas_crop_demand.csv: 34ef148f810b8153ba469f96fa4a32a9f1076adc2d1bcd76df66a0aa63573bfa
-      data/curated/calibration/default/animal_cost.csv: f8cc89b61307dd2fd5971ea6622a85b83ed13fe0e5e4c1e1826cec92d83de5c6
-      data/curated/calibration/default/crop_cost.csv: 9f14731bad3c0350b8ff41e6a19661c99ba26a681b1e1e09fd76aaf4956fec38
       data/curated/calibration/default/exogenous_feed.csv: cf88c6a673e03e2ef65daadd2e31972dd93efb6f0c2da8313782c849527f183c
       data/curated/calibration/default/exogenous_forage.csv: 6fb01795f1354ae6b2c54aebceae1cab63c30abe7bd1c24dcfee688ba8f40b25
       data/curated/calibration/default/fodder_conversion.csv: f46d89574830cefba376f9fdb86c0ae4462bdaf9889dcc25d8c15b0da1524458
       data/curated/calibration/default/food_demand.csv: dbfe6f3a203dd777adc183397a19c456fa863dcec66e8446052346efd809cb7a
       data/curated/calibration/default/food_waste.yaml: d506d816b8e71e26e76fe694278580d9ca4bd03e4aac4e02c9544109f3bb260b
-      data/curated/calibration/default/grassland_cost.csv: dc3e9d6480874206b2b72dee47acfd6f7f081992c6ec0be70670b4daa7bb3d4f
       data/curated/calibration/default/grassland_yield.csv: 7b25a3f7ce6f6e56643ae8bbeb890ec5ff95a61741906417f698fb38c853dcf4
-      data/curated/calibration/default/multi_crop_cost.csv: 9c5d32c2ce8d29c29b16f3d1e509d342fc6cd0a01f301f3e3bea81001c963756
       data/curated/country_mottet_region.csv: 8c41e8d0a8ad7ec8cd89b9c9cdbb72b6870fb8e9b59dd6ba6e49be468c5651a3
       data/curated/country_wirsenius_region.csv: 73ae37e68c61286b0312b04b0d1dbc661322d8be5c5e5e66754fff1c9dcfac6e
       data/curated/crop_moisture_content.csv: b9e6ac4455fdbb6c28f211a291d2cde59439b7e2215d987e104544cc9eeebfe7
@@ -933,10 +929,10 @@ steps:
       workflow/scripts/population.py: b45821fb719171d516083bf3ff8a4186b4424b22dd8a24216d199bf5ff70a13d
       workflow/scripts/snakemake_utils.py: 52c6bb89c4efe655aa5f41d0cd850b0c2894c9dd72c644f9c0633c04a503989e
       workflow/scripts/solve_model/__init__.py: 23fb1fde8c5d964c8fda94020ff41ce9fdeefd04f6334a1ab3e7e755c93af04c
-      workflow/scripts/solve_model/core.py: 7e8de2d65b3115fba1dd6826eefbf37a25051c0ff4f10495e9a125d57c1dab59
+      workflow/scripts/solve_model/core.py: 5c44e791272a875ccc5e7c8591fb58d3c82c2cd34c6b64932824bf0ca2231600
       workflow/scripts/solve_model/diet_stability.py: 38186fe2e56474736d9da727cd6ebb3420dd24a432391cc5da477015be0b54f4
       workflow/scripts/solve_model/food_utility.py: c12ac00a859e76d7dffa77c62fc5cb58525d92f6b886373ab49c9790692ac6a4
-      workflow/scripts/solve_model/health.py: 216ff58962d5ead53b68f941c79adad79b91f60d5581e2f001e6e0850905995d
+      workflow/scripts/solve_model/health.py: 4e8b34555c4a7aaf94b59f081c0ba5e89a3369eaaf7c8e918ef5e660eb9d37a5
       workflow/scripts/solve_model/market_response.py: 1631f6caa6b3aff1bca04a175015b3ab59c06379a386075f75ed90e00eb69e3c
       workflow/scripts/solve_model/production_stability.py: 4f238ab0f219335272a4146b118066124bf9d107dae5cc3dfe7ce89d5feabf3a
       workflow/scripts/solve_model/sensitivity.py: 3ba13e457cfe34ce5ecb04c28d19d873ea6a9d4cc3c2118c3a2c4384a5bbee2a
