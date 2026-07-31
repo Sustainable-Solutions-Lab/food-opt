@@ -40,6 +40,13 @@ from workflow.scripts.solve_namespace import load_merged_config
 
 FINGERPRINT_FILE = "fingerprint.yaml"
 
+# The calibration steps tools/calibrate can run. Recording prunes any other
+# step entry from the fingerprint file, so renamed or removed steps do not
+# leave dead, uncheckable blocks behind.
+KNOWN_STEPS = frozenset(
+    {"feed", "food_waste", "food_demand", "market_response", "cost", "stability"}
+)
+
 # Solve-time keys are absent from the structural provenance stamp.  Select the
 # subset that changes a calibration fit here, excluding orchestration fields
 # such as output paths, the generate switch, and per-stage pin/intercept values
@@ -315,7 +322,10 @@ def main() -> int:
 
     if args.mode == "record":
         data = load_fingerprints(cal_dir)
-        data.setdefault("steps", {})[args.step] = current
+        steps = data.setdefault("steps", {})
+        steps[args.step] = current
+        for stale_step in set(steps) - KNOWN_STEPS:
+            del steps[stale_step]
         save_fingerprints(cal_dir, data)
         return 0
 
