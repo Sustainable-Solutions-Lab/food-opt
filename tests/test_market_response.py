@@ -23,6 +23,7 @@ import pytest
 from workflow.scripts.solve_model.market_response import (
     add_market_response_curves,
     extract_market_response_intercepts,
+    lift_pinned_capacity_bounds,
 )
 
 BASELINE_MHA = (6.0, 4.0)  # two links in one (crop, country) group
@@ -549,7 +550,7 @@ def test_missing_demand_baseline_raises():
     n.links.static.loc["consume:apple:USA", "baseline_consumption_mt"] = np.nan
     n.optimize.create_model(include_objective_constant=False)
 
-    with pytest.raises(ValueError, match="every food-consumption link"):
+    with pytest.raises(ValueError, match="every covered link"):
         add_market_response_curves(n, _demand_cfg(pin_baseline=True))
 
 
@@ -653,3 +654,71 @@ def test_demand_elasticity_missing_food_group_raises(tmp_path):
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="no entry for food group"):
         add_market_response_curves(n, cfg)
+
+
+def test_capacity_saturated_pin_dual_is_identified():
+    """A pinned link sitting exactly at its capacity bound must yield the true
+    wedge: without lifting the capacity during the pin solve, the pin is
+    redundant with the bound, the dual is degenerate, and the solver reports
+    the pin slack bound instead."""
+    n = _make_network(COST + 2.0, baselines=(10.0,))
+    link = "produce:wheat:R0"
+    n.links.static.loc[link, "p_nom_extendable"] = True
+    n.links.static.loc[link, "p_nom_max"] = 10.0
+    n.links.static.loc[link, "p_nom"] = 0.0
+    cfg = _cfg(granularity="link", pin_baseline=True)
+    lift_pinned_capacity_bounds(n, cfg)
+    n.optimize.create_model(include_objective_constant=False)
+    add_market_response_curves(n, cfg)
+    status, condition = n.model.solve(solver_name="highs")
+    assert (status, condition) == ("ok", "optimal"), (status, condition)
+    table = extract_market_response_intercepts(n)
+    row = table[table["mr_group"] == link]
+    assert float(row["intercept"].iloc[0]) == pytest.approx(2.0, abs=1e-6)
+    assert float(row["slack"].iloc[0]) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_demand_expansion_stops_at_the_sampled_range(tmp_path):
+    """A demand group whose marginal utility is still positive at the outer
+    end of the sampled range must not extrapolate that utility forever: the
+    unbounded tail is floored at zero marginal utility, so a supply-price
+    collapse expands consumption to the sampled range end, not to the supply
+    bound."""
+    cfg = _demand_cfg()
+    # eta > expansion_range keeps the marginal utility positive at the range
+    # end: MU there is P * (1 - expansion_range / eta).
+    cfg["elasticities"]["demand"]["fruits"] = 2.0
+    path = _fit_demand_intercepts(SUPPLY_PRICE, cfg, tmp_path)
+    deploy = {**cfg, "intercepts": path}
+    n = _make_demand_network(SUPPLY_PRICE / 100)
+    consumed = _solve_demand(n, deploy)
+    # The unbounded tail replaces the outermost sampled interval, so bounded
+    # expansion ends one segment width short of the nominal range end.
+    range_end = DEMAND_BASELINE_MT * (1 + cfg["expansion_range"])
+    last_width = DEMAND_BASELINE_MT * cfg["expansion_range"] / cfg["n_blocks"]
+    assert consumed == pytest.approx(range_end - last_width, rel=1e-6)
+
+
+def test_missing_production_baseline_raises():
+    n = _make_network(COST)
+    n.links.static.loc["produce:wheat:R0", "baseline_area_mha"] = np.nan
+    n.optimize.create_model(include_objective_constant=False)
+    with pytest.raises(ValueError, match="every covered link"):
+        add_market_response_curves(n, _cfg())
+
+
+def test_dual_at_slack_bound_is_reported_as_censored(caplog):
+    """A wedge larger than pin_slack_cost parks the dual at the bound with no
+    slack used; the extractor must flag it as censored."""
+    n = _make_network(COST + 50.0)  # wedge 50 >> pin_slack_cost 10
+    cfg = _cfg(pin_baseline=True)
+    n.optimize.create_model(include_objective_constant=False)
+    add_market_response_curves(n, cfg)
+    status, condition = n.model.solve(solver_name="highs")
+    assert (status, condition) == ("ok", "optimal"), (status, condition)
+    with caplog.at_level("WARNING"):
+        table = extract_market_response_intercepts(
+            n, pin_slack_cost=cfg["pin_slack_cost"]
+        )
+    assert any("pin slack bound" in r.message for r in caplog.records)
+    assert table["intercept"].abs().max() <= cfg["pin_slack_cost"] + 1e-9

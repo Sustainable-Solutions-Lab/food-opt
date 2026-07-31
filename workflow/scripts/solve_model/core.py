@@ -40,6 +40,7 @@ from workflow.scripts.solve_model.market_response import (
     evaluate_demand_response_cost,
     evaluate_supply_response_cost,
     extract_market_response_intercepts,
+    lift_pinned_capacity_bounds,
 )
 from workflow.scripts.solve_model.production_stability import (
     LAND_CONVERSION_CARRIERS,
@@ -1666,6 +1667,18 @@ def run_solve(
     matched_baseline: pd.DataFrame | None = None
     dp_cfg = smk.params.deviation_penalty
     diet_enabled = dp_cfg["enabled"] and dp_cfg["diet"]["enabled"]
+    if not (
+        market_response_cfg["enabled"]
+        or dp_cfg["enabled"]
+        or bool(smk.params.use_actual_production)
+        or "bounded_subsidy_bnusd_per_mha" in n.links.static.columns
+    ):
+        logger.warning(
+            "No production anchoring is active: market_response, "
+            "deviation_penalty, cost-calibration corrections and the "
+            "validation production pin are all off, so production is governed "
+            "by accounting costs alone"
+        )
     if demand_response_active and enforce_baseline:
         raise ValueError(
             "market_response.components.demand cannot be combined with "
@@ -1735,6 +1748,10 @@ def run_solve(
     #      duals via the model's matrix accessor.
     #   4. SOS reformulation (needed for HiGHS) and the piecewise formulation only
     #      add big-M / interpolation constraints; they never edit frozen ones.
+    # Phase-1 market-response pins need identified duals; capacity bounds of
+    # pinned links must be lifted before the (frozen) model is created.
+    lift_pinned_capacity_bounds(n, market_response_cfg)
+
     with _phase("pypsa.optimize.create_model"):
         logger.info("Creating linopy model...")
         # consistency_check=False: the network is produced by our own build
@@ -2216,7 +2233,9 @@ def run_solve(
         # price wedges. Extracted here, while the model still holds its duals,
         # and stashed on the network for the calibration driver to write out.
         if market_response_cfg["enabled"] and market_response_cfg["pin_baseline"]:
-            n._market_response_intercepts = extract_market_response_intercepts(n)
+            n._market_response_intercepts = extract_market_response_intercepts(
+                n, pin_slack_cost=market_response_cfg["pin_slack_cost"]
+            )
 
         # Post-hoc health evaluation when value_per_yll == 0
         if health_enabled and value_per_yll == 0:

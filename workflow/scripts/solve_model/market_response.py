@@ -38,12 +38,18 @@ since equating marginal cost to the marginal value of output gives
 the calibrated point. The elasticity is stated at the accounting cost (Howitt's
 original form) rather than at the calibrated marginal cost ``c_g + lambda_g``
 (Merel and Bucaram 2010): under a pinned diet the wedges trace the Ricardian
-rent gradient, and sub-marginal groups at the extensive margin have
-``c_g + lambda_g <= 0``, where the calibrated-cost form is undefined. Exactness
-does not depend on this choice -- only the intercept enters the optimality
-condition at the baseline -- but a group with wedge ``lambda_g`` realises
-elasticity ``eta * (c_g + lambda_g) / c_g`` with respect to the market price,
-so rent-poor groups respond more stiffly than ``eta`` suggests.
+rent gradient, and rent-poor groups -- in practice a large share, not an edge
+case -- have ``c_g + lambda_g <= 0``, where the calibrated-cost form is
+undefined. Exactness does not depend on this choice -- only the intercept
+enters the optimality condition at the baseline -- and the response to a
+policy shock scales as ``eta`` per relative change of the *accounting* cost:
+a group with wedge ``lambda_g`` realises elasticity
+``eta * (c_g + lambda_g) / c_g`` with respect to its own calibrated marginal
+cost, so rent-poor groups respond more stiffly than ``eta`` when measured at
+that price. The configured elasticity is therefore a response per relative
+accounting-cost change, not an arc elasticity at the curve's equilibrium
+price; the demand side is analogous, with the slope stated at the
+``slope_basis`` reference price rather than at the fitted wedge level.
 
 The curve enters the objective as its deviation cost, the intercept plus the
 integral of the slope from the baseline,
@@ -170,14 +176,18 @@ def evaluate_demand_response_cost(n: pypsa.Network) -> float:
     return _evaluate_curve_cost(n, DEMAND_COMPONENTS)
 
 
-def extract_market_response_intercepts(n: pypsa.Network) -> pd.DataFrame:
+def extract_market_response_intercepts(
+    n: pypsa.Network, pin_slack_cost: "float | None" = None
+) -> pd.DataFrame:
     """Per-group price wedges from a baseline-pinned solve (PMP phase 1).
 
     The dual of each group's pinning constraint is the gap between the marginal
     value of the group's output and its marginal cost at the observed activity.
     Returned as a frame with columns ``component``, ``mr_group``, ``intercept``;
     fed back via ``market_response.intercepts``, the wedges make the observed
-    allocation the exact optimum of the unpinned model.
+    allocation the exact optimum of the unpinned model. When ``pin_slack_cost``
+    is given, groups whose dual sits at that bound are reported as censored
+    even if they used no slack.
     """
     m = n.model
     frames = []
@@ -228,7 +238,70 @@ def extract_market_response_intercepts(n: pypsa.Network) -> pd.DataFrame:
             float(table["slack"].abs().sum()),
             worst[["component", "mr_group", "slack"]].head(5).to_dict("records"),
         )
+    if pin_slack_cost is not None:
+        # A dual parked at the slack bound is censored whether or not slack
+        # was used: the true wedge lies at or beyond the bound (or the pin is
+        # degenerate with another binding constraint).
+        at_bound = table["intercept"].abs() >= float(pin_slack_cost) * (1 - 1e-6)
+        if at_bound.any():
+            counts = table.loc[at_bound, "component"].value_counts().to_dict()
+            logger.warning(
+                "%d of %d pinned market-response groups have their dual at the "
+                "pin slack bound (+/-%.3g); their intercepts are censored "
+                "(per component: %s)",
+                int(at_bound.sum()),
+                len(table),
+                float(pin_slack_cost),
+                counts,
+            )
     return table
+
+
+def lift_pinned_capacity_bounds(n: pypsa.Network, cfg: dict) -> None:
+    """Lift ``p_nom_max`` on links about to be pinned at link granularity.
+
+    Many links sit exactly at their capacity bound (baseline equals
+    ``p_nom_max`` after the suitable-area clip), which makes a phase-1 pin
+    redundant with the capacity constraint and its dual degenerate: the
+    solver then reports the pin slack bound instead of the true wedge.
+    Lifting the capacity of the pinned links makes the pin the unique binding
+    constraint, so its dual is identified (and includes any scarcity rent,
+    which the curve rightly prices on contraction). The pin itself still
+    holds every link at baseline, so no other part of the solution changes.
+
+    Must be called BEFORE ``n.optimize.create_model()``: the capacity bounds
+    enter the (frozen) linopy model at creation. Only meaningful at ``link``
+    granularity, where every pinned group is a single link; at coarser
+    granularities the group pin binds the aggregate while individual capacity
+    bounds legitimately shape the within-group allocation.
+    """
+    if not cfg["enabled"] or not cfg["pin_baseline"]:
+        return
+    if str(cfg["granularity"]) != "link":
+        return
+    pin_cfg = cfg["pin_baseline"]
+    pinned = set(pin_cfg) if isinstance(pin_cfg, list) else set(COMPONENTS)
+    carriers = [
+        carrier
+        for component, (component_carriers, _, _) in COMPONENTS.items()
+        if component in pinned
+        and component not in DEMAND_COMPONENTS
+        and cfg["components"][component]
+        for carrier in component_carriers
+    ]
+    links = n.links.static
+    mask = (
+        links["carrier"].isin(carriers)
+        & links["p_nom_extendable"].astype(bool)
+        & np.isfinite(links["p_nom_max"].astype(float))
+    )
+    if mask.any():
+        n.links.static.loc[mask, "p_nom_max"] = np.inf
+        logger.info(
+            "Lifted capacity bounds of %d pinned production links to "
+            "identify pin duals",
+            int(mask.sum()),
+        )
 
 
 def add_market_response_curves(n: pypsa.Network, cfg: dict) -> None:
@@ -392,6 +465,12 @@ def _group_key(links: pd.DataFrame, group_cols: tuple[str, ...]) -> pd.Series:
     """
     if not group_cols:
         return pd.Series(links.index.astype(str), index=links.index)
+    null_cols = [c for c in group_cols if links[c].isna().any()]
+    if null_cols:
+        raise ValueError(
+            f"market-response grouping columns {null_cols} contain missing "
+            "values; every covered link needs a complete group key"
+        )
     return links[list(group_cols)].astype(str).agg("::".join, axis=1)
 
 
@@ -406,7 +485,7 @@ def _group_table(
     because there is no observed activity over which to average it.
     """
     work = links.copy()
-    work["_baseline"] = work[baseline_col].fillna(0.0).astype(float)
+    work["_baseline"] = work[baseline_col].astype(float)
     work["_group"] = _group_key(work, group_cols)
     if work.empty:
         return pd.DataFrame(columns=["baseline", "cost"])
@@ -473,17 +552,16 @@ def _add_component_curves(
         )
         return
 
-    if component in DEMAND_COMPONENTS:
-        baseline = pd.to_numeric(links[baseline_col], errors="coerce")
-        missing = baseline.isna()
-        if missing.any():
-            examples = links.index[missing][:5].tolist()
-            raise ValueError(
-                f"{int(missing.sum())} market-response demand link(s) have no "
-                f"explicit baseline in '{baseline_col}' (e.g. {examples}); "
-                "every food-consumption link must have one observed baseline row, "
-                "using zero for observed absence"
-            )
+    baseline = pd.to_numeric(links[baseline_col], errors="coerce")
+    missing = baseline.isna()
+    if missing.any():
+        examples = links.index[missing][:5].tolist()
+        raise ValueError(
+            f"{int(missing.sum())} market-response {component} link(s) have no "
+            f"explicit baseline in '{baseline_col}' (e.g. {examples}); every "
+            "covered link must carry one observed baseline value, using zero "
+            "for observed absence"
+        )
 
     groups = _group_table(links, baseline_col, group_cols)
     if groups.empty:
@@ -520,9 +598,12 @@ def _add_component_curves(
             name=f"GlobalConstraint-{component}_market_response_zero_baseline",
         )
         logger.info(
-            "Fixed %d zero-baseline %s market-response groups to zero activity",
+            "Fixed %d of %d %s market-response groups (%.0f%%) with zero "
+            "baseline to zero activity",
             len(zero_groups),
+            len(groups),
             component,
+            100 * len(zero_groups) / len(groups),
         )
 
     positive_groups = groups.index[groups["baseline"] > 0]
@@ -704,7 +785,25 @@ def _add_component_curves(
     # Costs and widths ordered from the baseline outward on each side; a
     # downward segment's cost is the negated chord slope (the curve rises
     # leftward wherever contraction is costly).
-    up_cost = xr.DataArray(chord_slopes[:, n_blocks:], seg_coords, seg_dims)
+    up_slopes = chord_slopes[:, n_blocks:].copy()
+    if component in DEMAND_COMPONENTS:
+        # A demand group whose marginal utility is still positive at the outer
+        # end of the sampled range would otherwise extrapolate that utility
+        # forever on the unbounded tail, making it perfectly elastic there
+        # with no satiation. Floor the tail's cost slope at zero: expansion
+        # beyond the sampled range earns no further utility, while remaining
+        # feasible if nutrition constraints force intake up.
+        runaway = up_slopes[:, -1] < 0
+        if runaway.any():
+            up_slopes[runaway, -1] = 0.0
+            logger.info(
+                "Floored the unbounded expansion tail at zero marginal "
+                "utility for %d of %d %s market-response groups",
+                int(runaway.sum()),
+                len(group_index),
+                component,
+            )
+    up_cost = xr.DataArray(up_slopes, seg_coords, seg_dims)
     down_cost = xr.DataArray(-chord_slopes[:, :n_blocks][:, ::-1], seg_coords, seg_dims)
     widths_up = baseline_np[:, None] * np.diff(np.concatenate([[0.0], expansion * cum]))
     widths_down = baseline_np[:, None] * np.diff(

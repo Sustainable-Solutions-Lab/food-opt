@@ -8,8 +8,10 @@ Sequential procedure (see the module docstring of
 ``workflow.scripts.solve_model.market_response`` for the reasoning):
 
 1. **Production pin** (stage A): every production group pinned to its observed
-   activity, demand left to the base config's own regime. The pinning duals
-   are the production price wedges.
+   activity, with the market-response demand component disabled (the fitting
+   config also disables every other demand-side valuation, so this bootstrap
+   stage measures the wedges against the plain accounting-cost chain). The
+   pinning duals are the production price wedges.
 2. **Slope basis** (stage B0, only with the demand component enabled): the
    demand pin against *zero-intercept* supply curves. Food-bus prices then sit
    at the accounting-cost chain, and the demand duals are realistic reference
@@ -19,7 +21,7 @@ Sequential procedure (see the module docstring of
    exactly the supply side deployed solves carry.
 4. **Refinement sweeps** (``market_response.calibration.sweeps``): the
    production pin repeats with the fitted demand curves active -- stage A
-   measured the production wedges under the base regime's demand, while
+   measured the production wedges with no demand-side valuation, while
    deployed solves carry the demand curves -- and the demand intercepts are
    refit against the refined production curves. Each sweep contracts the
    residual cross-side drift by roughly 4x.
@@ -74,11 +76,12 @@ def _pinned_solve(
     return n._market_response_intercepts
 
 
-def _log_component_stats(table: pd.DataFrame) -> None:
+def _log_component_stats(table: pd.DataFrame, pin_slack_cost: float) -> None:
     for component, sub in table.groupby("component"):
+        censored = int((sub["intercept"].abs() >= pin_slack_cost * (1 - 1e-6)).sum())
         logger.info(
             "%s: %d groups, wedge median %.4g (p5 %.4g, p95 %.4g), "
-            "%d slacked (|slack| sum %.4g)",
+            "%d slacked (|slack| sum %.4g), %d censored at the slack bound",
             component,
             len(sub),
             sub["intercept"].median(),
@@ -86,6 +89,7 @@ def _log_component_stats(table: pd.DataFrame) -> None:
             sub["intercept"].quantile(0.95),
             int((sub["slack"].abs() > 1e-6).sum()),
             sub["slack"].abs().sum(),
+            censored,
         )
 
 
@@ -192,7 +196,7 @@ def main() -> None:
     # difference, and keeps the git-tracked artefact compact.
     table.to_csv(out_path, index=False, float_format="%.6g")
 
-    _log_component_stats(table)
+    _log_component_stats(table, float(base_config["market_response"]["pin_slack_cost"]))
     logger.info("Wrote %d market-response intercepts to %s", len(table), out_path)
 
 

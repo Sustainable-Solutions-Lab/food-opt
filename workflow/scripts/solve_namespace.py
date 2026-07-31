@@ -486,6 +486,7 @@ def build_scenario_entry(
         "macronutrients": macronutrient_cfg,
         "food_group_constraints": eff["food_groups"]["constraints"],
         "enforce_baseline": eff["validation"]["enforce_baseline_diet"],
+        "use_actual_production": eff["validation"]["use_actual_production"],
         "deviation_penalty": eff["deviation_penalty"],
         "market_response": eff["market_response"],
         "animal_growth_cap": eff["validation"]["animal_growth_cap"],

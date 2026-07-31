@@ -92,6 +92,9 @@ if config["solving"]["inline_analysis"]:
             enforce_baseline=lambda w: get_effective_config(w.scenario)["validation"][
                 "enforce_baseline_diet"
             ],
+            use_actual_production=lambda w: get_effective_config(w.scenario)[
+                "validation"
+            ]["use_actual_production"],
             deviation_penalty=lambda w: get_effective_config(w.scenario)[
                 "deviation_penalty"
             ],
