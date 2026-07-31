@@ -372,16 +372,6 @@ class TestLinopyMetaCosts:
         assert result["supply_response"].iloc[0] == pytest.approx(2.5, abs=1e-6)
         assert result["demand_response"].iloc[0] == pytest.approx(-0.75, abs=1e-6)
 
-    def test_food_utility_cost(self, solved_network):
-        """food_utility_cost should add to Consumer values."""
-        n = solved_network
-        utility_cost = -1.5
-        n._meta["food_utility_cost"] = utility_cost
-        n._objective += utility_cost
-        result = extract_objective_breakdown(n)
-        expected = EXPECTED_COSTS["consumer_values"] + utility_cost
-        assert result["consumer_values"].iloc[0] == pytest.approx(expected, abs=1e-6)
-
     @pytest.mark.parametrize(
         ("rate_column", "rate", "baseline", "correction_cost"),
         [

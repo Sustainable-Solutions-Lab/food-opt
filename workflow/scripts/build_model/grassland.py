@@ -225,8 +225,7 @@ def add_grassland_feed_links(
     missing_pool = ~work["bus0"].isin(n.buses.static.index)
     if missing_pool.any():
         logger.warning(
-            "Skipping %d grassland_production links with no pasture-pool bus "
-            "(e.g. %s)",
+            "Skipping %d grassland_production links with no pasture-pool bus (e.g. %s)",
             int(missing_pool.sum()),
             work.loc[missing_pool, "bus0"].iloc[0],
         )

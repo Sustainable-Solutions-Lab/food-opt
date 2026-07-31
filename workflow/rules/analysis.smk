@@ -107,9 +107,6 @@ if config["solving"]["inline_analysis"]:
             crop_growth_cap=lambda w: get_effective_config(w.scenario)["validation"][
                 "crop_growth_cap"
             ],
-            food_utility_piecewise=lambda w: get_effective_config(w.scenario)[
-                "food_utility_piecewise"
-            ],
             fix_within_group_ratios=lambda w: get_effective_config(w.scenario)[
                 "food_groups"
             ]["fix_within_group_ratios"],
@@ -157,9 +154,6 @@ if config["solving"]["inline_analysis"]:
             groundwater_cap=lambda w: get_effective_config(w.scenario)[
                 "groundwater_depletion"
             ]["cap_mm3"],
-            food_incentives_enabled=lambda w: get_effective_config(w.scenario)[
-                "food_incentives"
-            ]["enabled"],
             equal_by_country_source=lambda w: get_effective_config(w.scenario)[
                 "food_groups"
             ]["equal_by_country_source"],

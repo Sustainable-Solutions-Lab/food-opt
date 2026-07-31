@@ -47,7 +47,7 @@ def validate_seed_rates(config: dict, project_root: Path) -> None:
     if missing:
         missing_text = ", ".join(missing)
         raise ValueError(
-            "Config crops missing sowing rates in seed_rates.csv: " f"{missing_text}"
+            f"Config crops missing sowing rates in seed_rates.csv: {missing_text}"
         )
 
     unused = sorted(mapped_crops - config_crops)

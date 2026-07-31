@@ -13,7 +13,6 @@ from .calibration import validate_calibration
 from .calibration_provenance import validate_calibration_provenance
 from .commodities import validate_commodities
 from .config_schema import validate_config_schema
-from .consumer_values import validate_consumer_values
 from .country_regions import validate_country_regions
 from .crop_food_pathways import validate_crop_food_pathways
 from .crop_groups import validate_crop_groups
@@ -28,7 +27,6 @@ from .health_map import validate_health_map
 from .m49_codes import validate_m49_codes
 from .multi_cropping import validate_multi_cropping
 from .nutrition import validate_nutrition
-from .optimal_taxes import validate_optimal_taxes
 from .secrets import load_secrets_with_env_fallback
 from .seed_rates import validate_seed_rates
 from .sensitivity_generator import validate_sensitivity_generator
@@ -40,8 +38,6 @@ _SEMANTIC_CHECKS: tuple[tuple[str, Validator], ...] = (
     ("calibration", validate_calibration),
     ("calibration_provenance", validate_calibration_provenance),
     ("commodities", validate_commodities),
-    ("consumer_values", validate_consumer_values),
-    ("optimal_taxes", validate_optimal_taxes),
     ("country_regions", validate_country_regions),
     ("food_groups", validate_food_groups),
     ("food_basis", validate_food_basis),

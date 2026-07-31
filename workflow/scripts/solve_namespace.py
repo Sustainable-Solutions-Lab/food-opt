@@ -42,8 +42,6 @@ SOLVE_TIME_CONFIG_PREFIXES = {
     "deviation_penalty",
     "market_response",
     "macronutrients",
-    "food_utility_piecewise",
-    "food_incentives",
     "food_groups.constraints",
     "food_groups.fix_within_group_ratios",
     "food_groups.equal_by_country_source",
@@ -52,7 +50,6 @@ SOLVE_TIME_CONFIG_PREFIXES = {
     "land.reforestation_cap",
     "grazing.grassland_forage_calibration.enabled",
     "exogenous_feed_calibration.enabled",
-    "consumer_values",
     "sensitivity",
     "solving.solver",
     "solving.io_api",
@@ -413,23 +410,6 @@ def build_scenario_entry(
             {key: rp(path) for key, path in health_input_paths("{name}").items()}
         )
 
-    if eff["food_incentives"]["enabled"]:
-        sources = eff["food_incentives"]["sources"]
-        if not sources:
-            raise ValueError(
-                f"Scenario {scenario}: food_incentives enabled but sources is empty"
-            )
-        inputs["food_incentives"] = [
-            source.format(name=name, scenario=scenario) for source in sources
-        ]
-
-    utility_cfg = eff["food_utility_piecewise"]
-    if utility_cfg["enabled"]:
-        baseline_name = eff["consumer_values"]["baseline_scenario"]
-        inputs["food_utility_piecewise"] = rp(
-            f"<results>/{{name}}/consumer_values/{baseline_name}/utility_blocks.csv"
-        )
-
     equal_source = eff["food_groups"]["equal_by_country_source"]
     if equal_source:
         inputs["food_group_equal"] = equal_source.format(name=name, scenario=scenario)
@@ -491,7 +471,6 @@ def build_scenario_entry(
         "market_response": eff["market_response"],
         "animal_growth_cap": eff["validation"]["animal_growth_cap"],
         "crop_growth_cap": eff["validation"]["crop_growth_cap"],
-        "food_utility_piecewise": utility_cfg,
         "fix_within_group_ratios": eff["food_groups"]["fix_within_group_ratios"],
         "sensitivity": eff["sensitivity"],
         "reforestation_cap": eff["land"]["reforestation_cap"],
@@ -511,7 +490,6 @@ def build_scenario_entry(
         "groundwater_pricing_enabled": eff["groundwater_depletion"]["pricing_enabled"],
         "groundwater_price": eff["groundwater_depletion"]["price"],
         "groundwater_cap": eff["groundwater_depletion"]["cap_mm3"],
-        "food_incentives_enabled": eff["food_incentives"]["enabled"],
         "equal_by_country_source": equal_source,
         "slack_marginal_cost": eff["validation"]["slack_marginal_cost"],
         "residue_max_feed_fraction": eff["residues"]["max_feed_fraction"],

@@ -626,8 +626,8 @@ A trust-region cap of :math:`\lvert \Delta x \rvert_\infty \le \log 2`
 prevents single-step overshoot near the zero-baseline growth caps.
 
 Each iteration is one paired solve (baseline with
-``enforce_baseline_diet=true`` to derive consumer values, then main
-with piecewise utility active). Convergence is typically reached in
+``enforce_baseline_diet=true``, then main under the base config's own
+demand regime). Convergence is typically reached in
 3–5 iterations from a cold start and 1–2 from a warm start (the
 existing calibrated YAML is auto-detected and used as the seed). The
 initial Jacobian is :math:`\mathrm{diag}(-1, -1)`, which is the exact

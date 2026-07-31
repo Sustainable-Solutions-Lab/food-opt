@@ -23,9 +23,8 @@ The baseline diet serves several roles:
 * **Optimization reference**: comparison point for optimized diets and,
   optionally, an equality constraint when ``enforce_baseline_diet`` is
   enabled.
-* **Calibration**: anchors the market-response demand curves
-  (:doc:`calibration`) and the legacy consumer-utility piecewise blocks
-  (:doc:`consumer_values`).
+* **Calibration**: anchors the market-response demand curves and the
+  production-side calibrations (:doc:`calibration`).
 
 .. figure:: https://github.com/Sustainable-Solutions-Lab/GLADE/releases/download/doc-figures/baseline_diet_by_region.png
    :alt: Baseline diet composition by world region
@@ -717,8 +716,8 @@ multipliers, so the diet mass-balances against the food bus.
       (production net of feed/non-food/exports, after post-loss and
       consumer waste) can deliver — physically impossible — and
       inflates the calibrated ``feed`` L1 cost because the deviation-penalty
-      calibration must otherwise accommodate intake-derived consumer values
-      that exceed supply.
+      calibration must otherwise accommodate intake-derived demand
+      that exceeds supply.
 
    2. **Trade is handled implicitly.** FBS supply per country already
       encodes ``production + imports − exports − feed − seed − non-food
@@ -780,10 +779,8 @@ Downstream Uses
   ``config.food_groups.fix_within_group_ratios.enabled`` is true, foods within
   each group are constrained to keep their baseline proportions while
   group totals may vary.
-* **Piecewise consumer utility calibration**: baseline per-food
-  consumption and baseline food-equality duals together calibrate
-  ``results/{name}/consumer_values/{baseline_scenario}/utility_blocks.csv``
-  (:doc:`consumer_values`).
+* **Demand-curve calibration**: baseline per-food consumption anchors the
+  market-response demand curves (:doc:`calibration`).
 * **Health impact assessment**: baseline consumption feeds the
   population-attributable fraction calculation (:doc:`health`).
 

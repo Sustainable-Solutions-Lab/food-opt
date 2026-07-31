@@ -2,12 +2,9 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from copy import deepcopy
 
 import pytest
 import yaml
-
-from workflow.validation.consumer_values import validate_consumer_values
 
 
 @pytest.fixture
@@ -24,44 +21,3 @@ def test_schema_requires_fixed_default_sections(default_config) -> None:
     for section in ("numerics", "diet", "health", "solving"):
         section_schema = schema["properties"][section]
         assert set(default_config[section]) <= set(section_schema["required"])
-
-
-def test_disabled_piecewise_utility_needs_no_baseline(default_config) -> None:
-    validate_consumer_values(default_config)
-
-
-def test_piecewise_utility_requires_configured_baseline(default_config) -> None:
-    config = deepcopy(default_config)
-    config["food_utility_piecewise"]["enabled"] = True
-
-    with pytest.raises(ValueError, match="baseline scenario 'baseline' is not defined"):
-        validate_consumer_values(config)
-
-
-def test_piecewise_utility_requires_enforced_baseline(default_config) -> None:
-    config = deepcopy(default_config)
-    config["scenarios"]["baseline"] = {}
-    config["food_utility_piecewise"]["enabled"] = True
-
-    with pytest.raises(ValueError, match="enforce_baseline_diet=true"):
-        validate_consumer_values(config)
-
-
-def test_deviation_penalty_generation_skips_baseline_check(default_config) -> None:
-    """The Broyden iteration names a scenario it synthesizes per iteration."""
-    config = deepcopy(default_config)
-    config["food_utility_piecewise"]["enabled"] = True
-    config["consumer_values"]["baseline_scenario"] = "_cal_baseline_iter00"
-    config["deviation_penalty"]["calibration"]["generate"] = True
-
-    validate_consumer_values(config)
-
-
-def test_scenario_piecewise_utility_accepts_enforced_baseline(default_config) -> None:
-    config = deepcopy(default_config)
-    config["scenarios"] = {
-        "baseline": {"validation": {"enforce_baseline_diet": True}},
-        "utility": {"food_utility_piecewise": {"enabled": True}},
-    }
-
-    validate_consumer_values(config)

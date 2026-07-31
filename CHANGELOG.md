@@ -345,6 +345,19 @@ introduce breaking changes to configuration and outputs.
 
 ### Removed
 
+- The legacy demand-side mechanisms superseded by the `market_response` demand
+  component: the consumer-values workflow (baseline dual extraction and its
+  `results/{name}/consumer_values/` outputs), `food_utility_piecewise`
+  (piecewise utility blocks calibrated from consumer values),
+  `food_incentives` (flat per-food objective adjustments), and the
+  `optimal_taxes` workflow. Configs using these keys must migrate to
+  `market_response.components.demand` (with a calibrated artefact set for
+  their structure) or, for fixed-diet runs, `validation.enforce_baseline_diet`.
+  The GSA and documentation-figure configs now use the demand component, and
+  GSA runs no longer need a locally solved `baseline` scenario. The cost
+  calibration's tight-band solve now keeps the diet pinned to baseline instead
+  of using utility blocks, and the legacy `stability` calibration runs under
+  the base config's own demand regime.
 - The MARS surrogate method; supported surrogates are now `pce`, `rf`, `xgb`
   and `mlp`.
 - Unused configuration keys `health.ssb_sugar_g_per_100g`,

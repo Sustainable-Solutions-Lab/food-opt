@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Tutorial 2 — Demand response: letting the diet adjust to policy
+# ---------------------------------------------------------------
+# Extends Tutorial 1 by allowing consumption itself to respond to rising GHG
+# prices, rather than being held fixed. Demand is priced by the calibrated
+# market-response curves: every (food, country) consumption link carries a
+# concave marginal-utility curve through its observed intake, so today's diet
+# is the model's unconstrained optimum and deviations from it are governed by
+# per-food-group demand elasticities.
+#
+# The curves are keyed to this config's exact model structure (200 regions),
+# so the tutorial ships its own calibration artefact set, regenerated with:
+#
+#   tools/calibrate --base config/tutorial/02_demand_response.yaml
+#
+# See docs/tutorial.rst (Part 2) for a walkthrough.
+
+name: "tutorial_02"
+
+# The health module stays off (the default), so this tutorial needs no
+# manually-downloaded IHME GBD data; see docs/health.rst to switch it on.
+
+calibration:
+  source: "tutorial-02"
+
+# See config/tutorial/01_ghg_prices.yaml for the rationale on target_count.
+aggregation:
+  regions:
+    target_count: 200
+
+scenarios:
+  # No GHG pricing: with the calibrated curves and no policy pressure, the
+  # solve should land on (very nearly) the observed 2020 food system --
+  # without a single constraint pinning it there.
+  reference:
+    emissions:
+      ghg_pricing_enabled: false
+
+  # Rising GHG prices with elastic demand: consumption shifts away from
+  # emission-intensive foods, paying the marginal-utility cost to do so.
+  ghg_mid:
+    emissions:
+      ghg_price: 50
+
+  ghg_high:
+    emissions:
+      ghg_price: 200
+
+  # The same carbon price with the diet frozen at the observed baseline:
+  # mitigation must come from the production side alone. The gap to ghg_high
+  # measures what dietary flexibility is worth.
+  ghg_high_fixed:
+    emissions:
+      ghg_price: 200
+    market_response:
+      components:
+        demand: false
+    validation:
+      enforce_baseline_diet: true
+
+  # Same price, half the demand elasticities: consumers respond more stiffly.
+  # Elasticities enter only at solve time, so no recalibration is needed.
+  ghg_high_stiff:
+    emissions:
+      ghg_price: 200
+    market_response:
+      elasticity_factor: 0.5
+
+plotting:
+  comparison_scenarios: "all"

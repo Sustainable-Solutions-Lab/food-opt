@@ -59,8 +59,7 @@ def validate_crop_food_pathways(config: dict, project_root: Path) -> None:
             for (pathway, crop), total in violations.items()
         )
         raise ValueError(
-            f"foods.csv pathway mass-balance violations (sum of factors > 1): "
-            f"{details}"
+            f"foods.csv pathway mass-balance violations (sum of factors > 1): {details}"
         )
 
     # Ensure all food crops have a pathway entry in foods.csv.
@@ -81,7 +80,7 @@ def validate_crop_food_pathways(config: dict, project_root: Path) -> None:
     if unused:
         unused_text = ", ".join(unused)
         logger.warning(
-            "foods.csv contains crops not in config (ignored): " f"{unused_text}"
+            f"foods.csv contains crops not in config (ignored): {unused_text}"
         )
 
     # Check that byproducts listed in config appear as foods
@@ -111,8 +110,7 @@ def validate_crop_food_pathways(config: dict, project_root: Path) -> None:
         if unused_crops:
             unused_text = ", ".join(unused_crops)
             logger.warning(
-                f"{csv_name} references crops not in config (ignored): "
-                f"{unused_text}"
+                f"{csv_name} references crops not in config (ignored): {unused_text}"
             )
         bad_foods = sorted(set(map_df["source_item"]) - foods_in_csv)
         if bad_foods:

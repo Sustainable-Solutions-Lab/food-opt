@@ -62,7 +62,6 @@ DOC_FIGURES = [
     "baseline_diet_by_region",
     "baseline_diet_by_food",
     # Consumer values figure
-    "consumer_values_distribution",
     # Cost figures
     "costs_crop_cost_map",
     "costs_crop_cost_distribution",
@@ -589,30 +588,6 @@ rule doc_fig_baseline_diet_by_food:
         "<benchmarks>/shared/doc_fig_baseline_diet_by_food.tsv"
     script:
         "../scripts/doc_figures/baseline_diet_by_food.py"
-
-
-rule doc_fig_consumer_values_distribution:
-    """Generate boxen plot of per-food consumer values across countries."""
-    input:
-        values=f"<results>/{DOC_FIG_NAME}/consumer_values/baseline/values.csv",
-        style=DOC_FIG_STYLE,
-    params:
-        group_colors=food_group_colors,
-        slack_marginal_cost=config["validation"]["slack_marginal_cost"],
-    output:
-        svg="docs/_static/figures/consumer_values_distribution.svg",
-        png="docs/_static/figures/consumer_values_distribution.png",
-    group:
-        "analysis_plot"
-    resources:
-        runtime="10m",
-        mem_mb=2000,
-    log:
-        "<logs>/shared/doc_fig_consumer_values_distribution.log",
-    benchmark:
-        "<benchmarks>/shared/doc_fig_consumer_values_distribution.tsv"
-    script:
-        "../scripts/doc_figures/consumer_values_distribution.py"
 
 
 # --- Validation figures ---

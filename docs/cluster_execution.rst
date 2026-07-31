@@ -22,8 +22,7 @@ Overview
 The workflow has five phases:
 
 1. **Build & calibrate** (local): Run Snakemake to build the model and solve
-   any prerequisite scenarios (e.g., baselines that generate consumer values
-   for downstream scenarios).
+   any scenarios that must run locally.
 
 2. **Export manifest** (local): Generate a JSON manifest describing all
    remaining scenarios to solve on the cluster.
@@ -77,7 +76,7 @@ Four tools implement the cluster workflow:
 
 ``tools/sync-solve-inputs``
     Syncs all files needed on the cluster: built model, processing outputs,
-    static data, consumer values, the manifest, workflow scripts, config
+    static data, the manifest, workflow scripts, config
     files, and the cluster tools.  Supports ``rsync`` (default) or
     ``tar+ssh`` (``--tar``, faster for many small files).
 
@@ -111,10 +110,9 @@ Step-by-Step Example
 The example below uses a global sensitivity analysis config (``gsa.yaml``)
 with ~12,000 scenarios (3 stability regimes x 4096 Sobol samples).
 
-**1. Build and solve baselines locally**
+**1. Build locally**
 
-Baseline scenarios generate consumer values (dual variables) that downstream
-GSA scenarios depend on.  Solve them with Snakemake::
+Build the model (and solve any locally pinned scenarios) with Snakemake::
 
     # Locally: build model + solve baselines + first GSA scenarios
     SMK_MEM_MAX=40G tools/smk -e gurobi -j5 \

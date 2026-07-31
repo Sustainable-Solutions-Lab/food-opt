@@ -402,7 +402,6 @@ Output file:
       ``consumption``, float, bn USD, "Consumption-related costs"
       ``animal_production``, float, bn USD, "Livestock production costs"
       ``feed_conversion``, float, bn USD, "Feed processing costs"
-      ``consumer_values``, float, bn USD, "Utility from food consumption (negative)"
       ``biomass_exports``, float, bn USD, "Revenue from biomass exports (negative)"
       ``biomass_routing``, float, bn USD, "Internal biomass flow costs"
       ``health_burden``, float, bn USD, "Health costs from YLL"

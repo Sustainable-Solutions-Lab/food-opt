@@ -17,28 +17,11 @@ scenarios:
   # The 'default' scenario mirrors config/scenarios.yaml so existing doc figure
   # rules (which hardcode scen-default) keep working unchanged.
   #
-  # The 'baseline' scenario fixes consumption to current-day levels and is used
-  # to extract consumer values (dual variables) for the consumer-values
-  # documentation figure.
-  #
   # The GHG price scenarios sweep carbon prices from $0 to $500/tCO2-eq for the
   # landing-page production pattern GIF, showing how land use shifts under
   # increasing carbon pricing, matching the sensitivity analysis setup.
 
   default: {}
-
-  baseline:
-    # Fixed consumption to extract consumer values (dual variables). With the
-    # diet enforced, the market-response demand component must be off.
-    validation:
-      enforce_baseline_diet: true
-    market_response:
-      components:
-        demand: false
-    emissions:
-      ghg_price: 0
-    health:
-      value_per_yll: 0
 
   # --- GHG price scenarios for landing-page GIF ---
   # Round numbers on a roughly log scale from $0 to $500/tCO2-eq.

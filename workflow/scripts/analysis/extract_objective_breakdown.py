@@ -268,11 +268,6 @@ def extract_objective_breakdown(n: pypsa.Network) -> pd.DataFrame:
     if diet_stability_cost:
         total["Diet stability"] = total.get("Diet stability", 0.0) + diet_stability_cost
 
-    # Piecewise food utility is also a linopy-level objective term.
-    food_utility_cost = n.meta.get("food_utility_cost", 0.0)
-    if food_utility_cost:
-        total["Consumer values"] = total.get("Consumer values", 0.0) + food_utility_cost
-
     # Bounded negative cost-calibration corrections (subsidies up to baseline)
     # are linopy-level objective terms on auxiliary variables not visible to
     # PyPSA statistics. Recover them exactly from solved dispatch:

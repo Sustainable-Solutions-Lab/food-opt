@@ -25,10 +25,6 @@ from workflow.scripts.solve_model.diet_stability import (
     add_diet_stability_constraints,
     evaluate_diet_stability_cost,
 )
-from workflow.scripts.solve_model.food_utility import (
-    add_piecewise_food_utility,
-    pop_piecewise_food_utility_value,
-)
 from workflow.scripts.solve_model.health import (
     HEALTH_AUX_MAP,
     add_health_objective,
@@ -484,8 +480,6 @@ def fix_food_consumption_to_baseline(
     the baseline diet may slightly exceed per-capita caps that are only
     meaningful when the optimizer freely chooses the diet.
 
-    Consumer value duals are available post-solve via ``n.links.dynamic.mu_p_set``
-    (after calling ``_extract_p_set_duals``).
     """
     link_names = matched["name"].values
     targets_mt = matched["target_mt"].values
@@ -517,19 +511,6 @@ def fix_food_consumption_to_baseline(
         "Fixed %d food consumption links to baseline via p_set",
         len(link_names),
     )
-
-
-def _extract_p_set_duals(n: pypsa.Network) -> None:
-    """Write Link p_set duals to n.links.dynamic.mu_p_set.
-
-    Must be called after solving and ``assign_duals`` to populate the
-    consumer value shadow prices used by ``extract_consumer_values``.
-    """
-    constraints = dict(n.model.constraints.items())
-    if "Link-p_set" not in constraints:
-        return
-    dual_df = constraints["Link-p_set"].dual.to_pandas()
-    n.links.dynamic["mu_p_set"] = dual_df
 
 
 def _prepare_baseline_diet_for_food_constraints(
@@ -781,76 +762,6 @@ def add_groundwater_depletion_cap(n: pypsa.Network, cap_mm3: float) -> None:
     groundwater is ratcheted down (the core counterfactual).
     """
     n.stores.static.at["store:impact:groundwater_depletion", "e_nom_max"] = cap_mm3
-
-
-def add_food_incentives_to_objective(
-    n: pypsa.Network, incentives_paths: list[str]
-) -> None:
-    """Add food-level incentives/penalties to the objective function.
-
-    Incentives are applied as adjustments to marginal costs of food
-    consumption links. Positive values penalize consumption; negative
-    values subsidize consumption.
-
-    Parameters
-    ----------
-    n : pypsa.Network
-        The network containing the model.
-    incentives_paths : list[str]
-        Paths to CSVs with columns: food, country, adjustment_bnusd_per_mt
-    """
-    if not incentives_paths:
-        raise ValueError("food_incentives enabled but no sources are configured")
-
-    combined = []
-    for path in incentives_paths:
-        incentives_df = pd.read_csv(path)
-        required = {"food", "country", "adjustment_bnusd_per_mt"}
-        missing = required - set(incentives_df.columns)
-        if missing:
-            missing_text = ", ".join(sorted(missing))
-            raise ValueError(
-                f"Missing required columns in incentives file {path}: {missing_text}"
-            )
-
-        incentives_df["country"] = incentives_df["country"].astype(str).str.upper()
-        combined.append(
-            incentives_df[["food", "country", "adjustment_bnusd_per_mt"]].copy()
-        )
-
-    all_incentives = pd.concat(combined, ignore_index=True)
-    summed = (
-        all_incentives.groupby(["food", "country"])["adjustment_bnusd_per_mt"]
-        .sum()
-        .reset_index()
-    )
-
-    consume_links = n.links.static[n.links.static["carrier"] == "food_consumption"]
-
-    applied = 0
-    for _, row in summed.iterrows():
-        mask = (consume_links["food"] == row["food"]) & (
-            consume_links["country"] == row["country"]
-        )
-        link_names = consume_links[mask].index
-        if not link_names.empty:
-            n.links.static.loc[link_names, "marginal_cost"] += row[
-                "adjustment_bnusd_per_mt"
-            ]
-            applied += len(link_names)
-
-    if applied == 0:
-        logger.info(
-            "No applicable food incentives found in %d sources",
-            len(incentives_paths),
-        )
-        return
-
-    logger.info(
-        "Applied food incentives to %d consumption links from %d sources",
-        applied,
-        len(incentives_paths),
-    )
 
 
 def build_residue_feed_fraction_by_country(
@@ -1463,8 +1374,7 @@ def run_solve(
     skip_assign_duals
         If True, do not call ``n.optimize.assign_duals(...)``.  This is safe
         whenever the caller does not need the generic dual assignment on
-        non-Link components.  ``_extract_p_set_duals`` still runs and reads
-        Link ``p_set`` duals directly from ``n.model.constraints``.
+        non-Link components.
     accept_time_limit
         If True, treat ``time_limit`` termination with a feasible incumbent
         as a successful solve and proceed with solution assignment. Use for
@@ -1591,15 +1501,6 @@ def run_solve(
     # The build uses the base config value; scenarios may override it.
     _apply_health_pricing(n, float(smk.params.health_value_per_yll))
 
-    incentives_enabled = bool(smk.params.food_incentives_enabled)
-    piecewise_utility_cfg = smk.params.food_utility_piecewise
-    piecewise_utility_enabled = bool(piecewise_utility_cfg["enabled"])
-
-    if incentives_enabled and piecewise_utility_enabled:
-        raise ValueError(
-            "food_incentives and food_utility_piecewise cannot both be enabled"
-        )
-
     # Resolved here (rather than at the add_market_response_curves call) because
     # the demand component needs the baseline diet matched onto the consume
     # links below, and its guards against the other demand-side mechanisms
@@ -1625,23 +1526,6 @@ def run_solve(
     demand_response_active = bool(
         market_response_cfg["enabled"] and market_response_cfg["components"]["demand"]
     )
-    if demand_response_active and piecewise_utility_enabled:
-        raise ValueError(
-            "market_response.components.demand and food_utility_piecewise "
-            "cannot both be enabled: both add a marginal-utility curve per "
-            "(food, country) consumption link"
-        )
-    if demand_response_active and incentives_enabled:
-        raise ValueError(
-            "market_response.components.demand and food_incentives cannot both "
-            "be enabled: the fitted demand intercepts already carry the "
-            "consumption-side value"
-        )
-
-    # Add food-level linear incentives to marginal costs if enabled
-    if incentives_enabled:
-        incentives_paths = list(smk.input.food_incentives)
-        add_food_incentives_to_objective(n, incentives_paths)
 
     # Get population from network metadata
     population_map = get_country_population(n)
@@ -1762,19 +1646,6 @@ def run_solve(
             consistency_check=False,
         )
         logger.info("Linopy model created.")
-
-    if piecewise_utility_enabled:
-        if enforce_baseline:
-            raise ValueError(
-                "food_utility_piecewise cannot be combined with "
-                "validation.enforce_baseline_diet=true"
-            )
-        with _phase("add_piecewise_food_utility"):
-            add_piecewise_food_utility(
-                n,
-                smk.input.food_utility_piecewise,
-                float(piecewise_utility_cfg["min_block_width_mt"]),
-            )
 
     solver_name = smk.params.solver
     solver_options = dict(smk.params.solver_options)
@@ -2106,18 +1977,12 @@ def run_solve(
             if not skip_assign_duals:
                 with _phase("assign_duals"):
                     n.optimize.assign_duals(False)
-            with _phase("_extract_p_set_duals"):
-                _extract_p_set_duals(n)
             if not skip_post_processing:
                 with _phase("post_processing"):
                     n.optimize.post_processing()
         finally:
             if removed:
                 variables_container.data.update(removed)
-
-        piecewise_utility_value = pop_piecewise_food_utility_value(n)
-        if abs(piecewise_utility_value) > 1e-12:
-            n.meta["food_utility_cost"] = -piecewise_utility_value
 
         # Extract production stability slack values if present. Both lower
         # ("_slack") and upper ("_slack_upper") variables are recorded;

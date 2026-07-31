@@ -20,10 +20,6 @@ required:
   - netcdf
   - numerics
   - validation
-  - consumer_values
-  - food_incentives
-  - food_utility_piecewise
-  - optimal_taxes
   - land
   - water
   - water_scarcity
@@ -300,64 +296,6 @@ properties:
             type: number
             minimum: 0
             description: "Maximum relative increase from baseline area (e.g., 0.5 = +50%)"
-
-  food_incentives:
-    type: object
-    required: [enabled, sources]
-    additionalProperties: false
-    properties:
-      enabled:
-        type: boolean
-        description: "When true, food-level incentives are applied to the objective"
-      sources:
-        type: array
-        items:
-          type: string
-        description: "Paths to food incentives CSVs (may include {name} placeholder)"
-
-  consumer_values:
-    type: object
-    required: [baseline_scenario]
-    additionalProperties: false
-    properties:
-      baseline_scenario:
-        type: string
-        description: "Scenario name used for consumer values extraction (must have enforce_baseline_diet=true)"
-
-  food_utility_piecewise:
-    type: object
-    required: [enabled, n_blocks, decline_factor, total_width_multiplier, min_block_width_mt]
-    additionalProperties: false
-    properties:
-      enabled:
-        type: boolean
-        description: "When true, apply piecewise diminishing marginal utility for food consumption"
-      n_blocks:
-        type: integer
-        minimum: 1
-        description: "Number of utility blocks per (food, country)"
-      decline_factor:
-        type: number
-        exclusiveMinimum: 0
-        maximum: 1
-        description: "Multiplicative marginal-utility decay by block index"
-      total_width_multiplier:
-        type: number
-        exclusiveMinimum: 0
-        description: "Total incentivized quantity as multiple of baseline consumption"
-      min_block_width_mt:
-        type: number
-        minimum: 0
-        description: "Minimum per-block width floor (Mt/year) applied at solve time for numerical robustness"
-
-  optimal_taxes:
-    type: object
-    required: [enabled]
-    additionalProperties: false
-    properties:
-      enabled:
-        type: boolean
-        description: "When true, enables the optimal taxes/subsidies workflow"
 
   land:
     type: object
@@ -2568,17 +2506,6 @@ properties:
           rr_low (q=0) and rr_high (q=1) for each dose-response curve.
 
 allOf:
-  - not:
-      required: [food_incentives, food_utility_piecewise]
-      properties:
-        food_incentives:
-          properties:
-            enabled:
-              const: true
-        food_utility_piecewise:
-          properties:
-            enabled:
-              const: true
   - not:
       required: [cost_calibration, market_response]
       properties:
