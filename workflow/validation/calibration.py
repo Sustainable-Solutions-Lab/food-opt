@@ -70,6 +70,15 @@ _CALIBRATION_SECTIONS = [
         "path": ("deviation_penalty", "calibration"),
         "files": ["calibrated_yaml"],
         "has_scenario": False,
+        # The calibrated yaml is only opened when the L1 penalty actually
+        # resolves the "calibrated" sentinel (mirrors the solve-input gate in
+        # workflow/rules/common.smk), so a set without the legacy stability
+        # artefact is valid for configs that never enable the penalty.
+        "consumed": lambda config: (
+            bool(config["deviation_penalty"]["enabled"])
+            and config["deviation_penalty"]["penalty_mode"] == "l1"
+            and deviation_penalty_uses_calibrated(config["deviation_penalty"])
+        ),
     },
 ]
 
@@ -108,7 +117,8 @@ def validate_calibration(config: dict, project_root: Path | None = None) -> None
                     f"but it is not defined under config['scenarios']."
                 )
 
-        if enabled and not generate:
+        consumed = section["consumed"](config) if "consumed" in section else True
+        if enabled and consumed and not generate:
             for key in section["files"]:
                 path = root / cfg[key]
                 if not path.exists():

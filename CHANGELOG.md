@@ -67,9 +67,8 @@ introduce breaking changes to configuration and outputs.
   (`market_response.elasticities.demand`, central values from the Green et
   al. 2013 meta-regression). Ordinary solves previously had no
   demand-side valuation at all unless a config enabled the consumer-values /
-  piecewise-utility mechanism; the demand component replaces that pattern (the
-  two are mutually exclusive, and `food_utility_piecewise` remains available
-  for configs that keep it, with `market_response.components.demand: false`).
+  piecewise-utility mechanism; the demand component replaces that mechanism
+  (removed below).
   The demand curves' cost appears as its own `demand_response` category in the
   objective breakdown. Demand groups whose marginal utility is still positive
   at the outer end of the sampled range have their unbounded expansion tail
