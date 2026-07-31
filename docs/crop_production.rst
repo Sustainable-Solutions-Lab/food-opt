@@ -523,9 +523,11 @@ rainfed or irrigated multi-output link (carrier ``crop_production_multi``) that:
 * (irrigated only) withdraws the summed water requirement on the region water bus.
 
 The link is anchored at its MIRCA baseline via ``baseline_area_mha`` with
-``p_nom_max = max(GAEZ potential, baseline)`` and stays extendable, so it is
-subject to the same production-stability penalty as single-crop links and the
-model can add or drop a complete sequence. Every configured cycle must have a
+``p_nom_max = max(GAEZ potential, baseline)`` and stays extendable, so it
+carries its own market-response curve (the ``multi_crops`` component) or,
+in legacy configs, the same production-stability penalty as single-crop
+links, and the model can add or drop a complete sequence with positive
+observed baseline area. Every configured cycle must have a
 valid yield; partial bundles are never built. If an observed local anchor lacks
 a complete GAEZ row, it is relocated within the same combination, country, and
 water supply. If that group has no valid full-sequence target under the active

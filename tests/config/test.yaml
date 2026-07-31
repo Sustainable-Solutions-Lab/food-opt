@@ -72,3 +72,14 @@ water:
   temporal_resolution: 4
   supply:
     scarcity_tiers: true
+
+# This config's build differs structurally from the default, so the default
+# set's link-keyed market-response intercepts do not apply; production
+# anchoring stays with the legacy calibrated cost corrections plus the L1
+# deviation penalty (PMP and cost calibration are mutually exclusive).
+market_response:
+  enabled: false
+cost_calibration:
+  enabled: true
+deviation_penalty:
+  enabled: true

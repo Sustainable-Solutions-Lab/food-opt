@@ -25,6 +25,7 @@ from workflow.scripts.solve_namespace import (
     health_input_paths,
     resolve_gbd_anchoring,
     resolve_pathvars,
+    solve_runtime_code_paths,
     validate_scenario_config_schemas,
     validate_scenario_overrides,
 )
@@ -338,5 +339,9 @@ def calibration_artefact_inputs(cfg):
         and deviation_penalty_uses_calibrated(dp_cfg)
     ):
         inputs["deviation_penalty_calibration"] = dp_cal_cfg["calibrated_yaml"]
+
+    sr_cfg = cfg["market_response"]
+    if sr_cfg["enabled"] and sr_cfg["intercepts"] == "calibrated":
+        inputs["market_response_calibration"] = sr_cfg["calibration"]["calibrated_csv"]
 
     return inputs

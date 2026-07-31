@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Market-response intercept calibration (PMP phase 1)
+# ---------------------------------------------------
+# Sequential pinned solves driven by calibrate_market_response.py: production
+# groups pinned first (their duals are the production price wedges), then --
+# when the demand component is enabled -- the demand pin runs twice against
+# the production curves (zero-intercept for the slope-basis reference prices,
+# calibrated for the demand wedges). The stages are driven via per-stage
+# overrides of pin_baseline/intercepts; the values below only mark this config
+# as the fitting config. Everything lands in
+# data/curated/calibration/<source>/market_response.csv.
+#
+# Usage:
+#   tools/calibrate market_response
+
+# ``tools/calibrate`` overrides this with a source- and step-specific name so
+# another calibration config cannot overwrite this step's intermediates.
+name: "calibration"
+
+# The wedges are fit under the base config's own operating regime with the
+# policy dials at neutral and no GHG price. The driver stages the demand side
+# itself: the bootstrap production pin runs with no demand-side valuation, and
+# the refinement sweeps re-pin production with the fitted demand curves
+# active. Exact baseline reproduction then holds for unpriced solves of the
+# same config, and a priced solve shows the pure elasticity-governed response.
+emissions:
+  ghg_pricing_enabled: false
+
+# NB: diet.anchor_groups_to_gbd is pinned to the base config's resolved value
+# by tools/calibrate (via a config overlay), so disabling health here for
+# solver performance does not change the baseline diet the artefacts are fit
+# against.
+health:
+  enabled: false
+  value_per_yll: 0
+
+# The pinned solve measures wedges against the accounting costs alone: no
+# other anchoring may run.
+deviation_penalty:
+  enabled: false
+
+food_utility_piecewise:
+  enabled: false
+
+market_response:
+  enabled: true
+  pin_baseline: true
+  intercepts: null
+  calibration:
+    generate: true
+
+solving:
+  solver: gurobi
+  io_api: "direct"
+  threads: 4
+  mem_mb: 9000
+  runtime: 30

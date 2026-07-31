@@ -578,23 +578,21 @@ capture its most direct effect.
 
 .. _sensitivity-prod-stability-cost:
 
-Deviation-penalty regime (companion ``gsa_l1.yaml`` config)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Production-anchoring regime (companion ``gsa_l1.yaml`` config)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The L1 deviation-penalty regime is a structural modelling choice rather than
-an empirical uncertainty, so it is not sampled as a Sobol parameter.
-``config/gsa.yaml`` runs the single calibrated central regime
-(``deviation_penalty.{land.crops,land.grassland,feed}.l1_cost:
-"calibrated"``). The lower/higher regimes
-(``l1_cost_factor = 1/sqrt(10)`` and ``sqrt(10)``, i.e. half an order of
-magnitude below/above the calibrated centre on cropland, grassland and
-feed) live in a companion config, ``gsa_l1.yaml``, maintained alongside
-the paper. Each regime has its own consumer-values baseline so that the
-piecewise food utility blocks are calibrated against the matching L1
-regime; the regimes share the rest of the GSA design (parameters,
-sampling, slice parameters). Comparing Sobol indices across regimes
-shows how sensitivity structure shifts with the stability regime,
-without spending Sobol degrees of freedom on a non-empirical axis.
+The production-anchoring regime is a structural modelling choice rather
+than an empirical uncertainty, so it is not sampled as a Sobol parameter.
+``config/gsa.yaml`` runs the calibrated market-response regime: supply and
+demand curves from the ``gbd-anchored`` artefact set anchor the solution at
+the observed baseline (see :ref:`market-response-calibration`). The legacy
+L1 deviation-penalty regimes (calibrated centre and
+``l1_cost_factor = 1/sqrt(10)`` and ``sqrt(10)``, half an order of
+magnitude below/above it) live in a companion config, ``gsa_l1.yaml``,
+maintained alongside the paper; the regimes share the rest of the GSA
+design (parameters, sampling, slice parameters). Comparing Sobol indices
+across regimes shows how sensitivity structure shifts with the anchoring
+regime, without spending Sobol degrees of freedom on a non-empirical axis.
 
 Policy slice parameters
 ~~~~~~~~~~~~~~~~~~~~~~~

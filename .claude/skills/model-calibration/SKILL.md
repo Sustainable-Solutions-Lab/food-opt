@@ -11,7 +11,7 @@ SPDX-License-Identifier: CC-BY-4.0
 
 # Model Calibration
 
-The default workflow consumes five calibration artefact groups organized
+The default workflow consumes four calibration artefact groups organized
 in per-config *sets* under `data/curated/calibration/<source>/`, selected
 by the `calibration.source` config key. Two sets are git-tracked, both
 fit against the default GDD-IA diet source: `default` (fit against the
@@ -20,8 +20,8 @@ anchoring-off baseline diet of the health-off default config) and
 health-enabled configs gsa, gsa_fixed_diet, validation and the doc
 configs). No set is shipped for `diet.source: fbs`, which therefore
 needs its own calibration run. `tools/calibrate` resolves the base config's
-diet.anchor_groups_to_gbd sentinel once and pins it across all five
-steps, and provenance stamps record the *resolved* anchoring. Each
+diet.anchor_groups_to_gbd sentinel once and pins it across every
+step, and provenance stamps record the *resolved* anchoring. Each
 artefact group is produced by a dedicated validation-mode solve and
 absorbs a specific class of residual mismatch so that ordinary solves
 don't have to. Without these files in place, production-stability,
@@ -35,24 +35,34 @@ and provenance" below).
 Authoritative reference: `docs/calibration.rst`. This skill is the operational
 companion: when to run, how to run, what to expect, what to watch out for.
 
-## The five steps at a glance
+## The steps at a glance
+
+Default chain (run by `all`, in order):
 
 | Step | Config | Produces | Absorbs |
 |---|---|---|---|
 | feed | `config/calibration/feed.yaml` | `grassland_yield.csv`, `fodder_conversion.csv`, `exogenous_forage.csv`, `exogenous_feed.csv` | Per-country forage, and protein- and roughage-feed supply/demand gaps |
 | food_waste | `config/calibration/food_waste.yaml` | `food_waste.yaml` | Per-food-group consumer-side waste multiplier (FBS supply vs GDD-IA intake) |
 | food_demand | `config/calibration/food_demand.yaml` | `food_demand.csv` | Per-food residual mismatch left over after food_waste |
-| cost | `config/calibration/cost.yaml` | `crop_cost.csv`, `grassland_cost.csv`, `animal_cost.csv` | Additive production-cost corrections from stability-constraint duals |
+| market_response | `config/calibration/market_response.yaml` | `market_response.csv` | Per-group PMP curve intercepts (production wedges + demand intercepts with their slope-price basis), fit by sequential pinned solves |
+
+Legacy anchoring steps, outside the default chain, run explicitly (in
+this order -- stability depends on cost) for artefact sets consumed by
+configs that anchor with them:
+
+| Step | Config | Produces | Absorbs |
+|---|---|---|---|
+| cost | `config/calibration/cost.yaml` | `crop_cost.csv`, `multi_crop_cost.csv`, `grassland_cost.csv`, `animal_cost.csv` | Additive production-cost corrections from stability-constraint duals |
 | stability | `config/calibration/stability.yaml` | `deviation_penalty.yaml` | The L1 penalty triple over the configured components (default: land + feed) that gives ~5% deviation on each axis |
 
-The order is strict (next section explains why). The five configs each
+The order is strict (next section explains why). The step configs each
 carry `name: "calibration"`, but `tools/calibrate` overrides it per step
 with `name: calibration-<source>-<step>`, so each step gets its own
 processing tree. That isolation is deliberate -- the steps disable
 different calibration blocks, so a shared tree would thrash `build_model`
--- but it means the identical upstream prep is rebuilt five times
-(~100 s and ~250 MB per step, so roughly 40% of chain wall-clock and
-1.25 GB on disk for a full run).
+-- but it means the identical upstream prep is rebuilt once per step
+(~100 s and ~250 MB each, so a large share of chain wall-clock and
+disk for a full run).
 
 ## Strict dependency order
 
@@ -63,8 +73,8 @@ later artefacts and corrupts them in non-obvious ways:
 - `feed` first -- later solves rely on the feed slack already being closed.
 - `food_waste` next -- food-bus slack must not be contaminated by feed-side mismatch.
 - `food_demand` next -- the per-food residual must not be mis-attributed to waste.
-- `cost` next -- without `food_demand`, per-food mismatch leaks into cost duals as spurious sign (olive-oil goes negative, coffee/tea peg at the slack ceiling).
-- `stability` last -- the L1 Broyden iteration assumes all previous corrections are in place.
+- `market_response` last -- the pinned solves measure wedges against the fully calibrated feed/waste/demand behaviour.
+- Legacy: `cost` after `food_demand` -- without it, per-food mismatch leaks into cost duals as spurious sign (olive-oil goes negative, coffee/tea peg at the slack ceiling); `stability` after `cost` -- the L1 Broyden iteration assumes the cost corrections are in place.
 
 If in doubt, run the whole chain. Partial re-runs are only safe when every
 earlier artefact is still semantically valid (see "When to re-run").
@@ -72,12 +82,13 @@ earlier artefact is still semantically valid (see "When to re-run").
 ## Entry point
 
 ```bash
-tools/calibrate              # all five steps in order
+tools/calibrate              # the default chain in order
 tools/calibrate feed         # one step
 tools/calibrate food_waste
 tools/calibrate food_demand
-tools/calibrate cost
-tools/calibrate stability
+tools/calibrate market_response
+tools/calibrate cost         # legacy, not in the default chain
+tools/calibrate stability    # legacy, not in the default chain
 tools/calibrate --check      # per-step staleness + provenance probe (no execution)
 tools/calibrate --record     # re-stamp the set as it stands (no execution)
 tools/calibrate --base config/<name>.yaml [all|<step>|--check]
@@ -88,8 +99,10 @@ The wrapper defaults to `pixi -e gurobi` -- all calibration configs use
 Gurobi. HiGHS is too slow here. Override with `CALIBRATE_PIXI_ENV=<env>`.
 
 With `--base`, the base config must declare its own `calibration.source`
-(refusing to overwrite the shared `default` set); a fresh set is seeded
-from `default` and regenerated in order, and the `all` chain uses
+(refusing to overwrite the shared `default` set); a fresh set is
+generated in dependency order with no seeding (each step consumes only
+its predecessors' artefacts; legacy artefacts appear only when the
+`cost`/`stability` steps are run explicitly), and the `all` chain uses
 `name: calibration-<source>-<step>` so processing trees don't thrash. After any
 successful run the set is (re)stamped with `provenance.yaml`.
 
@@ -284,10 +297,10 @@ historical centre once the chain absorbs its gaps cleanly.
 
 ### Other gotchas
 
-- **Commit an artefact set whole.** The five steps write into one
-  directory but each is fit against the others, so a set is only
+- **Commit an artefact set whole.** The steps write into one
+  directory but each is fit against its predecessors, so a set is only
   meaningful as a single vintage. Committing one artefact requires either
-  all five to be consistent or a careful re-run from the step where
+  the whole set to be consistent or a careful re-run from the step where
   inconsistency starts. Don't commit them piecemeal.
 
 - **Each step must disable the calibrations of every *later* step.** The

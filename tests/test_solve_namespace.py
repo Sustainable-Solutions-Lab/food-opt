@@ -62,6 +62,62 @@ class TestValidateScenarioConfigSchemas:
         }
         validate_scenario_config_schemas(base_config, defs, ".")
 
+    def test_accepts_either_production_anchoring_mechanism(self, base_config):
+        validate_scenario_config_schemas(
+            base_config,
+            {
+                "market": {},
+                "none": {
+                    "market_response": {"enabled": False},
+                },
+                "cost": {
+                    "market_response": {"enabled": False},
+                    "cost_calibration": {"enabled": True},
+                },
+                "cost_generation": {
+                    "cost_calibration": {"generate": True},
+                },
+            },
+            ".",
+        )
+
+    def test_rejects_mixed_production_anchoring_mechanisms(self, base_config):
+        with pytest.raises(ValueError, match="produces an invalid merged config"):
+            validate_scenario_config_schemas(
+                base_config,
+                {
+                    "mixed": {
+                        "cost_calibration": {"enabled": True},
+                    },
+                },
+                ".",
+            )
+
+    def test_demand_component_and_enforced_diet_are_exact_opposites(self, base_config):
+        """With market response enabled, the demand side must be either elastic
+        (components.demand) or held at baseline (enforce_baseline_diet)."""
+        validate_scenario_config_schemas(
+            base_config,
+            {
+                "elastic": {},
+                "fixed": {
+                    "market_response": {"components": {"demand": False}},
+                    "validation": {"enforce_baseline_diet": True},
+                },
+            },
+            ".",
+        )
+        for scenario, override in {
+            "free_diet_no_demand": {
+                "market_response": {"components": {"demand": False}},
+            },
+            "enforced_diet_with_demand": {
+                "validation": {"enforce_baseline_diet": True},
+            },
+        }.items():
+            with pytest.raises(ValueError, match="produces an invalid merged config"):
+                validate_scenario_config_schemas(base_config, {scenario: override}, ".")
+
     def test_rejects_pre_split_deviation_penalty_structure(self, base_config):
         """The old flat land.l1_cost_factor layout must fail loudly instead of
         merging in silently and being ignored at solve time."""

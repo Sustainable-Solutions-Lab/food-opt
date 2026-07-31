@@ -23,8 +23,9 @@ so that ordinary builds don't need to re-solve anything. See
 .. admonition:: Calibration is tied to the baseline diet (and thus to diet source, health and anchoring)
    :class: warning
 
-   Several artefacts (notably ``food_demand.csv``, ``food_waste.yaml``
-   and ``deviation_penalty.yaml``) are fit against a *specific* baseline
+   Several artefacts (notably ``market_response.csv``,
+   ``food_demand.csv``, ``food_waste.yaml`` and
+   ``deviation_penalty.yaml``) are fit against a *specific* baseline
    diet. The baseline diet depends on the diet source (``diet.source``:
    GDD-IA or FBS-derived; see :ref:`current-diets-fbs-source`) and on
    whether the GBD risk-factor groups are anchored to GBD intake, which
@@ -34,12 +35,13 @@ so that ordinary builds don't need to re-solve anything. See
    Two artefact sets are committed, both fit against the default GDD-IA
    diet source and differing only in anchoring: ``default``, fit against
    the anchoring-off diet of the default config; and ``gbd-anchored``,
-   fit against the GBD-anchored diet and consumed by the health-enabled
-   configs (``gsa``, ``doc_figures``) via
+   fit against ``config/gbd_anchored.yaml`` -- the default config with
+   the GBD-anchored diet as its only structural change -- and consumed
+   by the health-enabled configs (``gsa``, ``doc_figures``) via
    ``calibration.source: gbd-anchored``. No set is shipped for
    ``diet.source: fbs``: that source is supported but needs its own
    calibration run before use. ``tools/calibrate`` resolves anchoring
-   from its base config and pins it across all five steps, so each set
+   from its base config and pins it across every step, so each set
    is regenerated against the right diet automatically. The provenance
    stamps record the diet source and the *resolved* anchoring, so
    consuming a set fit against a different diet fails at startup.
@@ -90,19 +92,30 @@ so that ordinary builds don't need to re-solve anything. See
      - Per-food global multiplier on the baseline-diet ``target_mt``
        that closes the residual per-food gap between FAOSTAT QCL supply
        and GDD-IA demand left over after the food-waste step.
-   * - :ref:`cost <cost-calibration>`
+   * - :ref:`market_response <market-response-calibration>`
+     - ``config/calibration/market_response.yaml``
+     - ``market_response.csv``
+     - Per-group production intercepts and, when enabled, demand intercepts
+       with their reference-price slope basis. Supply and demand are fitted
+       sequentially against the same deployed regime.
+   * - :ref:`cost <cost-calibration>` (legacy)
      - ``config/calibration/cost.yaml``
      - ``crop_cost.csv``,
        ``multi_crop_cost.csv``,
        ``grassland_cost.csv``,
        ``animal_cost.csv``
      - Additive production-cost corrections derived from stability-
-       constraint duals (observed allocation -> optimal allocation).
-   * - :ref:`stability <prod-stability-calibration>`
+       constraint duals. Superseded by ``market_response`` in the
+       default chain; run explicitly for configs anchoring with the
+       cost corrections.
+   * - :ref:`stability <prod-stability-calibration>` (legacy)
      - ``config/calibration/stability.yaml``
      - ``deviation_penalty.yaml``
      - The L1 penalty pair :math:`(\ell^c_1, \ell^a_1)` that brings both
        land-use and animal-feed deviations to ~5 % of observed totals.
+       Superseded by ``market_response`` in the default chain; run
+       explicitly for configs still using the deviation penalty
+       (depends on the cost step).
 
 Dependency order
 ----------------
@@ -119,6 +132,17 @@ When upstream data or build logic changes, rerun in this order:
    food-waste fractions so that any per-food gap that remains reflects
    a genuine supply / demand mismatch (FAOSTAT QCL vs GDD-IA) and not
    a waste mis-attribution.
+#. :ref:`market_response <market-response-calibration>` — the pinned
+   solves measure each group's residual price wedge against the fully
+   calibrated feed, waste, and demand behaviour. The intercepts absorb
+   the remaining local wedge. This is the default production anchoring
+   mechanism; the legacy cost-correction mechanism is selected only
+   when ``market_response.enabled`` is false.
+
+The two legacy anchoring steps sit outside the default chain and are run
+explicitly, in order, for artefact sets consumed by configs that anchor
+with them (e.g. the tutorials):
+
 #. :ref:`cost <cost-calibration>` — the cost-calibration solve uses
    the calibrated feed, waste, and demand behaviour to extract duals
    that make economic sense. Without the food-demand step, residual
@@ -126,8 +150,11 @@ When upstream data or build logic changes, rerun in this order:
    sign (e.g. olive-oil cost driven negative, coffee/cocoa pegged at
    the slack ceiling) and inflates the stability L1 cost downstream.
 #. :ref:`stability <prod-stability-calibration>` — the L1 Broyden
-   iteration uses all previous corrections so that the observed
-   deviations reflect the fully-calibrated baseline.
+   iteration runs against the calibrated cost corrections, so it must
+   follow the cost step.
+
+``tools/calibrate --check`` and ``--record`` cover a legacy step
+whenever its artefacts are present in the set.
 
 Running the calibrations
 ------------------------
@@ -140,8 +167,9 @@ Everything is wrapped by ``tools/calibrate``:
    tools/calibrate feed         # one step (forage + protein feed slack)
    tools/calibrate food_waste
    tools/calibrate food_demand
-   tools/calibrate cost
-   tools/calibrate stability
+   tools/calibrate market_response
+   tools/calibrate cost         # legacy cost corrections, not in the default chain
+   tools/calibrate stability    # legacy L1 step, not in the default chain
    tools/calibrate --check      # per-step staleness + provenance, no execution
    tools/calibrate --record     # re-stamp the set as it stands, no execution
    tools/calibrate --base config/<name>.yaml [all|<step>|--check]
@@ -188,10 +216,10 @@ A config with different structural assumptions has three options:
 
 * **Calibrate its own set**: declare ``calibration.source: <name>`` in
   the config and run ``tools/calibrate --base config/<file>.yaml``.
-  Artefacts land in ``data/curated/calibration/<name>/``. A fresh set
-  is first seeded from the ``default`` set (each calibration solve
-  consumes the other steps' artefacts) and then regenerated in
-  dependency order.
+  Artefacts land in ``data/curated/calibration/<name>/``, generated in
+  dependency order (each calibration solve consumes only the artefacts
+  of the steps before it). Legacy anchoring artefacts are added only by
+  explicitly running the ``cost`` and ``stability`` steps.
 * **Point at a compatible existing set** via ``calibration.source``.
 * **Accept the mismatch** with
   ``calibration.accept_provenance_mismatch: true``, downgrading the
@@ -221,8 +249,16 @@ workflow when their configuration blocks are enabled (the default):
   each per-food multiplier uniformly to the baseline-diet ``target_mt``
   in ``_match_baseline_to_consume_links`` (see
   :ref:`food-demand-calibration`).
-* ``cost_calibration.enabled: true`` loads the cost-correction
-  CSVs at build time (see :ref:`cost-calibration-correction`).
+* ``market_response.enabled: true`` with ``intercepts: "calibrated"``
+  resolves ``data/curated/calibration/<source>/market_response.csv`` at
+  solve time (wired as a DAG input by ``calibration_artefact_inputs`` in
+  ``workflow/rules/common.smk``); see
+  :ref:`market-response-calibration`.
+* ``cost_calibration.enabled: true`` loads the legacy cost-correction CSVs at
+  build time (see :ref:`cost-calibration-correction`). It is mutually exclusive
+  with ``market_response.enabled`` and is therefore off in the default chain.
+  The cost calibration step sets ``generate: true`` while leaving ``enabled``
+  false because it writes, rather than consumes, these artefacts.
 * ``deviation_penalty.calibration.enabled: true`` resolves the sentinel
   ``"calibrated"`` on any of
   ``deviation_penalty.{land.crops,land.grassland,feed,diet}.l1_cost`` from
@@ -360,10 +396,148 @@ Script: ``workflow/scripts/extract_cost_calibration.py``. The two
 scenarios (``baseline`` and ``calibration``) live in
 ``config/calibration/cost.yaml``.
 
+.. _market-response-calibration:
+
+Market-response intercept calibration
+-------------------------------------
+
+The default anchoring mechanism is the set of convex piecewise-linear supply
+and demand curves described under :ref:`Market Response
+<market-response-curves>`. This section states the calibration contract: what
+is being fitted and which observations receive curves.
+
+Accounting costs, intercepts, and elastic slopes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For a production group :math:`g`, :math:`b_g` is its positive observed
+activity and :math:`c_g` is its baseline-weighted accounting marginal cost.
+The accounting cost is the ordinary marginal cost carried by the production
+links; it excludes the legacy baseline-bounded cost-calibration correction.
+An elastic phase-1 pin holds the group near :math:`b_g`. The negative of the
+pin dual is the intercept :math:`\lambda_g`, the local gap between marginal
+value and :math:`c_g`. Feeding that intercept back makes the curve's marginal
+cost at the observed point consistent with the fitted market regime.
+
+The intercept fixes the local *level*; the configured elasticity fixes the
+response away from it. Production uses the accounting-cost slope
+
+.. math::
+
+   \gamma_g = \frac{c_g}{\eta_g b_g}.
+
+Demand uses the same convex deviation-cost representation for a concave
+marginal-utility curve. Its intercept is minus fitted willingness to pay, and
+its slope is
+
+.. math::
+
+   \gamma_g = \frac{P_g}{\eta_g b_g},
+
+where :math:`P_g` is the positive reference price stored in the artefact's
+``slope_basis`` column. A demand slope is therefore not inferred from an
+arbitrary dual level: it is fitted separately against the accounting-cost
+supply chain.
+
+Sequential production and demand fit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Jointly pinning production and consumption closes every commodity chain and
+does not identify how its wedge should be split between producer and consumer.
+The default demand-enabled calibration instead runs sequentially:
+
+#. Pin production while disabling the market-response demand component. The
+   production duals provide the first supply intercepts under the base config's
+   other demand settings.
+#. Pin demand against zero-intercept supply curves. The resulting food-bus
+   prices provide ``slope_basis`` for the demand slopes.
+#. Pin demand against the calibrated supply curves. These duals provide the
+   demand intercepts for the supply side that ordinary solves deploy.
+#. Re-pin production with the fitted demand curves active, then refit demand.
+   Repeat until ``market_response.calibration.sweeps`` passes have been run.
+
+Each one-sided pinned fit enforces its own local optimality condition, but the
+finite alternating sequence is not an exact joint calibration. Refitting one
+side can move the other side slightly. The configured sweeps reduce this
+cross-side drift; they do not certify convergence to zero. Claims and result
+checks should therefore report the achieved production and demand deviations,
+not describe the coupled solution as mathematically exact.
+
+The pinned solves use the base config's operating regime with GHG and health
+objective prices neutralized by the calibration config. Intercepts are
+regime-specific: changing the demand mechanism, baseline diet, model structure,
+or curve grouping materially requires a matching artefact set.
+
+The production intercepts of a demand-enabled fit are conditioned on the
+fitted demand system: the final production pin runs with the demand curves
+active. Schema validation therefore requires every market-response solve to
+run either with the demand component enabled or with the diet held at the
+observed baseline (``validation.enforce_baseline_diet``) -- both reproduce
+the fitted point up to the residual sweep drift, while any other demand
+valuation would silently break baseline reproduction.
+
+Observed support and grouping
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Market-response curves are an intensive-margin model. A group receives a
+curve only when its observed baseline :math:`b_g` is strictly positive. A
+reported zero is a valid observation outside the fitted support: it receives
+no curve and its group activity is fixed to zero. The curves do not invent an
+extensive-margin elasticity for entry from zero. At coarse granularity this
+contract applies to the aggregate group. A zero-baseline link inside a group
+whose aggregate baseline is positive can still participate in within-group
+reallocation; only a zero aggregate is fixed.
+
+For demand, a missing baseline is different from an observed zero. Missing
+means that the baseline-diet matching contract failed for a modeled
+``(food, country)`` consumption link and is an input error; it must not be
+silently converted to zero and skipped. A genuine matched zero remains a
+zero-support observation: it receives no demand curve and is fixed to zero.
+
+``granularity`` defines the fitted group. At ``link`` granularity every
+production link has its own curve and the artefact is tied to the exact link
+set. At ``country`` or ``region`` granularity, links are aggregated by
+commodity and geography. The curve then anchors only the aggregate total; it
+does not price reallocations among links within that group. If such within-
+group reallocation must be controlled, enable an appropriate per-link
+mechanism explicitly rather than attributing that behavior to the coarse
+market-response curve.
+
+The intercept table is keyed by component and group. A solve against an
+artefact from another granularity or structural build fails on missing group
+keys. Regenerate with ``tools/calibrate market_response`` or with
+``tools/calibrate --base config/<name>.yaml market_response`` for a dedicated
+artefact set.
+
+Interaction with legacy cost calibration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The cost-calibration files store additive corrections as baseline-bounded
+subsidy or penalty terms. A market-response intercept already absorbs the
+local gap between accounting cost and marginal value, so applying both
+mechanisms would introduce a second kink at the baseline and change the
+response implied by the configured elasticity. JSON Schema validation
+therefore permits at most one active production anchor:
+the default enables ``market_response`` and disables ``cost_calibration``;
+legacy configs do the reverse. The solve and objective accounting can then
+handle the selected mechanism directly, without a component-level suppression
+gate. ``cost_calibration.generate`` may remain true while
+``cost_calibration.enabled`` is false when producing the legacy artefacts.
+
+Groups whose reference activity conflicts with hard land, water, feed, or
+other constraints use elastic pin slack. Their intercept is censored at
+``pin_slack_cost``; the calibration log reports them and the artefact records a
+nonzero ``slack`` value. Treat those rows as diagnostics, not as uncensored
+price-wedge estimates.
+
+Rule: ``calibrate_market_response`` in
+``workflow/rules/market_response.smk``. Script:
+``workflow/scripts/calibrate_market_response.py``. Config:
+``config/calibration/market_response.yaml``.
+
 .. _prod-stability-calibration:
 
-Production-stability L1 calibration
------------------------------------
+Production-stability L1 calibration (legacy)
+--------------------------------------------
 
 Motivation
 ~~~~~~~~~~
@@ -489,9 +663,10 @@ Rule: ``calibrate_deviation_penalty`` in
 ``workflow/rules/deviation_penalty.smk``. Script:
 ``workflow/scripts/calibrate_deviation_penalty.py``.
 
-The calibrated L1 centre also defines the reference regime for the GSA
-scenario groups (``gsa``, ``gsa-l1-low``, ``gsa-l1-high``); see
-:ref:`sensitivity-prod-stability-cost`.
+The calibrated L1 centre defines the reference regime only for configs that
+explicitly enable the legacy deviation penalty. The main GSA config uses
+production market-response curves; companion L1 configs can still use the
+calibrated centre described at :ref:`sensitivity-prod-stability-cost`.
 
 Staleness detection
 -------------------

@@ -178,6 +178,7 @@ UNIT_BY_GROUP = {
     "poultry": "g/day (fresh wt)",
     "eggs": "g/day (fresh wt)",
     "stimulants": "g/day (fresh wt)",
+    "animal_fat": "g/day (fresh wt)",
 }
 
 # UN/World Bank region aggregates that appear in the IA region column
@@ -426,6 +427,31 @@ def _apply_proxies(
     return df
 
 
+def _materialize_sparse_zeros(
+    df: pd.DataFrame,
+    required_countries: set[str],
+    included_groups: set[str],
+    excluded_groups: set[str] | None = None,
+) -> pd.DataFrame:
+    """Emit explicit zeros for omitted cells in GDD-IA's sparse tables."""
+    groups = included_groups - (excluded_groups or set())
+    expected = pd.MultiIndex.from_product(
+        [sorted(required_countries), sorted(groups)],
+        names=["country", "group"],
+    )
+    present = pd.MultiIndex.from_frame(df[["country", "group"]])
+    missing = expected.difference(present)
+    if missing.empty:
+        return df
+
+    zeros = missing.to_frame(index=False)
+    for column in df.columns:
+        if column not in ("country", "group"):
+            zeros[column] = 0.0
+    logger.info("Materialized %d sparse GDD-IA country-group cells as zero", len(zeros))
+    return pd.concat([df, zeros[df.columns]], ignore_index=True)
+
+
 def main() -> None:
     grams_path = Path(snakemake.input["grams"])
     kcal_path = Path(snakemake.input["kcal"])
@@ -496,6 +522,25 @@ def main() -> None:
     # --- Apply country proxies ---
     df = _apply_proxies(df, required_countries, proxies)
 
+    missing_countries = required_countries - set(df["country"].unique())
+    if missing_countries:
+        raise ValueError(
+            f"[prepare_gdd_ia_dietary_intake] {len(missing_countries)} required "
+            f"countries still missing after proxy fill: {sorted(missing_countries)}. "
+            "Extend country_proxies in the script or config."
+        )
+
+    # GDD-IA stores zero-intake country-group cells by omitting the row.
+    # Make those observations explicit so downstream calibration can
+    # distinguish observed zero support from missing baseline data. Animal
+    # fat retains its documented FBS supplement in merge_dietary_sources.
+    df = _materialize_sparse_zeros(
+        df,
+        required_countries,
+        food_groups_included,
+        excluded_groups={"animal_fat"},
+    )
+
     # --- Build country-level kcal targets ---
     # all-fg total (one row per country, prim/all-fg category):
     all_fg = kcal[(kcal["type"] == "prim") & (kcal["food_group"] == "all-fg")][
@@ -562,6 +607,11 @@ def main() -> None:
     out_diet_path.parent.mkdir(parents=True, exist_ok=True)
     diet_out = df.rename(columns={"group": "item"})[["country", "item", "value"]].copy()
     diet_out["unit"] = diet_out["item"].map(UNIT_BY_GROUP)
+    missing_units = sorted(diet_out.loc[diet_out["unit"].isna(), "item"].unique())
+    if missing_units:
+        raise ValueError(
+            f"No dietary-intake unit configured for groups {missing_units}"
+        )
     diet_out["age"] = "All ages"
     diet_out["year"] = reference_year
     diet_out = diet_out[["unit", "item", "country", "age", "year", "value"]]
@@ -597,16 +647,6 @@ def main() -> None:
         len(targets),
         out_kcal_path,
     )
-
-    # --- Final coverage check ---
-    have = set(diet_out["country"].unique())
-    missing = required_countries - have
-    if missing:
-        raise ValueError(
-            f"[prepare_gdd_ia_dietary_intake] {len(missing)} required countries "
-            f"still missing after proxy fill: {sorted(missing)}. Extend "
-            f"country_proxies in the script or config."
-        )
 
     # Log per-group global means for a sanity check.
     means = diet_out.groupby("item")["value"].mean().round(2)

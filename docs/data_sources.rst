@@ -937,11 +937,17 @@ regional food availability and food-waste estimates, socio-demographic
 variation in intake from dietary surveys, and energy-intake estimates
 based on measurements of body weight, height and physical activity. The
 result is a harmonised per-country intake dataset reported in parallel
-grams/day and kcal/day for every food category. It is designed for
+grams/day and kcal/day. Zero country-category cells are omitted from the
+source tables and materialised explicitly by GLADE. It is designed for
 dietary impact assessments that need complete diets, absolute intake
 levels that minimise the risk of over- or under-estimation, and regional
 comparability. This is the model's default baseline-diet source
 (``diet.source: gdd_ia``).
+
+Missing ``animal_fat`` cells are the sole exception to sparse-zero
+materialisation: the diet merge supplements them from FAOSTAT supply with a
+documented supply-to-intake factor, preserving coverage of the model's
+rendered-fat consumption links.
 
 .. note::
 
@@ -962,8 +968,8 @@ and warns when an exact release is unavailable.
   * Content: per-country mean dietary intake covering the major food
     groups the model represents (cereals — refined and whole-grain —
     vegetables, fruits, nuts and seeds, oils, sugar, legumes, poultry,
-    red meat, dairy, eggs) plus out-of-scope categories (alcohol,
-    seafood, spices, rendered animal fats) used only for the
+    red meat, dairy, eggs, rendered animal fats) plus out-of-scope categories
+    (alcohol, seafood, spices) used only for the
     caloric-normalisation step. The dataset is stratified by age, sex
     and urban/rural residence; the pipeline consumes the all-ages,
     both-sexes, all-residences mean strata.

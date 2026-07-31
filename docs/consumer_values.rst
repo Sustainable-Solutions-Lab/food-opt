@@ -53,9 +53,10 @@ in objective per unit of relaxed consumption:
      = \frac{\partial (\text{total cost})}{\partial p_{\text{set}}(f, c)}.
 
 Sign convention in ``extract_consumer_values.py``:
-``value_bnusd_per_mt = -mu_p_set`` so that positive values mean *consumption
-is valuable to the consumer* (the model would pay this much per Mt to be
-allowed to consume more).
+``value_bnusd_per_mt = mu_p_set`` (and ``adjustment_bnusd_per_mt`` its
+negation) so that positive values mean *consumption is valuable to the
+consumer* (the model would pay this much per Mt to be allowed to consume
+more).
 
 Read carefully, a positive dual is **not** a "preference" in the everyday
 sense — it is whatever marginal cost the supply chain has to incur to deliver
@@ -67,15 +68,12 @@ to pay — i.e. that observed consumption is approximately at the equilibrium
 of supply cost and demand value. That is a common revealed-preference
 assumption in food-system modelling.
 
-**Negative duals are floored at zero.** A negative ``mu_p_set`` would mean
-the consumer pays the model to take more of the food, which is semantically
-backwards as a preference signal — it always indicates a supply-side
-artifact (e.g. forced co-product disposal, L1 production-stability dragging
-production toward baseline through binding caps elsewhere). The extractor
-floors these at zero so downstream consumers see consistent non-negative
-values. The clipped count and the most-negative foods are logged for
-traceability; the *Preconditions* section below catalogs the structural
-issues that produce them.
+**Negative duals are kept as-is.** A negative ``mu_p_set`` means the system
+saves cost when required to consume more of the food — typically a
+supply-side artifact (e.g. forced co-product disposal, or production
+anchoring dragging output toward baseline through binding caps elsewhere).
+The *Preconditions* section below catalogs the structural issues that produce
+them.
 
 Visualisation
 -------------
@@ -106,12 +104,11 @@ A few patterns are worth flagging.
   GHGs.
 - **Cereals and starchy vegetables** sit in the low-positive range. They are
   cheap calorie sources at baseline.
-- **A few oils and seeds** cluster near zero. These come from co-products
+- **A few oils and seeds** cluster near or below zero. These come from co-products
   of larger commodity flows (e.g. coconut oil and meal from copra-based
   coconut production), and their marginal cost is dominated by the
-  byproduct-value side of the balance sheet. The extractor floors these
-  at zero (see above), so any food whose raw dual was negative shows as
-  zero in the figure.
+  byproduct-value side of the balance sheet. Negative raw duals remain
+  negative in both the extracted data and the figure.
 
 Preconditions for sensible duals
 --------------------------------
@@ -146,7 +143,8 @@ configuration looks the way it does (see ``docs/config/doc_figures.yaml``'s
 
 2. **The L1 deviation penalty pulls in the same direction.** When
    ``deviation_penalty`` is enabled with ``penalty_mode: "l1"``
-   (typical for the central and GSA configurations), the objective gains a
+   (legacy configs and the tutorials; the default and GSA configs now
+   anchor production with market-response curves), the objective gains a
    term :math:`l_1 \cdot \sum |a - a_{\mathrm{baseline}}|` on harvested area
    per crop. If the modelled outlets for some crop's production cannot
    absorb its baseline area, the L1 term drags the corresponding food

@@ -85,6 +85,7 @@ _GENERATE_FLAG_PATHS = [
     ("food_demand_calibration", "generate"),
     ("cost_calibration", "generate"),
     ("deviation_penalty", "calibration", "generate"),
+    ("market_response", "calibration", "generate"),
 ]
 
 

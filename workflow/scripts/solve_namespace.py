@@ -40,6 +40,7 @@ SOLVE_TIME_CONFIG_PREFIXES = {
     "validation.animal_growth_cap",
     "validation.crop_growth_cap",
     "deviation_penalty",
+    "market_response",
     "macronutrients",
     "food_utility_piecewise",
     "food_incentives",
@@ -65,6 +66,36 @@ SOLVE_TIME_CONFIG_PREFIXES = {
     "solving.mem_mb",
     "netcdf",
 }
+
+
+def solve_runtime_code_paths() -> list[str]:
+    """Return local Python sources shared by every ``run_solve`` harness.
+
+    Snakemake tracks a rule's entry-point script, but not the modules imported
+    by that script.  Keep this list shared by ordinary solves, cluster
+    manifests, and in-process calibration solves so a change to numerical
+    solve code invalidates every consumer consistently.
+    """
+    project_root = Path(__file__).resolve().parents[2]
+    support = (
+        "workflow/__init__.py",
+        "workflow/scenario_generators.py",
+        "workflow/scripts/__init__.py",
+        "workflow/scripts/constants.py",
+        "workflow/scripts/logging_config.py",
+        "workflow/scripts/population.py",
+        "workflow/scripts/snakemake_utils.py",
+        "workflow/scripts/solve_namespace.py",
+        "workflow/scripts/water_periods.py",
+    )
+    packages = (
+        project_root / "workflow/scripts/build_model",
+        project_root / "workflow/scripts/solve_model",
+    )
+    paths = [project_root / path for path in support]
+    for package in packages:
+        paths.extend(package.glob("*.py"))
+    return sorted(str(path.relative_to(project_root)) for path in paths)
 
 
 def _leaf_keys(d, prefix=""):
@@ -372,9 +403,7 @@ def build_scenario_entry(
         "m49": "data/curated/M49-codes.csv",
         "food_groups": "data/curated/food_groups.csv",
         "baseline_diet": rp("<processing>/{name}/baseline_diet.csv"),
-        "solve_scripts": sorted(
-            str(path) for path in Path("workflow/scripts/solve_model").glob("*.py")
-        ),
+        "solve_scripts": solve_runtime_code_paths(),
     }
 
     # Health processing inputs only when this scenario enables health (mirrors
@@ -431,6 +460,10 @@ def build_scenario_entry(
     if dp_cal_cfg["enabled"] and deviation_penalty_uses_calibrated(dp_cfg):
         inputs["deviation_penalty_calibration"] = dp_cal_cfg["calibrated_yaml"]
 
+    sr_cfg = eff["market_response"]
+    if sr_cfg["enabled"] and sr_cfg["intercepts"] == CALIBRATED_SENTINEL:
+        inputs["market_response_calibration"] = sr_cfg["calibration"]["calibrated_csv"]
+
     if inline_analysis:
         inputs["population"] = rp("<processing>/{name}/population.csv")
         inputs["analysis_scripts"] = sorted(
@@ -453,7 +486,9 @@ def build_scenario_entry(
         "macronutrients": macronutrient_cfg,
         "food_group_constraints": eff["food_groups"]["constraints"],
         "enforce_baseline": eff["validation"]["enforce_baseline_diet"],
+        "use_actual_production": eff["validation"]["use_actual_production"],
         "deviation_penalty": eff["deviation_penalty"],
+        "market_response": eff["market_response"],
         "animal_growth_cap": eff["validation"]["animal_growth_cap"],
         "crop_growth_cap": eff["validation"]["crop_growth_cap"],
         "food_utility_piecewise": utility_cfg,

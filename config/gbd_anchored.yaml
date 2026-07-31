@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC-BY-4.0
+
+# Calibration base for the shared ``gbd-anchored`` artefact set: the default
+# configuration with exactly one structural change, the GBD-anchored baseline
+# diet. Health-enabled configs (which resolve the ``match_health`` anchoring
+# sentinel to true) consume this set; keeping the base minimal guarantees the
+# artefacts never absorb structural choices of any particular consumer config.
+#
+# Regenerate with:
+#
+#   tools/calibrate --base config/gbd_anchored.yaml
+
+name: "gbd-anchored"
+
+calibration:
+  source: "gbd-anchored"
+
+diet:
+  anchor_groups_to_gbd: true

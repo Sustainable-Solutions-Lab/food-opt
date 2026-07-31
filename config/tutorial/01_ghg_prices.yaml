@@ -52,3 +52,15 @@ scenarios:
 # Compare all three scenarios in auto-generated plots.
 plotting:
   comparison_scenarios: "all"
+
+# This config's build differs structurally from the default, so the default
+# set's link-keyed market-response intercepts do not apply; production
+# anchoring stays with the L1 deviation penalty.
+market_response:
+  enabled: false
+# Keep the legacy calibrated corrections with the L1 anchor for this reduced
+# structural config; PMP and cost calibration are mutually exclusive.
+cost_calibration:
+  enabled: true
+deviation_penalty:
+  enabled: true

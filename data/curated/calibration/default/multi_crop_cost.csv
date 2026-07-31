@@ -20,7 +20,7 @@ cotton_wheat,ESP,-1.7609281539916992
 cotton_wheat,ETH,-2.8228458166122437
 cotton_wheat,GEO,7.5
 cotton_wheat,GRC,-1.7193666696548462
-cotton_wheat,HND,-1.997921347618103
+cotton_wheat,HND,-1.9979214668273926
 cotton_wheat,IND,-1.6127487421035767
 cotton_wheat,IRN,-3.4113048315048218
 cotton_wheat,IRQ,-1.821287751197815
@@ -205,7 +205,7 @@ maize_soybean,BLZ,-1.533581018447876
 maize_soybean,BOL,3.5874201208353043
 maize_soybean,BRA,-0.3474487364292145
 maize_soybean,BTN,3.947512686252594
-maize_soybean,BWA,-0.02426181733608246
+maize_soybean,BWA,-0.024261871352791786
 maize_soybean,CAF,-7.5
 maize_soybean,CAN,-0.6935787200927734
 maize_soybean,CHE,7.5
@@ -227,7 +227,7 @@ maize_soybean,ETH,-0.26363644003868103
 maize_soybean,FRA,7.5
 maize_soybean,GAB,-1.311855673789978
 maize_soybean,GEO,-0.014212247915565968
-maize_soybean,GHA,-0.9053362011909485
+maize_soybean,GHA,-0.9053362309932709
 maize_soybean,GIN,7.5
 maize_soybean,GRC,3.186633288860321
 maize_soybean,GTM,-0.7608882188796997
@@ -259,7 +259,7 @@ maize_soybean,MLI,-0.8302015066146851
 maize_soybean,MMR,-1.0919128060340881
 maize_soybean,MNE,7.5
 maize_soybean,MOZ,3.7639795625582337
-maize_soybean,MWI,3.5732914954423904
+maize_soybean,MWI,3.5732914805412292
 maize_soybean,NGA,-0.8235953450202942
 maize_soybean,NIC,-0.35855451226234436
 maize_soybean,NLD,7.5
@@ -278,10 +278,10 @@ maize_soybean,SRB,7.5
 maize_soybean,SSD,7.5
 maize_soybean,SVK,7.5
 maize_soybean,SVN,7.5
-maize_soybean,SWZ,-0.914207398891449
+maize_soybean,SWZ,-0.9142074584960938
 maize_soybean,SYR,7.5
 maize_soybean,TCD,3.5093756914138794
-maize_soybean,TGO,-0.4277437776327133
+maize_soybean,TGO,-0.4277437925338745
 maize_soybean,THA,-0.5364570021629333
 maize_soybean,TJK,7.5
 maize_soybean,TKM,7.5
@@ -297,8 +297,8 @@ maize_soybean,UZB,7.5
 maize_soybean,VEN,-0.9532034397125244
 maize_soybean,VNM,-0.4869907647371292
 maize_soybean,ZAF,-0.3208414912223816
-maize_soybean,ZMB,-0.6546103358268738
-maize_soybean,ZWE,0.8771634697914124
+maize_soybean,ZMB,-0.6546103656291962
+maize_soybean,ZWE,0.8771634101867676
 rice_maize,AFG,-1.7281314134597778
 rice_maize,AGO,-2.376017928123474
 rice_maize,ALB,-0.0
@@ -441,7 +441,7 @@ rice_wheat,IND,-1.2919622659683228
 rice_wheat,IRN,-4.440040111541748
 rice_wheat,IRQ,-2.0962564945220947
 rice_wheat,ITA,-2.425924062728882
-rice_wheat,JPN,-0.9121866226196289
+rice_wheat,JPN,-0.553981602191925
 rice_wheat,KAZ,-0.38919803500175476
 rice_wheat,KGZ,-3.278252124786377
 rice_wheat,KOR,-6.691973686218262
@@ -609,7 +609,7 @@ wheat_maize,BIH,7.5
 wheat_maize,BOL,-0.5379511713981628
 wheat_maize,BRA,-0.2551809549331665
 wheat_maize,BTN,0.9775815010070801
-wheat_maize,BWA,-0.12806834280490875
+wheat_maize,BWA,-0.12806838750839233
 wheat_maize,CAN,7.5
 wheat_maize,CHE,7.5
 wheat_maize,CHL,-1.4204902052879333
@@ -645,7 +645,7 @@ wheat_maize,KOR,-0.32594048976898193
 wheat_maize,LAO,-0.0
 wheat_maize,LBN,-0.6256889700889587
 wheat_maize,LBY,7.5
-wheat_maize,LSO,-0.029484622180461884
+wheat_maize,LSO,-0.02948465198278427
 wheat_maize,LUX,7.5
 wheat_maize,MAR,-0.5155181288719177
 wheat_maize,MDA,7.5
@@ -678,7 +678,7 @@ wheat_maize,SRB,7.5
 wheat_maize,SSD,7.5
 wheat_maize,SVK,7.5
 wheat_maize,SVN,7.5
-wheat_maize,SWZ,-1.2421396970748901
+wheat_maize,SWZ,-1.169561505317688
 wheat_maize,SYR,-1.1873837113380432
 wheat_maize,THA,7.5
 wheat_maize,TJK,-1.7446982860565186
@@ -696,7 +696,7 @@ wheat_maize,VEN,7.5
 wheat_maize,VNM,-0.46575742959976196
 wheat_maize,YEM,-1.6690679788589478
 wheat_maize,ZAF,-0.4967718869447708
-wheat_maize,ZMB,0.2362244427204132
+wheat_maize,ZMB,0.23622439801692963
 wheat_maize,ZWE,7.5
 wheat_soybean,AFG,0.018615351989865303
 wheat_soybean,AGO,-1.2983956933021545
@@ -740,7 +740,7 @@ wheat_soybean,IRQ,-0.6384706273674965
 wheat_soybean,ISR,7.5
 wheat_soybean,ITA,7.5
 wheat_soybean,JOR,-0.0
-wheat_soybean,JPN,1.7555389404296875
+wheat_soybean,JPN,1.809073805809021
 wheat_soybean,KAZ,7.5
 wheat_soybean,KEN,-0.7868411540985107
 wheat_soybean,KGZ,-0.37445786595344543

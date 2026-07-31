@@ -92,8 +92,14 @@ if config["solving"]["inline_analysis"]:
             enforce_baseline=lambda w: get_effective_config(w.scenario)["validation"][
                 "enforce_baseline_diet"
             ],
+            use_actual_production=lambda w: get_effective_config(w.scenario)[
+                "validation"
+            ]["use_actual_production"],
             deviation_penalty=lambda w: get_effective_config(w.scenario)[
                 "deviation_penalty"
+            ],
+            market_response=lambda w: get_effective_config(w.scenario)[
+                "market_response"
             ],
             animal_growth_cap=lambda w: get_effective_config(w.scenario)["validation"][
                 "animal_growth_cap"

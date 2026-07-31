@@ -63,6 +63,11 @@ cost_calibration:
 deviation_penalty:
   enabled: false
 
+# Later-step calibration (lower-triangle rule): the market-response curves
+# and their intercept artefact must not influence this step's fit.
+market_response:
+  enabled: false
+
 # food_demand calibration depends on food_loss_waste.csv, which is built
 # from this step's output. Disable to break the cycle: food_waste's slack
 # must reflect the gap *without* the demand multiplier applied (the

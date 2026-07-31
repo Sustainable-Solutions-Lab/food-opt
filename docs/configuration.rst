@@ -414,7 +414,9 @@ across components.
 
 **Configuration options**:
 
-* ``deviation_penalty.enabled``: master switch (default: ``true``).
+* ``deviation_penalty.enabled``: master switch (default: ``false``;
+  production anchoring comes from the :ref:`market-response curves
+  <market-response-curves>` by default).
 * ``deviation_penalty.penalty_mode``: ``hard``, ``l1``, or ``quadratic``.
 * ``deviation_penalty.deviation_type``: ``absolute`` or ``relative``.
 * ``deviation_penalty.quadratic_cost``: shared coefficient for quadratic mode.
@@ -443,11 +445,9 @@ across components.
 * Per-link bounds with zero baseline are constrained to zero (no new
   products introduced) under hard mode.
 * The L1 penalty also applies to links with zero baseline.
-* Multi-cropping is automatically disabled when ``deviation_penalty.land``
-  is enabled.
 * The diet penalty has no effect when ``enforce_baseline_diet`` is true
   (consumption is already pinned via ``p_set``).
-* Costs land in three separate columns of the per-scenario
+* Costs land in two separate columns of the per-scenario
   ``analysis/.../objective_breakdown.parquet``: production stability
   (land + feed L1) and diet stability.
 
@@ -455,6 +455,213 @@ The default calibration (cropland + grassland + feed) is regenerated
 with ``tools/calibrate stability`` and lands at
 ``data/curated/calibration/<source>/deviation_penalty.yaml`` (see
 :doc:`calibration`).
+
+.. _market-response-curves:
+
+Market Response
+^^^^^^^^^^^^^^^
+
+The ``market_response`` section (the default anchoring mechanism) prices
+departure from the baseline in the tradition of positive mathematical
+programming. Where the deviation penalty prices every unit of departure from
+the baseline at the same rate, a supply curve prices the *next* unit more than
+the last, so the response to a shock is graduated rather than a dead band
+followed by a jump to whichever bound stops it. Its curvature comes from an
+exogenous supply elasticity instead of a coefficient fitted to a chosen
+deviation target.
+
+Production anchoring selection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The model has two alternative production-anchoring mechanisms. The default
+uses the PMP curves (``market_response.enabled: true``) and leaves the legacy
+cost corrections disabled (``cost_calibration.enabled: false``). A legacy
+configuration may set ``market_response.enabled: false`` and
+``cost_calibration.enabled: true`` to apply the baseline-bounded corrections
+extracted from the cost-calibration duals. JSON Schema validation rejects a
+configuration that enables both mechanisms, because their local production
+wedge would be counted twice. ``cost_calibration.generate`` is independent of
+this choice: calibration-generation configs set it to ``true`` while keeping
+``cost_calibration.enabled`` false.
+
+For one side of the market, calibration follows the standard two-phase
+procedure. Phase 1 (``pin_baseline: true``) holds each positive-baseline group
+at its observed activity; the dual :math:`\lambda_g` of each pinning constraint
+is the wedge between marginal value and accounting marginal cost :math:`c_g`.
+Phase 2 (``intercepts: <path>``) feeds the wedges back as curve intercepts.
+With demand curves enabled, supply and demand cannot be identified by one joint
+pin, so they are fitted sequentially and refined for a finite number of sweeps.
+That coupled fit is approximate; see :ref:`market-response-calibration` for the
+stages and the observed-support contract.
+
+For a group :math:`g` with observed activity :math:`b_g` and marginal cost
+:math:`c_g`, the marginal-cost curve reproducing own-price supply elasticity
+:math:`\eta` has slope
+
+.. math::
+
+   \gamma_g = \frac{c_g}{\eta \, b_g}.
+
+The elasticity is stated at the accounting cost rather than at the calibrated
+marginal cost :math:`c_g + \lambda_g`: under a pinned diet the wedges trace
+the Ricardian rent gradient, and sub-marginal groups at the extensive margin
+have :math:`c_g + \lambda_g \le 0`, where a calibrated-cost slope is
+undefined. Exactness does not depend on the slope -- only the intercept enters
+the optimality condition at the baseline -- but a group with wedge
+:math:`\lambda_g` responds with realised elasticity :math:`\eta (c_g +
+\lambda_g) / c_g` to its market price. The curve enters the objective as
+:math:`\lambda_g (X_g - b_g) + \tfrac{1}{2}\gamma_g (X_g - b_g)^2`, which is
+convex and, net of the value of output, minimised at the observed activity.
+The curve enters the LP as its piecewise-linear interpolant, sampled at
+``n_blocks`` breakpoints per side of the baseline: the deviation from baseline
+splits into bounded segment variables whose objective coefficients are the
+chord slopes between consecutive samples, filled in merit order because the
+curve is convex. The outermost segment on each side is unbounded, so beyond
+the sampled range the curve extrapolates at the end chords' slopes and imposes
+no hidden activity bound.
+
+Between adjacent breakpoints the marginal cost is a single chord slope, so the
+spacing sets the finest response the curve can resolve. With equal spacing this
+is ``expansion_range / n_blocks`` of baseline -- 12.5 % at four points over a
+range of half the baseline, which is coarser than the few-percent moves most
+groups make, and the curve then collapses into a flat-rate penalty and loses
+the graduated response it exists for. ``width_growth`` above 1 narrows the
+spacing near the baseline, where groups actually sit, while the outer
+breakpoints still resolve large moves: six points growing by a factor of two
+span the same range with a finest step of 0.8 % of baseline. Shrinking
+``expansion_range`` instead is not equivalent -- it would resolve small moves
+but degenerate for large ones, which matter under carbon pricing.
+
+Curves apply per **group**, whose spatial resolution ``granularity`` sets:
+``country`` prices how much of a commodity a country produces (``(crop,
+country)``, ``(combination, country)`` for multi-cropping, grassland per
+country, ``(animal product, country)``), ``region`` resolves that per
+optimisation region, and ``link`` gives every production link its own curve. A
+coarse curve says nothing about where within the group activity sits, so
+reallocation across regions, resource classes and water-supply types is left
+to the per-link deviation penalty; at ``link`` granularity the curves price
+that reallocation themselves and replace the deviation penalty outright,
+leaving each link's response to its *own* margin -- which controls spatial
+churn far better than a shared country curve.
+
+The ``demand`` component applies the same machinery to consumption: every
+(food, country) consumption link gets a concave marginal-*utility* curve
+through its observed intake. The deviation-cost form is unchanged -- a convex
+deviation cost *is* a diminishing marginal utility -- with the intercept equal
+to minus the fitted willingness to pay and the slope stated at a fitted
+reference price :math:`P_g` (the artefact's ``slope_basis`` column):
+:math:`\gamma_g = P_g / (\eta\, b_g)`, where :math:`\eta` is the own-price
+food demand elasticity in magnitude. The demand fit is sequential -- pinned
+against the calibrated production curves rather than jointly with them, which
+would leave the producer/consumer split of each wedge undetermined; see the
+calibration documentation. The demand component supersedes the
+consumer-values / ``food_utility_piecewise`` mechanism and ``food_incentives``
+and is mutually exclusive with both, as well as with
+``validation.enforce_baseline_diet``.
+
+**Configuration options**:
+
+* ``market_response.enabled``: master switch.
+* ``market_response.n_blocks``: breakpoints per side of the baseline.
+* ``market_response.expansion_range`` / ``contraction_range``: the
+  directional range as a fraction of group baseline. The envelope extrapolates
+  beyond the range, so ``expansion_range`` sets where the curve stops being
+  resolved rather than a cap; contraction at ``1.0`` reaches zero activity.
+* ``market_response.width_growth``: relative spacing of successive breakpoints.
+  ``1.0`` gives equal spacing; above 1 concentrates resolution near the
+  baseline.
+* ``market_response.granularity``: spatial resolution of the curves,
+  ``country`` / ``region`` / ``link``.
+* ``market_response.pin_baseline``: phase-1 calibration switch -- ``true``
+  pins every enabled component, a list of component names pins only those
+  while the rest carry curves from ``intercepts`` (the sequential demand
+  fit). The pin is elastic: reference data is never perfectly consistent with
+  every hard constraint, so deviating from the pin is allowed at
+  ``pin_slack_cost``, and groups that use slack get their intercept censored
+  at that price and flagged in the log.
+* ``market_response.intercepts``: path to the intercepts CSV from the
+  calibration of the same model at the same granularity, the sentinel
+  ``"calibrated"``, or ``null``.
+* ``market_response.elasticities.{crops,multi_crops,grassland,animals}``:
+  own-price supply elasticity per production component;
+  ``elasticities.demand`` maps each food group to its own-price demand
+  elasticity magnitude. The defaults are central values from the empirical
+  literature. Long-run crop supply elasticities span roughly 0.3-1.2 in the
+  Nerlovian estimation tradition (Rao, *Agricultural Economics* 1989,
+  updating the survey of Askari and Cummings, *International Economic
+  Review* 1977), hence 0.5 for annual crops; the frequently cited ~0.1
+  world caloric supply elasticity (Roberts and Schlenker, *American
+  Economic Review* 2013) is a single-season response identified from
+  weather shocks and is not comparable to a long-run value. Long-run
+  livestock supply estimates are wide -- roughly 0.3-2.9 for cattle, with
+  farm-level dairy estimates of 0.47-0.65, against short-run herd-dynamics
+  responses that can even turn negative (Jarvis, *Journal of Political
+  Economy* 1974) -- so 0.4 is a conservative long-run value. Grassland has
+  no dedicated empirical estimate; 0.3 is an assumption by analogy to
+  long-run cropland area elasticities of 0.05-0.79 (Iqbal and Babcock,
+  *Agricultural Economics* 2018). The per-group demand magnitudes are the
+  middle-income column of the meta-regression by Green et al. (*BMJ*
+  2013), taken as global central values: cereals and other staple-like
+  groups 0.55, meat and dairy 0.72, eggs 0.54, fruit and vegetables 0.65,
+  fats and oils 0.5, and sweets/discretionary items 0.74, consistent with
+  the 0.27-0.81 range of the US review by Andreyeva, Long and Brownell
+  (*American Journal of Public Health* 2010); groups Green et al. do not
+  cover use a documented analog. Elasticities fall roughly 30-40% from
+  low- to high-income countries in that meta-regression -- heterogeneity
+  the single global values do not resolve. ``elasticity_factor`` exists
+  precisely so sensitivity analyses can sweep these assumptions.
+* ``market_response.elasticity_factor``: global multiplier on every elasticity,
+  for scanning the assumption.
+* ``market_response.components.{crops,multi_crops,grassland,animals,demand}``:
+  which components carry curves. With the block enabled, schema validation
+  requires ``components.demand`` and ``validation.enforce_baseline_diet`` to
+  be exact opposites: the demand side is either elastic or held at the
+  observed baseline, both of which reproduce the fitted point.
+* ``market_response.pin_slack_cost``: price of deviating from a phase-1 pin
+  (see ``pin_baseline`` above); it also bounds the magnitude of any fitted
+  intercept.
+* ``market_response.calibration.generate``: produce the intercepts artefact
+  via the sequential fitting driver (used by the calibration step config;
+  mutually exclusive with consuming ``intercepts: "calibrated"`` in the same
+  run).
+* ``market_response.calibration.calibrated_csv``: where the fitted artefact
+  lands, resolved through the ``{calibration_source}`` placeholder.
+* ``market_response.calibration.sweeps``: refinement passes of the sequential
+  production/demand fit; each pass contracts the residual cross-side drift
+  (see :ref:`market-response-calibration`).
+
+**Behavior notes**:
+
+* Curves cover the intensive margin only. Groups with a genuine zero baseline
+  get no curve and are fixed to zero. At coarse granularity this applies to a
+  zero aggregate, not to each zero-baseline link within a positive aggregate.
+  At the default ``link`` granularity this fixes a substantial share of
+  observed-zero links outright (roughly 16% of single-crop, 43% of
+  multi-cropping and 20% of animal-production links, and 19% of consumption
+  links, on the default build) -- the same contract the growth caps already
+  enforce at country level, applied per link. The solve log reports the
+  fixed share per component. A missing demand baseline is an input error,
+  not a zero.
+* A group whose baseline-weighted marginal cost is not positive is an error,
+  since the slope is undefined there.
+* The configured elasticities are responses per *relative change of the
+  reference price*: the accounting marginal cost for supply, the
+  ``slope_basis`` reference price for demand. They are not arc elasticities
+  at the curve's own calibrated equilibrium price, which includes the fitted
+  wedge and generally sits elsewhere (see the module docstring of
+  ``workflow/scripts/solve_model/market_response.py``).
+* During phase-1 pins at ``link`` granularity, the capacity bounds of pinned
+  production links are lifted so that links sitting exactly at capacity
+  (baseline equal to ``p_nom_max``) yield an identified pin dual instead of a
+  degenerate one censored at the slack bound. The extracted wedge then
+  includes the link's scarcity rent, which the curve prices on contraction.
+* A demand group whose marginal utility is still positive at the outer end of
+  the sampled range has its unbounded expansion tail floored at zero marginal
+  utility, so consumption cannot run away when supply becomes very cheap.
+* The PMP curves and legacy cost corrections are mutually exclusive at config
+  validation time. A PMP run therefore accounts for its curve wedges, while a
+  legacy cost-calibration run accounts for its baseline-bounded correction
+  terms; no component-level gate is needed at solve time.
 
 .. _growth-caps:
 

@@ -8,14 +8,14 @@
 # optimizer is constrained to the baseline diet via
 # `validation.enforce_baseline_diet: true`. With consumption pinned, the
 # problem reduces to a least-cost production sweep; diet-specific dials
-# (piecewise food utility, consumer values, YLL weighting, relative-risk
+# (demand curves, YLL weighting, relative-risk
 # quantiles) drop out.
 #
 # Differences vs. gsa.yaml:
 #   - `enforce_baseline_diet: true` applied at the base config (and thus
 #     every scenario).
-#   - `food_utility_piecewise.enabled: false` (required with enforce_baseline_diet).
-#   - No baseline calibration scenarios — consumer values are not used.
+#   - `market_response.components.demand: false` (the diet is fixed, so
+#     demand curves have nothing to price).
 #   - Parameters `rr_protective`, `rr_harmful`, `value_per_yll` dropped
 #     (they only steer the optimum through diet choice, which is now fixed).
 #   - Single production-stability regime (the calibrated one).
@@ -118,8 +118,8 @@ sensitivity_analysis:
   # see config/default.yaml for the full rationale.
   discover_scenarios_on_disk: true
 
-# Fix consumption to the baseline diet and keep the calibrated L1
-# production-stability regime used in gsa.yaml.
+# Fix consumption to the baseline diet. Production remains under the calibrated
+# market-response curves used in gsa.yaml.
 validation:
   enforce_baseline_diet: true
 
@@ -132,6 +132,12 @@ diet:
 # (the `default` set is anchoring-off).
 calibration:
   source: "gbd-anchored"
+
+# The diet is held fixed by enforce_baseline_diet, which is incompatible with
+# demand curves, so they stay off.
+market_response:
+  components:
+    demand: false
 
 # No post-hoc YLL evaluation: diet is fixed, so health outputs would be
 # essentially constant across scenarios and just add solve time.

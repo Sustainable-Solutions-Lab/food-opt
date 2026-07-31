@@ -62,6 +62,7 @@ required:
   - food_loss_waste_calibration
   - food_demand_calibration
   - deviation_penalty
+  - market_response
   - solving
   - remote_solve
   - sensitivity
@@ -2086,6 +2087,112 @@ properties:
                 type: number
                 exclusiveMinimum: 0
 
+  market_response:
+    type: object
+    required: [enabled, n_blocks, expansion_range, contraction_range, width_growth, granularity, pin_baseline, pin_slack_cost, intercepts, calibration, elasticities, elasticity_factor, components]
+    additionalProperties: false
+    description: "Convex piecewise-linear supply and demand curves through observed activity, with curvature set by exogenous elasticities per component."
+    properties:
+      enabled:
+        type: boolean
+        description: "Master switch for the market-response curves."
+      n_blocks:
+        type: integer
+        minimum: 1
+        description: "Deviation segments per direction approximating the quadratic deviation cost."
+      expansion_range:
+        type: number
+        exclusiveMinimum: 0
+        description: "Up-range as a fraction of group baseline; the outermost segment is unbounded and extrapolates."
+      contraction_range:
+        type: number
+        exclusiveMinimum: 0
+        maximum: 1
+        description: "Down-range as a fraction of group baseline; 1.0 reaches zero activity."
+      width_growth:
+        type: number
+        minimum: 1
+        description: "Relative width of each successive segment. 1.0 gives equal widths; above 1 concentrates resolution near the baseline."
+      granularity:
+        type: string
+        enum: ["country", "region", "link"]
+        description: "Spatial resolution of the curves: per country, per optimisation region, or per production link."
+      pin_baseline:
+        oneOf:
+          - type: boolean
+          - type: array
+            items:
+              type: string
+              enum: ["crops", "multi_crops", "grassland", "animals", "demand"]
+        description: "PMP phase 1: pin every group at its observed activity (true), or only the listed components while the rest carry curves from `intercepts` (the sequential demand fit); the pinning duals (price wedges) become the intercepts the calibration driver writes to the artefact."
+      pin_slack_cost:
+        type: number
+        exclusiveMinimum: 0
+        description: "Price of deviating from the pin during phase 1; groups that use slack get their intercept censored here and are flagged."
+      intercepts:
+        type: ["string", "null"]
+        description: "PMP phase 2: path to the intercepts CSV from a pinned solve, or the sentinel 'calibrated' resolving to calibration.calibrated_csv; shifts each curve so the observed allocation is the exact unconstrained optimum."
+      calibration:
+        type: object
+        required: [generate, calibrated_csv, sweeps]
+        additionalProperties: false
+        properties:
+          generate:
+            type: boolean
+            description: "Generate the intercepts artefact via pinned solves (breaks the DAG cycle when true)."
+          calibrated_csv:
+            type: string
+            description: "Artefact path the 'calibrated' sentinel resolves to."
+          sweeps:
+            type: integer
+            minimum: 1
+            description: "Production-fit passes in the sequential demand calibration; each pass after the first refines both sides against the other's fitted curves."
+      elasticities:
+        type: object
+        required: [crops, multi_crops, grassland, animals, demand]
+        additionalProperties: false
+        description: "Long-run own-price supply elasticity per production component; for demand, per-food-group own-price demand elasticity magnitudes."
+        properties:
+          crops:
+            type: number
+            exclusiveMinimum: 0
+          multi_crops:
+            type: number
+            exclusiveMinimum: 0
+          grassland:
+            type: number
+            exclusiveMinimum: 0
+          animals:
+            type: number
+            exclusiveMinimum: 0
+          demand:
+            type: object
+            minProperties: 1
+            additionalProperties:
+              type: number
+              exclusiveMinimum: 0
+            description: "Own-price food demand elasticity magnitude per food group; every consumed food group must have an entry."
+      elasticity_factor:
+        type: number
+        exclusiveMinimum: 0
+        description: "Global multiplier on every elasticity, for scanning the assumption."
+      components:
+        type: object
+        required: [crops, multi_crops, grassland, animals, demand]
+        additionalProperties: false
+        description: "Which components carry curves; demand prices per-(food, country) consumption with a fitted marginal-utility curve."
+        properties:
+          crops:
+            type: boolean
+          multi_crops:
+            type: boolean
+          grassland:
+            type: boolean
+          animals:
+            type: boolean
+          demand:
+            type: boolean
+
   solving:
     type: object
     required: [solver, io_api, threads, calculate_fixed_duals, options_gurobi, options_highs, export_for_tuning, time_limit, runtime, mem_mb, inline_analysis]
@@ -2472,3 +2579,61 @@ allOf:
           properties:
             enabled:
               const: true
+  - not:
+      required: [cost_calibration, market_response]
+      properties:
+        cost_calibration:
+          properties:
+            enabled:
+              const: true
+        market_response:
+          properties:
+            enabled:
+              const: true
+  # With market-response curves enabled, the demand side must be either elastic
+  # (components.demand) or held at the observed baseline
+  # (validation.enforce_baseline_diet) -- exactly one of the two. The
+  # production intercepts are fit against the demand fixed point, which both
+  # regimes reproduce; any other demand valuation would silently break
+  # baseline reproduction.
+  - if:
+      required: [market_response]
+      properties:
+        market_response:
+          required: [enabled]
+          properties:
+            enabled:
+              const: true
+    then:
+      required: [market_response, validation]
+      properties:
+        market_response:
+          required: [components]
+          properties:
+            components:
+              required: [demand]
+        validation:
+          required: [enforce_baseline_diet]
+      oneOf:
+        - properties:
+            market_response:
+              properties:
+                components:
+                  properties:
+                    demand:
+                      const: true
+            validation:
+              properties:
+                enforce_baseline_diet:
+                  const: false
+        - properties:
+            market_response:
+              properties:
+                components:
+                  properties:
+                    demand:
+                      const: false
+            validation:
+              properties:
+                enforce_baseline_diet:
+                  const: true

@@ -35,6 +35,13 @@ from workflow.scripts.solve_model.health import (
     evaluate_health_posthoc,
     run_relax_and_fix,
 )
+from workflow.scripts.solve_model.market_response import (
+    add_market_response_curves,
+    evaluate_demand_response_cost,
+    evaluate_supply_response_cost,
+    extract_market_response_intercepts,
+    lift_pinned_capacity_bounds,
+)
 from workflow.scripts.solve_model.production_stability import (
     LAND_CONVERSION_CARRIERS,
     add_animal_growth_cap_constraints,
@@ -1593,6 +1600,44 @@ def run_solve(
             "food_incentives and food_utility_piecewise cannot both be enabled"
         )
 
+    # Resolved here (rather than at the add_market_response_curves call) because
+    # the demand component needs the baseline diet matched onto the consume
+    # links below, and its guards against the other demand-side mechanisms
+    # belong next to theirs.
+    market_response_cfg = dict(smk.params.market_response)
+    # Mirrors the DAG-time input gate: a disabled block never wires (or needs)
+    # the artefact, so the sentinel is only resolved for an enabled one.
+    if (
+        market_response_cfg["enabled"]
+        and market_response_cfg["intercepts"] == "calibrated"
+    ):
+        # Same sentinel convention as the deviation penalty's l1_cost: the
+        # calibrated artefact is declared as a rule input so the DAG tracks it.
+        intercepts_path = getattr(smk.input, "market_response_calibration", None)
+        if intercepts_path is None:
+            raise ValueError(
+                "market_response.intercepts is 'calibrated' but the solve has "
+                "no market_response_calibration input; run "
+                "tools/calibrate market_response for this config's "
+                "calibration.source, or set an explicit intercepts path"
+            )
+        market_response_cfg["intercepts"] = str(intercepts_path)
+    demand_response_active = bool(
+        market_response_cfg["enabled"] and market_response_cfg["components"]["demand"]
+    )
+    if demand_response_active and piecewise_utility_enabled:
+        raise ValueError(
+            "market_response.components.demand and food_utility_piecewise "
+            "cannot both be enabled: both add a marginal-utility curve per "
+            "(food, country) consumption link"
+        )
+    if demand_response_active and incentives_enabled:
+        raise ValueError(
+            "market_response.components.demand and food_incentives cannot both "
+            "be enabled: the fitted demand intercepts already carry the "
+            "consumption-side value"
+        )
+
     # Add food-level linear incentives to marginal costs if enabled
     if incentives_enabled:
         incentives_paths = list(smk.input.food_incentives)
@@ -1622,7 +1667,25 @@ def run_solve(
     matched_baseline: pd.DataFrame | None = None
     dp_cfg = smk.params.deviation_penalty
     diet_enabled = dp_cfg["enabled"] and dp_cfg["diet"]["enabled"]
-    needs_baseline_match = enforce_baseline or diet_enabled
+    if not (
+        market_response_cfg["enabled"]
+        or dp_cfg["enabled"]
+        or bool(smk.params.use_actual_production)
+        or "bounded_subsidy_bnusd_per_mha" in n.links.static.columns
+    ):
+        logger.warning(
+            "No production anchoring is active: market_response, "
+            "deviation_penalty, cost-calibration corrections and the "
+            "validation production pin are all off, so production is governed "
+            "by accounting costs alone"
+        )
+    if demand_response_active and enforce_baseline:
+        raise ValueError(
+            "market_response.components.demand cannot be combined with "
+            "validation.enforce_baseline_diet: enforcement pins consumption "
+            "outright, leaving the demand curves nothing to price"
+        )
+    needs_baseline_match = enforce_baseline or diet_enabled or demand_response_active
     if needs_baseline_match:
         food_demand_multiplier: dict[str, float] | None = None
         fd_cal_path = getattr(smk.input, "food_demand_calibration", None)
@@ -1653,6 +1716,13 @@ def run_solve(
         add_food_slack_generators(n, matched_baseline, slack_cost)
         fix_food_consumption_to_baseline(n, matched_baseline)
 
+    if demand_response_active and (matched_baseline is None or matched_baseline.empty):
+        raise ValueError(
+            "market_response.components.demand is enabled but no baseline diet "
+            "rows matched the food consumption links; the demand curves have "
+            "no observed intake to calibrate against"
+        )
+
     # Create the linopy model.
     #
     # freeze_constraints=True stores every constraint as an immutable,
@@ -1678,6 +1748,10 @@ def run_solve(
     #      duals via the model's matrix accessor.
     #   4. SOS reformulation (needed for HiGHS) and the piecewise formulation only
     #      add big-M / interpolation constraints; they never edit frozen ones.
+    # Phase-1 market-response pins need identified duals; capacity bounds of
+    # pinned links must be lifted before the (frozen) model is created.
+    lift_pinned_capacity_bounds(n, market_response_cfg)
+
     with _phase("pypsa.optimize.create_model"):
         logger.info("Creating linopy model...")
         # consistency_check=False: the network is produced by our own build
@@ -1822,6 +1896,14 @@ def run_solve(
             with _phase("add_diet_stability_constraints"):
                 add_diet_stability_constraints(n, matched_baseline, dp_cfg)
 
+    # Convex piecewise-linear supply curves on group activity, plus the demand
+    # component's marginal-utility curves on consumption. At link granularity
+    # the supply curves replace the per-link deviation penalty above; coarser
+    # curves complement it, carrying the elasticity of a group's total
+    # activity while the per-link term carries spatial inertia.
+    with _phase("add_market_response_curves"):
+        add_market_response_curves(n, market_response_cfg)
+
     # Add animal growth cap constraints (independent of production stability)
     animal_growth_cap_cfg = smk.params.animal_growth_cap
     with _phase("add_animal_growth_cap_constraints"):
@@ -1841,10 +1923,9 @@ def run_solve(
     with _phase("add_reforestation_cap_constraints"):
         add_reforestation_cap_constraints(n, reforest_fraction, reforest_buffer_mha)
 
-    # Apply negative cost-calibration corrections only up to baseline (two-tier).
-    # Positive corrections are already applied additively at build time;
-    # negative corrections were stored on links as ``bounded_subsidy_*``
-    # attributes and are activated here.
+    # Cost calibration and market response are mutually exclusive at config
+    # validation time, so the bounded corrections are either all active or all
+    # absent. The helper is a no-op when no calibration columns were loaded.
     with _phase("add_bounded_subsidy_constraints"):
         add_bounded_subsidy_constraints(n)
 
@@ -2136,6 +2217,25 @@ def run_solve(
             diet_cost = evaluate_diet_stability_cost(n, matched_baseline, dp_cfg)
             if abs(diet_cost) > 1e-12:
                 n.meta["diet_stability_cost"] = diet_cost
+
+        # Market-response curve cost. Outside the deviation-penalty gate: the
+        # curves are an independent anchoring mechanism, and a run may carry
+        # either, both, or neither. Demand curves are reported separately so
+        # production anchoring and consumption utility stay readable.
+        curve_cost = evaluate_supply_response_cost(n)
+        if abs(curve_cost) > 1e-12:
+            n.meta["supply_response_cost"] = curve_cost
+        demand_cost = evaluate_demand_response_cost(n)
+        if abs(demand_cost) > 1e-12:
+            n.meta["demand_response_cost"] = demand_cost
+
+        # PMP phase 1: a baseline-pinned solve exists to measure the per-group
+        # price wedges. Extracted here, while the model still holds its duals,
+        # and stashed on the network for the calibration driver to write out.
+        if market_response_cfg["enabled"] and market_response_cfg["pin_baseline"]:
+            n._market_response_intercepts = extract_market_response_intercepts(
+                n, pin_slack_cost=market_response_cfg["pin_slack_cost"]
+            )
 
         # Post-hoc health evaluation when value_per_yll == 0
         if health_enabled and value_per_yll == 0:
