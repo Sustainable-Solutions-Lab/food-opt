@@ -401,23 +401,33 @@ def _group_table(
     """Aggregate per-link baselines and costs into per-group curve parameters.
 
     Returns a frame indexed by the group key with the group's baseline activity
-    and its baseline-weighted mean marginal cost. Groups with no baseline
-    activity are dropped: they have no observed point to build a curve through,
-    and the growth caps already govern whether an activity absent from the
-    baseline may appear at all.
+    and its baseline-weighted mean marginal cost. Zero-baseline groups are kept
+    so callers can constrain their activity explicitly; their cost is undefined
+    because there is no observed activity over which to average it.
     """
     work = links.copy()
     work["_baseline"] = work[baseline_col].fillna(0.0).astype(float)
     work["_group"] = _group_key(work, group_cols)
-    work = work[work["_baseline"] > 0]
     if work.empty:
         return pd.DataFrame(columns=["baseline", "cost"])
+
+    negative = work["_baseline"] < 0
+    if negative.any():
+        examples = work.index[negative][:5].tolist()
+        raise ValueError(
+            f"{int(negative.sum())} market-response link(s) have a negative "
+            f"baseline (e.g. {examples})"
+        )
 
     work["_cost_weighted"] = work["_baseline"] * work["marginal_cost"].astype(float)
     grouped = work.groupby("_group").agg(
         baseline=("_baseline", "sum"), _cost_weighted=("_cost_weighted", "sum")
     )
-    grouped["cost"] = grouped["_cost_weighted"] / grouped["baseline"]
+    positive = grouped["baseline"] > 0
+    grouped["cost"] = np.nan
+    grouped.loc[positive, "cost"] = (
+        grouped.loc[positive, "_cost_weighted"] / grouped.loc[positive, "baseline"]
+    )
     return grouped[["baseline", "cost"]].sort_index()
 
 
@@ -441,7 +451,7 @@ def _add_component_curves(
     """Add one component's curves (or its phase-1 pin) to the model."""
     links_df = n.links.static
     links = links_df[links_df["carrier"].isin(carriers)]
-    if links.empty or baseline_col not in links.columns:
+    if links.empty:
         logger.info(
             "No %s links with %s; skipping market-response curves",
             "/".join(carriers),
@@ -449,16 +459,39 @@ def _add_component_curves(
         )
         return
 
-    groups = _group_table(links, baseline_col, group_cols)
-    if groups.empty:
-        logger.info("No %s groups with positive baseline; skipping", component)
+    if baseline_col not in links.columns:
+        if component in DEMAND_COMPONENTS:
+            raise ValueError(
+                f"market-response {component} links have no '{baseline_col}' "
+                "column; every food-consumption link needs an explicit observed "
+                "baseline, including zero"
+            )
+        logger.info(
+            "No %s links with %s; skipping market-response curves",
+            "/".join(carriers),
+            baseline_col,
+        )
         return
 
-    # Only links whose group carries a baseline participate; the rest are
-    # governed by the growth caps.
+    if component in DEMAND_COMPONENTS:
+        baseline = pd.to_numeric(links[baseline_col], errors="coerce")
+        missing = baseline.isna()
+        if missing.any():
+            examples = links.index[missing][:5].tolist()
+            raise ValueError(
+                f"{int(missing.sum())} market-response demand link(s) have no "
+                f"explicit baseline in '{baseline_col}' (e.g. {examples}); "
+                "every food-consumption link must have one observed baseline row, "
+                "using zero for observed absence"
+            )
+
+    groups = _group_table(links, baseline_col, group_cols)
+    if groups.empty:
+        logger.info("No %s groups; skipping market-response curves", component)
+        return
+
     work = links.copy()
     work["_group"] = _group_key(work, group_cols)
-    work = work[work["_group"].isin(groups.index)]
 
     m = n.model
     link_p = m.variables["Link-p"].sel(snapshot="now")
@@ -473,6 +506,34 @@ def _add_component_curves(
     group_index = pd.Index(activity.coords["mr_group"].values)
     if not group_index.equals(groups.index):
         groups = groups.reindex(group_index)
+
+    # A zero observed aggregate has no intensive-margin elasticity to identify:
+    # gamma = price / (eta * baseline) is undefined. Keep it outside the curve
+    # and fix its activity to zero in both calibration and deployment. At coarse
+    # granularity this applies only when the whole aggregate is zero; a
+    # zero-baseline member of a positive aggregate remains free to participate
+    # in that aggregate's reallocation.
+    zero_groups = groups.index[groups["baseline"] == 0]
+    if len(zero_groups):
+        m.add_constraints(
+            activity.sel(mr_group=zero_groups.to_numpy()) == 0,
+            name=f"GlobalConstraint-{component}_market_response_zero_baseline",
+        )
+        logger.info(
+            "Fixed %d zero-baseline %s market-response groups to zero activity",
+            len(zero_groups),
+            component,
+        )
+
+    positive_groups = groups.index[groups["baseline"] > 0]
+    if not len(positive_groups):
+        logger.info("No %s groups with positive baseline; skipping curves", component)
+        return
+
+    groups = groups.loc[positive_groups]
+    activity = activity.sel(mr_group=positive_groups.to_numpy())
+    group_index = positive_groups
+    work = work[work["_group"].isin(positive_groups)]
 
     if pin:
         # PMP phase 1: hold every group at its observed activity. The dual of

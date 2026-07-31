@@ -44,6 +44,7 @@ MINIMAL_CONFIG = {
     "food_demand_calibration": {"generate": False, "min_multiplier": 0.5},
     "cost_calibration": {"generate": False},
     "deviation_penalty": {"calibration": {"generate": False}},
+    "market_response": {"calibration": {"generate": False}},
 }
 
 
@@ -110,6 +111,7 @@ class TestGenerationRunDetection:
             ("grazing", "grassland_forage_calibration", "generate"),
             ("food_loss_waste_calibration", "generate"),
             ("deviation_penalty", "calibration", "generate"),
+            ("market_response", "calibration", "generate"),
         ],
     )
     def test_generation_run(self, path):
@@ -179,6 +181,13 @@ class TestValidateCalibrationProvenance:
         cfg = copy.deepcopy(MINIMAL_CONFIG)
         cfg["cost_calibration"]["generate"] = True
         # No stamp written: generation runs must not require one.
+        validate_calibration_provenance(cfg, tmp_path)
+
+    def test_market_response_generation_run_skipped(self, tmp_path):
+        cfg = copy.deepcopy(MINIMAL_CONFIG)
+        cfg["market_response"]["calibration"]["generate"] = True
+        # The market-response rule produces the artefact set, so it must not
+        # require the provenance stamp that is written after calibration.
         validate_calibration_provenance(cfg, tmp_path)
 
 

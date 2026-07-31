@@ -133,10 +133,12 @@ objective.
    The notebook opens with a short contextualisation that is worth
    reading: even at ``baseline``, this tutorial's model uses less land
    than the real world and produces net-negative emissions by default.
-   Serious studies "coerce" the model toward observed production using
-   ``deviation_penalty`` (see ``config/gsa.yaml``) or hard constraints
-   (see ``config/validation.yaml``). The tutorial omits both to keep the
-   config short.
+   Serious studies anchor the model toward observed production using the
+   calibrated ``market_response`` curves (see ``config/gsa.yaml``), the
+   legacy ``deviation_penalty``, or hard constraints (see
+   ``config/validation.yaml``). This tutorial uses the L1 deviation penalty
+   because its reduced structural config cannot consume the default
+   link-specific market-response artefact.
 
 Part 1 — Summary
 ~~~~~~~~~~~~~~~~

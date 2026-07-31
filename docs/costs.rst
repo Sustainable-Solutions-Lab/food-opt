@@ -231,9 +231,14 @@ two-step paired solve:
   production stability to +/-1 %. The duals on these tight constraints
   become the per-group additive cost corrections.
 
-The corrections are additive, clipped to zero (no negative costs), and
-applied at build time whenever ``cost_calibration.enabled`` is true
-(the default).
+The corrections are stored on production links whenever
+``cost_calibration.enabled`` is true. At solve time they act as
+baseline-bounded subsidy or penalty terms for production components that are
+not covered by an enabled market-response curve. A covered component omits the
+legacy bounded correction because its calibrated market-response intercept
+already represents the local gap between accounting cost and marginal value;
+applying both would double-count that wedge. See
+:ref:`market-response-calibration`.
 
 Regenerate with ``tools/calibrate cost``. See :ref:`calibration` for
 the full dependency graph and algorithm, including the upstream
@@ -662,8 +667,9 @@ For multi-cropping systems (multiple crops per year on the same land):
 Cost-calibration corrections do not compose by cycle. Each multi-cropping
 link has one dispatch variable and one stability-band dual for the whole
 bundle, so calibration extracts direct per-(combination, country) bundle
-corrections and applies them through the same baseline-bounded
-subsidy/penalty mechanism as single-crop links.
+corrections. When the multi-crop market-response component is disabled, these
+use the same baseline-bounded subsidy/penalty mechanism as single-crop links;
+when it is enabled, its curve intercept replaces that bounded correction.
 
 **Interpretation**:
   * The marginal cost represents the economic cost of using one Mha of land for crop production

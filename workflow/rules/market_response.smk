@@ -29,6 +29,7 @@ if _sr_cal_cfg["generate"]:
             m49="data/curated/M49-codes.csv",
             food_groups="data/curated/food_groups.csv",
             nutrition="data/curated/nutrition.csv",
+            solve_scripts=solve_runtime_code_paths(),
         output:
             calibrated_csv=_sr_cal_cfg["calibrated_csv"],
         params:

@@ -101,9 +101,9 @@ so that ordinary builds don't need to re-solve anything. See
    * - :ref:`market_response <market-response-calibration>`
      - ``config/calibration/market_response.yaml``
      - ``market_response.csv``
-     - Per-group supply-curve intercepts (price wedges from one
-       baseline-pinned solve) that make the observed allocation the
-       exact optimum of the unpinned model.
+     - Per-group production intercepts and, when enabled, demand intercepts
+       with their reference-price slope basis. Supply and demand are fitted
+       sequentially against the same deployed regime.
    * - :ref:`stability <prod-stability-calibration>` (legacy)
      - ``config/calibration/stability.yaml``
      - ``deviation_penalty.yaml``
@@ -134,9 +134,10 @@ When upstream data or build logic changes, rerun in this order:
    sign (e.g. olive-oil cost driven negative, coffee/cocoa pegged at
    the slack ceiling) and inflates the stability L1 cost downstream.
 #. :ref:`market_response <market-response-calibration>` — the pinned
-   solve measures each group's residual price wedge against the fully
-   calibrated feed, waste, demand, and cost behaviour, so the intercepts
-   absorb exactly what the earlier steps could not.
+   solves measure each group's residual price wedge against the fully
+   calibrated feed, waste, demand, and accounting-cost behaviour. The
+   intercepts absorb the remaining local wedge without retaining the legacy
+   bounded cost correction on the same covered component.
 
 The legacy :ref:`stability <prod-stability-calibration>` step is no
 longer part of the default chain; run ``tools/calibrate stability``
@@ -380,58 +381,124 @@ scenarios (``baseline`` and ``calibration``) live in
 Market-response intercept calibration
 -------------------------------------
 
-The default production-anchoring mechanism is the set of convex
-piecewise-linear supply curves described under :ref:`Market Response
-<market-response-curves>`. Their calibration is the standard two-phase
-positive-mathematical-programming procedure: one solve with every curve
-group held at its observed activity behind an elastic pin
-(``market_response.pin_baseline``), whose pinning duals -- the per-group
-price wedges between marginal value and accounting cost -- are written
-to ``market_response.csv`` and fed back as curve intercepts. With the
-intercepts in place the observed allocation satisfies the optimality
-conditions of the unpinned model and is reproduced exactly, with no
-hard constraints and no tuned deviation target; the configured
-elasticity governs only the response away from the calibrated point.
+The default anchoring mechanism is the set of convex piecewise-linear supply
+and demand curves described under :ref:`Market Response
+<market-response-curves>`. This section states the calibration contract: what
+is being fitted, which observations receive curves, and which older
+calibration terms remain active.
 
-The pinned solves run under the base config's own operating regime with
-the policy dials at neutral (no GHG price). Exact reproduction therefore
-holds for unpriced solves of the same config, and a priced solve shows
-the pure elasticity-governed response. Wedges are regime-specific:
-intercepts fit under one demand system misprice production under
-another, so a config that changes the demand side materially needs its
-own artefact set.
+Accounting costs, intercepts, and elastic slopes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-With the ``demand`` component enabled (the default), the calibration is
-sequential rather than a single pin. Jointly pinning production and
-consumption would close every commodity chain and leave the split of
-each chain's wedge between producer and consumer undetermined (the duals
-park at the pin slack bound), so instead: (1) production is pinned with
-demand in the base regime; (2) the demand pin runs against
-*zero-intercept* supply curves, whose food-bus prices sit at the
-accounting-cost chain -- these duals are realistic reference price
-levels, stored as the artefact's ``slope_basis`` column and used for the
-marginal-utility slopes; (3) the demand pin runs again against the
-*calibrated* supply curves, and its duals are the demand intercepts,
-measured against exactly the supply side ordinary solves carry; (4) the
-production pin repeats with the fitted demand curves active and the
-demand intercepts are refit against the refined production curves, for
-``market_response.calibration.sweeps`` passes in total, so each side's
-wedges converge to consistency with the other side's deployed
-behaviour (residual cross-side drift contracts roughly 4x per sweep).
+For a production group :math:`g`, :math:`b_g` is its positive observed
+activity and :math:`c_g` is its baseline-weighted accounting marginal cost.
+The accounting cost is the ordinary marginal cost carried by the production
+links; it excludes the legacy baseline-bounded cost-calibration correction.
+An elastic phase-1 pin holds the group near :math:`b_g`. The negative of the
+pin dual is the intercept :math:`\lambda_g`, the local gap between marginal
+value and :math:`c_g`. Feeding that intercept back makes the curve's marginal
+cost at the observed point consistent with the fitted market regime.
 
-Groups whose reference activity is inconsistent with the model's hard
-constraints (land or water availability, feed balances) use pin slack
-and get their intercept censored at ``pin_slack_cost``; they are flagged
-in the calibration log and carry a nonzero ``slack`` column in the
-artefact, which is the place to look when a group refuses to sit at its
-baseline.
+The intercept fixes the local *level*; the configured elasticity fixes the
+response away from it. Production uses the accounting-cost slope
 
-The intercepts are keyed by curve group, so they are specific to both
-the ``granularity`` setting and -- at ``link`` granularity -- the exact
-model structure. A solve against intercepts from a structurally
-different build fails loudly on the missing group keys; regenerate with
-``tools/calibrate market_response`` (or ``--base config/<name>.yaml``
-for a dedicated artefact set).
+.. math::
+
+   \gamma_g = \frac{c_g}{\eta_g b_g}.
+
+Demand uses the same convex deviation-cost representation for a concave
+marginal-utility curve. Its intercept is minus fitted willingness to pay, and
+its slope is
+
+.. math::
+
+   \gamma_g = \frac{P_g}{\eta_g b_g},
+
+where :math:`P_g` is the positive reference price stored in the artefact's
+``slope_basis`` column. A demand slope is therefore not inferred from an
+arbitrary dual level: it is fitted separately against the accounting-cost
+supply chain.
+
+Sequential production and demand fit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Jointly pinning production and consumption closes every commodity chain and
+does not identify how its wedge should be split between producer and consumer.
+The default demand-enabled calibration instead runs sequentially:
+
+#. Pin production while disabling the market-response demand component. The
+   production duals provide the first supply intercepts under the base config's
+   other demand settings.
+#. Pin demand against zero-intercept supply curves. The resulting food-bus
+   prices provide ``slope_basis`` for the demand slopes.
+#. Pin demand against the calibrated supply curves. These duals provide the
+   demand intercepts for the supply side that ordinary solves deploy.
+#. Re-pin production with the fitted demand curves active, then refit demand.
+   Repeat until ``market_response.calibration.sweeps`` passes have been run.
+
+Each one-sided pinned fit enforces its own local optimality condition, but the
+finite alternating sequence is not an exact joint calibration. Refitting one
+side can move the other side slightly. The configured sweeps reduce this
+cross-side drift; they do not certify convergence to zero. Claims and result
+checks should therefore report the achieved production and demand deviations,
+not describe the coupled solution as mathematically exact.
+
+The pinned solves use the base config's operating regime with GHG and health
+objective prices neutralized by the calibration config. Intercepts are
+regime-specific: changing the demand mechanism, baseline diet, model structure,
+or curve grouping materially requires a matching artefact set.
+
+Observed support and grouping
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Market-response curves are an intensive-margin model. A group receives a
+curve only when its observed baseline :math:`b_g` is strictly positive. A
+reported zero is a valid observation outside the fitted support: it receives
+no curve and its group activity is fixed to zero. The curves do not invent an
+extensive-margin elasticity for entry from zero. At coarse granularity this
+contract applies to the aggregate group. A zero-baseline link inside a group
+whose aggregate baseline is positive can still participate in within-group
+reallocation; only a zero aggregate is fixed.
+
+For demand, a missing baseline is different from an observed zero. Missing
+means that the baseline-diet matching contract failed for a modeled
+``(food, country)`` consumption link and is an input error; it must not be
+silently converted to zero and skipped. A genuine matched zero remains a
+zero-support observation: it receives no demand curve and is fixed to zero.
+
+``granularity`` defines the fitted group. At ``link`` granularity every
+production link has its own curve and the artefact is tied to the exact link
+set. At ``country`` or ``region`` granularity, links are aggregated by
+commodity and geography. The curve then anchors only the aggregate total; it
+does not price reallocations among links within that group. If such within-
+group reallocation must be controlled, enable an appropriate per-link
+mechanism explicitly rather than attributing that behavior to the coarse
+market-response curve.
+
+The intercept table is keyed by component and group. A solve against an
+artefact from another granularity or structural build fails on missing group
+keys. Regenerate with ``tools/calibrate market_response`` or with
+``tools/calibrate --base config/<name>.yaml market_response`` for a dedicated
+artefact set.
+
+Interaction with legacy bounded cost corrections
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The cost-calibration files store additive corrections as baseline-bounded
+subsidy or penalty terms. A market-response intercept already absorbs the
+local gap between accounting cost and marginal value. Applying both terms to
+the same component would introduce a second kink at the baseline and change
+the response implied by the configured elasticity. Solves therefore suppress
+bounded cost corrections for each production component covered by an enabled
+market-response curve. Components without a market-response curve retain the
+legacy bounded correction. This gate follows the component switches, not the
+curve granularity.
+
+Groups whose reference activity conflicts with hard land, water, feed, or
+other constraints use elastic pin slack. Their intercept is censored at
+``pin_slack_cost``; the calibration log reports them and the artefact records a
+nonzero ``slack`` value. Treat those rows as diagnostics, not as uncensored
+price-wedge estimates.
 
 Rule: ``calibrate_market_response`` in
 ``workflow/rules/market_response.smk``. Script:
@@ -567,9 +634,10 @@ Rule: ``calibrate_deviation_penalty`` in
 ``workflow/rules/deviation_penalty.smk``. Script:
 ``workflow/scripts/calibrate_deviation_penalty.py``.
 
-The calibrated L1 centre also defines the reference regime for the GSA
-scenario groups (``gsa``, ``gsa-l1-low``, ``gsa-l1-high``); see
-:ref:`sensitivity-prod-stability-cost`.
+The calibrated L1 centre defines the reference regime only for configs that
+explicitly enable the legacy deviation penalty. The main GSA config uses
+production market-response curves; companion L1 configs can still use the
+calibrated centre described at :ref:`sensitivity-prod-stability-cost`.
 
 Staleness detection
 -------------------

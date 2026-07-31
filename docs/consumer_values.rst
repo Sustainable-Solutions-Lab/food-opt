@@ -72,8 +72,8 @@ assumption in food-system modelling.
 saves cost when required to consume more of the food — typically a
 supply-side artifact (e.g. forced co-product disposal, or production
 anchoring dragging output toward baseline through binding caps elsewhere).
-The most-negative foods are logged for traceability; the *Preconditions*
-section below catalogs the structural issues that produce them.
+The *Preconditions* section below catalogs the structural issues that produce
+them.
 
 Visualisation
 -------------
@@ -104,12 +104,11 @@ A few patterns are worth flagging.
   GHGs.
 - **Cereals and starchy vegetables** sit in the low-positive range. They are
   cheap calorie sources at baseline.
-- **A few oils and seeds** cluster near zero. These come from co-products
+- **A few oils and seeds** cluster near or below zero. These come from co-products
   of larger commodity flows (e.g. coconut oil and meal from copra-based
   coconut production), and their marginal cost is dominated by the
-  byproduct-value side of the balance sheet. The extractor floors these
-  at zero (see above), so any food whose raw dual was negative shows as
-  zero in the figure.
+  byproduct-value side of the balance sheet. Negative raw duals remain
+  negative in both the extracted data and the figure.
 
 Preconditions for sensible duals
 --------------------------------

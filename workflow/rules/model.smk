@@ -226,9 +226,7 @@ def solve_model_inputs(w):
         "m49": "data/curated/M49-codes.csv",
         "food_groups": "data/curated/food_groups.csv",
         "baseline_diet": f"<processing>/{w.name}/baseline_diet.csv",
-        "solve_scripts": sorted(
-            str(path) for path in Path("workflow/scripts/solve_model").glob("*.py")
-        ),
+        "solve_scripts": solve_runtime_code_paths(),
     }
 
     eff_cfg = get_effective_config(w.scenario)

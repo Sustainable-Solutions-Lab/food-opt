@@ -20,6 +20,7 @@ import pandas as pd
 import pypsa
 import pytest
 
+from workflow.scripts.solve_model.core import _bounded_cost_correction_carriers
 from workflow.scripts.solve_model.market_response import (
     add_market_response_curves,
     extract_market_response_intercepts,
@@ -136,6 +137,35 @@ def _solve(n: pypsa.Network, cfg: dict) -> float:
     return float(sol.sel(name=produce).sum().item())
 
 
+def test_market_response_replaces_bounded_corrections_component_by_component():
+    cfg = _cfg(
+        components={
+            "crops": True,
+            "multi_crops": False,
+            "grassland": False,
+            "animals": True,
+            "demand": True,
+        }
+    )
+
+    active, skipped = _bounded_cost_correction_carriers(cfg)
+
+    assert active == ["crop_production_multi", "grassland_production"]
+    assert skipped == ["animal_production", "crop_production"]
+
+
+def test_disabled_market_response_keeps_all_bounded_corrections():
+    active, skipped = _bounded_cost_correction_carriers(_cfg(enabled=False))
+
+    assert active == [
+        "animal_production",
+        "crop_production",
+        "crop_production_multi",
+        "grassland_production",
+    ]
+    assert skipped == []
+
+
 def test_baseline_is_optimal_at_reference_price():
     """At price == marginal cost the curve's minimum is the observed activity."""
     total = _solve(_make_network(COST), _cfg())
@@ -187,12 +217,45 @@ def test_extreme_price_stays_feasible_beyond_the_expansion_range():
     assert total > baseline * (1 + 0.5)
 
 
-def test_zero_baseline_group_gets_no_curve():
-    """A group with no observed activity has no point to build a curve through."""
-    n = _make_network(COST * 2, baselines=(0.0, 0.0))
+@pytest.mark.parametrize("pin_baseline", [False, True])
+def test_profitable_zero_baseline_group_is_fixed_to_zero(pin_baseline):
+    """Observed absence is fixed in both deployment and calibration."""
+    n = _make_network(COST * 2, baselines=(0.0, 0.0), cost=-1.0)
     n.optimize.create_model(include_objective_constant=False)
-    add_market_response_curves(n, _cfg())
-    assert not [k for k in n.model.variables if "market_response" in k]
+    add_market_response_curves(n, _cfg(pin_baseline=pin_baseline))
+    status, condition = n.model.solve(solver_name="highs")
+    assert (status, condition) == ("ok", "optimal")
+
+    activity = n.model.variables["Link-p"].solution.sel(snapshot="now")
+    produce = activity.sel(name=["produce:wheat:R0", "produce:wheat:R1"])
+    assert float(produce.sum()) == pytest.approx(0.0, abs=1e-12)
+    assert "GlobalConstraint-crops_market_response_zero_baseline" in n.model.constraints
+
+
+def test_zero_member_can_reallocate_within_positive_coarse_group():
+    """Observed support applies to the aggregate at coarse granularity."""
+    n = _make_network(COST, baselines=(10.0, 0.0))
+    # The zero-baseline member is cheaper, so a country-level pin should allow
+    # it to replace the observed member while preserving aggregate activity.
+    n.links.static.loc["produce:wheat:R0", "marginal_cost"] = COST
+    n.links.static.loc["produce:wheat:R1", "marginal_cost"] = 0.0
+    n.optimize.create_model(include_objective_constant=False)
+    add_market_response_curves(
+        n,
+        _cfg(granularity="country", pin_baseline=True),
+    )
+    status, condition = n.model.solve(solver_name="highs")
+    assert (status, condition) == ("ok", "optimal")
+
+    activity = n.model.variables["Link-p"].solution.sel(snapshot="now")
+    assert float(activity.sel(name="produce:wheat:R1")) > 0
+    assert float(
+        activity.sel(name=["produce:wheat:R0", "produce:wheat:R1"]).sum()
+    ) == pytest.approx(10.0)
+    assert (
+        "GlobalConstraint-crops_market_response_zero_baseline"
+        not in n.model.constraints
+    )
 
 
 def test_disabled_config_is_a_no_op():
@@ -509,6 +572,62 @@ def test_demand_curves_without_intercepts_raise():
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="demand curves require"):
         add_market_response_curves(n, _demand_cfg())
+
+
+def test_missing_demand_baseline_raises():
+    n = _make_demand_network(SUPPLY_PRICE)
+    n.links.static.loc["consume:apple:USA", "baseline_consumption_mt"] = np.nan
+    n.optimize.create_model(include_objective_constant=False)
+
+    with pytest.raises(ValueError, match="every food-consumption link"):
+        add_market_response_curves(n, _demand_cfg(pin_baseline=True))
+
+
+def test_mixed_positive_and_zero_demand_groups(tmp_path):
+    """Positive demand responds normally while observed absence stays fixed."""
+    n = _make_demand_network(SUPPLY_PRICE)
+    n.buses.add("food:pear:USA", carrier="food")
+    n.generators.add(
+        "supply:pear:USA",
+        bus="food:pear:USA",
+        p_nom=1e4,
+        marginal_cost=-10.0,
+    )
+    n.links.add(
+        "consume:pear:USA",
+        bus0="food:pear:USA",
+        bus1="nutrient:cal:USA",
+        carrier="food_consumption",
+        efficiency=1.0,
+        p_nom=1e4,
+        marginal_cost=0.0,
+        baseline_consumption_mt=0.0,
+        food="pear",
+        food_group="fruits",
+        country="USA",
+    )
+    intercepts = pd.DataFrame(
+        {
+            "component": ["demand"],
+            "mr_group": ["apple::USA"],
+            "intercept": [-SUPPLY_PRICE],
+            "slack": [0.0],
+            "slope_basis": [SUPPLY_PRICE],
+        }
+    )
+    path = tmp_path / "demand_intercepts.csv"
+    intercepts.to_csv(path, index=False)
+
+    n.optimize.create_model(include_objective_constant=False)
+    add_market_response_curves(n, _demand_cfg(intercepts=str(path)))
+    status, condition = n.model.solve(solver_name="highs")
+    assert (status, condition) == ("ok", "optimal")
+
+    activity = n.model.variables["Link-p"].solution.sel(snapshot="now")
+    assert float(activity.sel(name="consume:apple:USA")) == pytest.approx(
+        DEMAND_BASELINE_MT, rel=1e-6
+    )
+    assert float(activity.sel(name="consume:pear:USA")) == pytest.approx(0.0, abs=1e-12)
 
 
 def test_sequential_pin_list_pins_demand_against_elastic_supply(tmp_path):

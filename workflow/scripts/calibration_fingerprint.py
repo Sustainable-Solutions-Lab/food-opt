@@ -36,7 +36,28 @@ from snakemake.settings.types import (
 )
 import yaml
 
+from workflow.scripts.solve_namespace import load_merged_config
+
 FINGERPRINT_FILE = "fingerprint.yaml"
+
+# Solve-time keys are absent from the structural provenance stamp.  Select the
+# subset that changes a calibration fit here, excluding orchestration fields
+# such as output paths, the generate switch, and per-stage pin/intercept values
+# that the driver overrides itself.
+FIT_CONFIG_PATHS = {
+    "market_response": (
+        "market_response.n_blocks",
+        "market_response.expansion_range",
+        "market_response.contraction_range",
+        "market_response.width_growth",
+        "market_response.granularity",
+        "market_response.pin_slack_cost",
+        "market_response.elasticities",
+        "market_response.elasticity_factor",
+        "market_response.components",
+        "market_response.calibration.sweeps",
+    ),
+}
 
 HEADER = """# Content fingerprint of each calibration step's external inputs, written by
 # workflow/scripts/calibration_fingerprint.py via tools/calibrate. Compared by
@@ -79,6 +100,32 @@ def sha256_yaml(path: Path) -> str:
     return hashlib.sha256(
         yaml.safe_dump(data, sort_keys=True, default_flow_style=False).encode()
     ).hexdigest()
+
+
+def effective_fit_config(
+    step: str, configfiles: list[str], workdir: Path
+) -> dict[str, object]:
+    """Return the resolved config values that determine ``step``'s fit."""
+    paths = FIT_CONFIG_PATHS.get(step, ())
+    if not paths:
+        return {}
+
+    default_config = workdir / "config/default.yaml"
+    resolved_files = [default_config]
+    for raw in configfiles:
+        path = Path(raw)
+        path = path if path.is_absolute() else workdir / path
+        if path != default_config:
+            resolved_files.append(path)
+    config = load_merged_config(*resolved_files)
+
+    selected = {}
+    for dotted in paths:
+        value = config
+        for key in dotted.split("."):
+            value = value[key]
+        selected[dotted] = value
+    return selected
 
 
 def dag_files(
@@ -135,6 +182,7 @@ def build_fingerprint(
     targets: list[str],
     hash_configs: list[str],
     workdir: Path,
+    step: str = "",
 ) -> dict:
     """Hash a step's external leaves, its config, and the artefacts it wrote."""
     inputs, outputs, code = dag_files(configfiles, name, targets, workdir)
@@ -159,6 +207,7 @@ def build_fingerprint(
 
     return {
         "config_files": {c: sha256_yaml(Path(c)) for c in hash_configs},
+        "effective_config": effective_fit_config(step, configfiles, workdir),
         "code": {
             relative(Path(c)): sha256_file(Path(c))
             for c in sorted(code)
@@ -195,6 +244,7 @@ def compare(recorded: dict, current: dict) -> list[str]:
 
     for kind, key in (
         ("config", "config_files"),
+        ("effective config", "effective_config"),
         ("code", "code"),
         ("input", "inputs"),
         ("artefact", "artefacts"),
@@ -251,7 +301,12 @@ def main() -> int:
     try:
         with contextlib.redirect_stdout(noise), contextlib.redirect_stderr(noise):
             current = build_fingerprint(
-                args.configfile, args.name, args.target, args.hash_config, workdir
+                args.configfile,
+                args.name,
+                args.target,
+                args.hash_config,
+                workdir,
+                step=args.step,
             )
     except Exception as exc:
         print(f"  [error]      {args.step:<10} ({type(exc).__name__}: {exc})")

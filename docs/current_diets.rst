@@ -60,13 +60,18 @@ Data Sources
     automatically from Zenodo, so it needs no manual download. This is
     GLADE's default intake source.
   * **Coverage**: 171 source countries, with 12 of GLADE's 175 default
-    countries filled from configured proxies. Intake is reported in
-    parallel grams/day and kcal/day for every food category. The Zenodo
+    countries filled from configured proxies. Positive intake is reported in
+    parallel grams/day and kcal/day; omitted country-category cells encode
+    zero intake and are materialised explicitly by the workflow. The Zenodo
     record covers 1990-2020 in five-year steps; the workflow warns and
     uses the closest release when ``baseline_year`` falls between them.
   * **Role**: With ``diet.source: gdd_ia`` (the default), primary
     source of per-country food-group totals for all food groups except
-    the GBD-anchored risk groups (see below).
+    the GBD-anchored risk groups (see below). The release encodes zero
+    country-group intake sparsely by omitting the row; the workflow
+    materialises those cells as explicit zeros. Missing ``animal_fat``
+    cells retain the documented FAOSTAT supply-based supplement described
+    below.
 
 **Global Burden of Disease (GBD) 2019 dietary risk exposure**
   * **Provider**: Institute for Health Metrics and Evaluation (IHME)
@@ -314,9 +319,9 @@ GDD-IA's food categories are mapped onto the model's food groups in
 covers every food group the model uses (``fruits``, ``vegetables``,
 ``starchy_vegetable``, ``legumes``, ``nuts_seeds``, ``oil``, ``sugar``,
 ``grain``, ``whole_grains``, ``red_meat``, ``poultry``, ``dairy``,
-``eggs``, plus ``stimulants`` for downstream tea/coffee handling).
+``eggs``, ``animal_fat``, plus ``stimulants`` for downstream tea/coffee handling).
 Categories that are out of scope for the model (alcohol, seafood,
-spices, rendered animal fats, miscellaneous "other") are excluded from
+spices, miscellaneous "other") are excluded from
 food-group totals but their energy is tracked separately for the
 kcal-normalisation step described below. Cereals keep GDD-IA's total
 energy but not its whole/processed split (which counts decorticated
@@ -400,7 +405,8 @@ baseline-diet estimation:
      cooked-to-raw meat inflation), and emits two files:
 
      * ``gdd_ia_dietary_intake.csv`` — per-(country, food group) intake
-       (g/day) at age = ``All ages``.
+       (g/day) at age = ``All ages``. Omitted cells in the sparse source
+       tables are present here as explicit zeros.
      * ``gdd_ia_kcal_target.csv`` — per-country kcal accounting: the
        total dietary energy, the out-of-scope subtotal, the in-scope
        target (total minus out-of-scope), and the refined / whole-grain
@@ -414,7 +420,12 @@ baseline-diet estimation:
    for the FPED specifics).
 
 3. **Merge sources** (``merge_dietary_sources``): NHANES overrides
-   the group-intake source for the (country, item) pairs it covers; the
+   the group-intake source for the (country, item) pairs it covers. The
+   GDD-IA ``animal_fat`` group is the one sparse-cell exception: countries
+   without a reported value receive FAOSTAT animal-fat supply multiplied by
+   0.85 to approximate intake after consumer loss and waste. This preserves
+   the existing modeled rendered-fat baseline while other omitted GDD-IA
+   cells remain observed zeros. The
    merged file ``dietary_intake.csv`` is the input to
    ``estimate_baseline_diet``.
 
@@ -860,7 +871,8 @@ Workflow Integration
   accounting (total dietary energy, out-of-scope subtotal, in-scope
   target, refined / whole-grain cereal energy split).
 * ``processing/{name}/nhanes_dietary_intake.csv`` — USA NHANES override.
-* ``processing/{name}/dietary_intake.csv`` — merged GDD-IA + NHANES.
+* ``processing/{name}/dietary_intake.csv`` — merged primary source and
+  NHANES overrides.
 * ``processing/{name}/gbd_food_group_intake.csv`` — GBD exposure.
 * ``processing/{name}/baseline_diet.csv`` — per-food, per-country
   baseline diet.

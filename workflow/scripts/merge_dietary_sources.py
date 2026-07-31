@@ -65,7 +65,8 @@ def _drop_overlap(
         "%s overrides %d (country, item) pairs (countries: %s; items: %s)",
         label,
         len(dropped),
-        ", ".join(countries_dropped[:8]) + ("…" if len(countries_dropped) > 8 else ""),
+        ", ".join(countries_dropped[:8])
+        + ("..." if len(countries_dropped) > 8 else ""),
         ", ".join(items_dropped),
     )
     mask = pd.Series(

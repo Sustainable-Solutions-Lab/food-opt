@@ -372,6 +372,40 @@ class TestLinopyMetaCosts:
         expected = EXPECTED_COSTS["consumer_values"] + utility_cost
         assert result["consumer_values"].iloc[0] == pytest.approx(expected, abs=1e-6)
 
+    @pytest.mark.parametrize(
+        ("rate_column", "rate", "baseline", "correction_cost"),
+        [
+            ("bounded_subsidy_bnusd_per_mha", -4.0, 2.0, -4.0),
+            ("bounded_penalty_bnusd_per_mha", 4.0, 0.5, 2.0),
+        ],
+    )
+    def test_skipped_bounded_correction_is_not_reconstructed(
+        self,
+        solved_network,
+        rate_column,
+        rate,
+        baseline,
+        correction_cost,
+    ):
+        """Objective accounting follows the solve's component-wise PMP gate."""
+        n = solved_network
+        link = "produce:wheat_r:r1_c1"
+        n.links.static.loc[link, rate_column] = rate
+        n.links.static.loc[link, "baseline_area_mha"] = baseline
+        n._meta["skipped_bounded_cost_correction_carriers"] = ["crop_production"]
+
+        result = extract_objective_breakdown(n)
+        assert result["crop_production"].iloc[0] == pytest.approx(
+            EXPECTED_COSTS["crop_production"]
+        )
+
+        n._meta["skipped_bounded_cost_correction_carriers"] = []
+        n._objective += correction_cost
+        result = extract_objective_breakdown(n)
+        assert result["crop_production"].iloc[0] == pytest.approx(
+            EXPECTED_COSTS["crop_production"] + correction_cost
+        )
+
 
 class TestLandConversion:
     def test_land_conversion_classified_as_land_use(self):

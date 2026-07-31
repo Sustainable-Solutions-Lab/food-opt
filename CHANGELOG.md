@@ -25,29 +25,30 @@ introduce breaking changes to configuration and outputs.
   provenance, so a vintage bump forces recalibration); maintainers refresh
   the mirror to a new FAO release with `tools/mirror_faostat.py`.
 
-- Production anchoring is now done by exactly calibrated convex
+- Production anchoring is now done by calibrated convex
   piecewise-linear supply curves (new `market_response` configuration
   section), replacing the L1 `deviation_penalty` as the default mechanism.
   Each production group -- including multi-cropping bundles -- gets a
   marginal-cost curve through its observed activity whose slope reproduces a
   configured own-price supply elasticity, so response to a shock is graduated
   and its strength follows from an elasticity assumption rather than from a
-  fitted deviation target. The curves calibrate exactly by the standard
-  two-phase positive-mathematical-programming procedure: a new
-  `market_response` calibration step (one baseline-pinned solve, replacing the
-  L1 `stability` step in the `tools/calibrate` chain) writes each group's
-  price wedge to `market_response.csv`, and solves feed the wedges back as
-  curve intercepts, reproducing the observed allocation as the exact
-  unconstrained optimum -- no hard constraints, no tuned deviation target.
+  fitted deviation target. A new `market_response` calibration step, replacing
+  the L1 `stability` step in the `tools/calibrate` chain, writes the fitted
+  group wedges to `market_response.csv`; ordinary solves feed those wedges
+  back as curve intercepts. Production-only fits satisfy the local PMP
+  optimality condition directly. With demand enabled, alternating supply and
+  demand fits reduce rather than mathematically eliminate coupled drift, so
+  calibration reports should retain the achieved baseline deviations.
   The spatial resolution of the curves is configurable (`granularity`); the
   default is per production link, which prices spatial reallocation and makes
   the per-link deviation penalty redundant, and per-country or per-region
   curves are available where a coarser anchor is wanted. The curve cost
-  appears as its own `market_response` category in the objective breakdown.
+  appears as its own `supply_response` category in the objective breakdown.
   The deviation-penalty machinery remains available for configs that
-  re-enable it, and its artefacts stay in the calibration sets; configs on
-  the `gbd-anchored` set need `tools/calibrate --base <config>
-  market_response` before solving with the curves. See "Market Response" in
+  re-enable it, and its artefacts stay in the calibration sets. The shipped
+  `gbd-anchored` market-response artefact covers production; configs that
+  enable demand curves for that set must refit it with
+  `tools/calibrate --base <config> market_response`. See "Market Response" in
   the configuration reference and the calibration documentation.
 
 - The same mechanism now calibrates the demand side: a `demand` component
@@ -316,6 +317,12 @@ introduce breaking changes to configuration and outputs.
   `food_loss_waste` convenience key.
 
 ### Fixed
+
+- GDD-IA country-group cells omitted by its sparse zero encoding are now
+  carried into the baseline diet as explicit zeros. This restores complete
+  demand-baseline coverage (including Turkmenistan legumes), lets the market
+  response distinguish observed zero support from missing input data, and
+  retains the documented FAOSTAT supplement for animal fat.
 
 - Enforced biofuel and industrial demand for vegetable oils no longer draws
   more of the oil than FAOSTAT reports. The demand links deflated the food-bus

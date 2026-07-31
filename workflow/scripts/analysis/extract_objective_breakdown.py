@@ -236,6 +236,12 @@ def extract_objective_breakdown(n: pypsa.Network) -> pd.DataFrame:
     opex_series = _to_series(opex)
     total = capex_series.add(opex_series, fill_value=0.0)
 
+    # The solve records carriers whose bounded cost-calibration auxiliaries were
+    # superseded by market-response curves.
+    skipped_correction_carriers = set(
+        n.meta.get("skipped_bounded_cost_correction_carriers", [])
+    )
+
     # Filter out negligible categories
     total = total[total.abs() > 1e-9]
 
@@ -303,6 +309,8 @@ def extract_objective_breakdown(n: pypsa.Network) -> pd.DataFrame:
             "baseline_feed_use_mt_dm",
         ),
     ]:
+        if carrier in skipped_correction_carriers:
+            continue
         links = n.links.static
         if rate_col not in links.columns or baseline_col not in links.columns:
             continue
@@ -351,6 +359,8 @@ def extract_objective_breakdown(n: pypsa.Network) -> pd.DataFrame:
             "baseline_feed_use_mt_dm",
         ),
     ]:
+        if carrier in skipped_correction_carriers:
+            continue
         links = n.links.static
         if rate_col not in links.columns or baseline_col not in links.columns:
             continue

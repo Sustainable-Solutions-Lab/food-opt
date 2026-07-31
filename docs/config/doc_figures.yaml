@@ -23,8 +23,8 @@ scenarios:
   #
   # The GHG price scenarios sweep carbon prices from $0 to $500/tCO2-eq for the
   # landing-page production pattern GIF, showing how land use shifts under
-  # increasing carbon pricing. All use piecewise food utility and l1 production
-  # stability, matching the sensitivity analysis setup.
+  # increasing carbon pricing. All use piecewise food utility and calibrated
+  # production market-response curves, matching the sensitivity setup.
 
   default: {}
 

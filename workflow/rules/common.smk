@@ -25,6 +25,7 @@ from workflow.scripts.solve_namespace import (
     health_input_paths,
     resolve_gbd_anchoring,
     resolve_pathvars,
+    solve_runtime_code_paths,
     validate_scenario_config_schemas,
     validate_scenario_overrides,
 )

@@ -68,6 +68,36 @@ SOLVE_TIME_CONFIG_PREFIXES = {
 }
 
 
+def solve_runtime_code_paths() -> list[str]:
+    """Return local Python sources shared by every ``run_solve`` harness.
+
+    Snakemake tracks a rule's entry-point script, but not the modules imported
+    by that script.  Keep this list shared by ordinary solves, cluster
+    manifests, and in-process calibration solves so a change to numerical
+    solve code invalidates every consumer consistently.
+    """
+    project_root = Path(__file__).resolve().parents[2]
+    support = (
+        "workflow/__init__.py",
+        "workflow/scenario_generators.py",
+        "workflow/scripts/__init__.py",
+        "workflow/scripts/constants.py",
+        "workflow/scripts/logging_config.py",
+        "workflow/scripts/population.py",
+        "workflow/scripts/snakemake_utils.py",
+        "workflow/scripts/solve_namespace.py",
+        "workflow/scripts/water_periods.py",
+    )
+    packages = (
+        project_root / "workflow/scripts/build_model",
+        project_root / "workflow/scripts/solve_model",
+    )
+    paths = [project_root / path for path in support]
+    for package in packages:
+        paths.extend(package.glob("*.py"))
+    return sorted(str(path.relative_to(project_root)) for path in paths)
+
+
 def _leaf_keys(d, prefix=""):
     """Yield dotted key paths for leaf (non-dict) values in a nested dict."""
     for k, v in d.items():
@@ -373,9 +403,7 @@ def build_scenario_entry(
         "m49": "data/curated/M49-codes.csv",
         "food_groups": "data/curated/food_groups.csv",
         "baseline_diet": rp("<processing>/{name}/baseline_diet.csv"),
-        "solve_scripts": sorted(
-            str(path) for path in Path("workflow/scripts/solve_model").glob("*.py")
-        ),
+        "solve_scripts": solve_runtime_code_paths(),
     }
 
     # Health processing inputs only when this scenario enables health (mirrors

@@ -470,16 +470,15 @@ followed by a jump to whichever bound stops it. Its curvature comes from an
 exogenous supply elasticity instead of a coefficient fitted to a chosen
 deviation target.
 
-Calibration is the standard two-phase procedure. Phase 1
-(``pin_baseline: true``) solves with every group fixed at its observed
-activity; the dual :math:`\lambda_g` of each pinning constraint is the wedge
-between the marginal value of the group's output and its accounting marginal
-cost :math:`c_g` there, and is written next to the solved network. Phase 2
-(``intercepts: <path>``) feeds the wedges back as intercepts on the curves, so
-each group's marginal cost at the baseline equals the marginal value there and
-the observed allocation is the *exact* optimum of the unpinned model -- no hard
-constraints, nothing tuned. The elasticity then only governs the response away
-from the calibrated point.
+For one side of the market, calibration follows the standard two-phase
+procedure. Phase 1 (``pin_baseline: true``) holds each positive-baseline group
+at its observed activity; the dual :math:`\lambda_g` of each pinning constraint
+is the wedge between marginal value and accounting marginal cost :math:`c_g`.
+Phase 2 (``intercepts: <path>``) feeds the wedges back as curve intercepts.
+With demand curves enabled, supply and demand cannot be identified by one joint
+pin, so they are fitted sequentially and refined for a finite number of sweeps.
+That coupled fit is approximate; see :ref:`market-response-calibration` for the
+stages and the observed-support contract.
 
 For a group :math:`g` with observed activity :math:`b_g` and marginal cost
 :math:`c_g`, the marginal-cost curve reproducing own-price supply elasticity
@@ -604,11 +603,16 @@ and is mutually exclusive with both, as well as with
 
 **Behavior notes**:
 
-* Groups with no baseline activity get no curve; whether an activity absent
-  from the baseline may appear at all is governed by the :ref:`growth caps
-  <growth-caps>`.
+* Curves cover the intensive margin only. Groups with a genuine zero baseline
+  get no curve and are fixed to zero. At coarse granularity this applies to a
+  zero aggregate, not to each zero-baseline link within a positive aggregate.
+  A missing demand baseline is an input error, not a zero.
 * A group whose baseline-weighted marginal cost is not positive is an error,
   since the slope is undefined there.
+* For every covered production component, the solve suppresses the legacy
+  baseline-bounded cost-calibration correction. The intercept already absorbs
+  the local value-versus-accounting-cost wedge, and applying both would add a
+  second kink at the baseline. Uncovered components retain their correction.
 
 .. _growth-caps:
 

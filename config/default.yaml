@@ -227,6 +227,8 @@ deviation_penalty:
 # the dead-band-then-jump of an L1 kink, and the curvature comes from an
 # exogenous elasticity rather than a fitted deviation target. This is the
 # default production-anchoring mechanism, replacing the L1 deviation_penalty.
+# Curves model the intensive margin: positive-baseline groups get curves and
+# zero-baseline groups are fixed to zero (at the selected granularity).
 market_response:
   enabled: true
   n_blocks: 6            # Breakpoints per side of the baseline sampling the quadratic
@@ -245,15 +247,15 @@ market_response:
   # reallocation themselves and replace the per-link deviation_penalty; coarser
   # curves leave that reallocation to it.
   granularity: "link"
-  # PMP two-phase calibration. pin_baseline fixes every group at its observed
+  # PMP calibration. pin_baseline fixes enabled groups at observed positive
   # activity (phase 1, run by ``tools/calibrate market_response``); the pinning
-  # duals -- per-group price wedges -- become intercepts that shift each curve
-  # so its marginal cost at the baseline equals the marginal value there,
-  # making the observed allocation the exact unconstrained optimum. intercepts
-  # is a path to that artefact or the sentinel "calibrated", which resolves to
-  # calibration.calibrated_csv; the artefact must come from a pinned solve of
-  # the same model at the same granularity. pin_baseline and intercepts are
-  # mutually exclusive.
+  # duals become intercepts that align marginal cost and marginal value at the
+  # baseline. With demand enabled, supply and demand are fit sequentially and
+  # refined for calibration.sweeps passes, so the coupled fit is approximate
+  # rather than an exact joint pin. intercepts is a path to that artefact or the
+  # sentinel "calibrated", which resolves to calibration.calibrated_csv. The
+  # artefact must use the same model structure and granularity. pin_baseline and
+  # intercepts are mutually exclusive when all components are pinned.
   pin_baseline: false
   # Price of deviating from the pin during phase 1. The pin is elastic because
   # the reference data is never perfectly consistent with every hard constraint;
@@ -306,8 +308,10 @@ market_response:
       stimulants: 0.74
   elasticity_factor: 1.0 # Global multiplier for scanning the elasticity assumption
   # The demand component prices per-(food, country) consumption with a concave
-  # marginal-utility curve through the observed intake, fitted jointly with the
-  # production wedges in the same pinned solve. It replaces
+  # marginal-utility curve through positive observed intake. It is fitted
+  # sequentially against the calibrated production curves, because a joint pin
+  # cannot identify how a commodity-chain wedge is split between supply and
+  # demand. It replaces
   # food_utility_piecewise and food_incentives (mutually exclusive with both).
   components:
     crops: true
@@ -1987,8 +1991,9 @@ crop_costs:
 
 # --- section: cost_calibration ---
 # Unified cost calibration corrections extracted from production stability duals.
-# Covers crops, grassland, and animals. When enabled, additive cost corrections
-# are applied at build time to align model costs with revealed preferences.
+# Covers crops, grassland, and animals. Corrections are stored on the built links
+# and applied as baseline-bounded solve-time terms only for components not covered
+# by market_response curves; applying both would double-count the calibrated wedge.
 cost_calibration:
   enabled: true       # Apply calibration corrections to production costs
   generate: false     # Generate calibration from solved model (breaks DAG cycle when true)

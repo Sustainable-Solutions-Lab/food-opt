@@ -211,11 +211,11 @@ rule merge_dietary_sources:
     """Merge the configured group-intake source with the NHANES USA override.
 
     The group-intake source (``diet.source``) is either GDD-IA or the
-    FBS-derived estimate; both are already in model basis. NHANES is
-    already in model basis. The FAOSTAT supply file is used only as
-    a fallback for the ``animal_fat`` group on countries that the
-    source does not cover. Output is the merged ``dietary_intake.csv``;
-    GBD anchoring and kcal normalisation happen in
+    FBS-derived estimate; both are already in model basis. Missing
+    country-group cells in GDD-IA are emitted upstream as explicit zeros.
+    NHANES overrides the USA cells it covers, and FAOSTAT supplies the
+    documented animal-fat exception. Output is the merged
+    ``dietary_intake.csv``; GBD anchoring and kcal normalisation happen in
     ``estimate_baseline_diet``.
     """
     input:
