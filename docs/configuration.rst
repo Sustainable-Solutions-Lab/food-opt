@@ -461,13 +461,14 @@ with ``tools/calibrate stability`` and lands at
 Supply Response
 ^^^^^^^^^^^^^^^
 
-The ``supply_response`` section (default: off) is an alternative anchoring
-mechanism in the tradition of positive mathematical programming. Where the
-deviation penalty prices every unit of departure from the baseline at the same
-rate, a supply curve prices the *next* unit more than the last, so the response
-to a shock is graduated rather than a dead band followed by a jump to whichever
-bound stops it. Its curvature comes from an exogenous supply elasticity instead
-of a coefficient fitted to a chosen deviation target.
+The ``supply_response`` section (the default anchoring mechanism) prices
+departure from the baseline in the tradition of positive mathematical
+programming. Where the deviation penalty prices every unit of departure from
+the baseline at the same rate, a supply curve prices the *next* unit more than
+the last, so the response to a shock is graduated rather than a dead band
+followed by a jump to whichever bound stops it. Its curvature comes from an
+exogenous supply elasticity instead of a coefficient fitted to a chosen
+deviation target.
 
 Calibration is the standard two-phase procedure. Phase 1
 (``pin_baseline: true``) solves with every group fixed at its observed
@@ -530,9 +531,24 @@ that reallocation themselves and replace the deviation penalty outright,
 leaving each link's response to its *own* margin -- which controls spatial
 churn far better than a shared country curve.
 
+The ``demand`` component applies the same machinery to consumption: every
+(food, country) consumption link gets a concave marginal-*utility* curve
+through its observed intake. The deviation-cost form is unchanged -- a convex
+deviation cost *is* a diminishing marginal utility -- with the intercept equal
+to minus the fitted willingness to pay and the slope stated at a fitted
+reference price :math:`P_g` (the artefact's ``slope_basis`` column):
+:math:`\gamma_g = P_g / (\eta\, b_g)`, where :math:`\eta` is the own-price
+food demand elasticity in magnitude. The demand fit is sequential -- pinned
+against the calibrated production curves rather than jointly with them, which
+would leave the producer/consumer split of each wedge undetermined; see the
+calibration documentation. The demand component supersedes the
+consumer-values / ``food_utility_piecewise`` mechanism and ``food_incentives``
+and is mutually exclusive with both, as well as with
+``validation.enforce_baseline_diet``.
+
 **Configuration options**:
 
-* ``supply_response.enabled``: master switch (default: ``false``).
+* ``supply_response.enabled``: master switch.
 * ``supply_response.n_blocks``: breakpoints per side of the baseline.
 * ``supply_response.expansion_range`` / ``contraction_range``: the
   directional range as a fraction of group baseline. The envelope extrapolates
@@ -543,19 +559,37 @@ churn far better than a shared country curve.
   baseline.
 * ``supply_response.granularity``: spatial resolution of the curves,
   ``country`` / ``region`` / ``link``.
-* ``supply_response.pin_baseline``: phase-1 calibration switch; mutually
-  exclusive with ``intercepts``. The pin is elastic: reference data is never
-  perfectly consistent with every hard constraint, so deviating from the pin
-  is allowed at ``pin_slack_cost``, and groups that use slack get their
-  intercept censored at that price and flagged in the log.
-* ``supply_response.intercepts``: path to the intercepts CSV from a pinned
-  solve of the same model at the same granularity, or ``null``.
-* ``supply_response.elasticities.{crops,grassland,animals}``: own-price supply
-  elasticity per component.
+* ``supply_response.pin_baseline``: phase-1 calibration switch -- ``true``
+  pins every enabled component, a list of component names pins only those
+  while the rest carry curves from ``intercepts`` (the sequential demand
+  fit). The pin is elastic: reference data is never perfectly consistent with
+  every hard constraint, so deviating from the pin is allowed at
+  ``pin_slack_cost``, and groups that use slack get their intercept censored
+  at that price and flagged in the log.
+* ``supply_response.intercepts``: path to the intercepts CSV from the
+  calibration of the same model at the same granularity, the sentinel
+  ``"calibrated"``, or ``null``.
+* ``supply_response.elasticities.{crops,multi_crops,grassland,animals}``:
+  own-price supply elasticity per production component;
+  ``elasticities.demand`` is the own-price food demand elasticity in
+  magnitude. The defaults are central values from the empirical literature.
+  Long-run crop supply elasticities cluster around 0.3-1.0 in the Nerlovian
+  estimation tradition (surveyed by Askari and Cummings, *International
+  Economic Review* 1977), while the short-run global caloric supply
+  elasticity is an order of magnitude lower (roughly 0.1; Roberts and
+  Schlenker, *American Economic Review* 2013) -- the curves describe a
+  long-run planning response, hence 0.5 for annual crops, with livestock
+  (0.4) and grassland (0.3) slower to adjust. Own-price food demand
+  magnitudes cluster around 0.2-0.8 across food groups, with staples at the
+  low end and animal-source foods toward the high end, and stronger
+  responses in lower-income settings (Andreyeva, Long and Brownell,
+  *American Journal of Public Health* 2010; Green et al., *BMJ* 2013) --
+  hence 0.4 as a single central value. ``elasticity_factor`` exists
+  precisely so sensitivity analyses can sweep these assumptions.
 * ``supply_response.elasticity_factor``: global multiplier on every elasticity,
   for scanning the assumption.
-* ``supply_response.components.{crops,grassland,animals}``: which components
-  carry curves.
+* ``supply_response.components.{crops,multi_crops,grassland,animals,demand}``:
+  which components carry curves.
 
 **Behavior notes**:
 

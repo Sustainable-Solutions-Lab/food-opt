@@ -77,6 +77,31 @@ own curve. A coarse curve says nothing about which regions, resource classes or
 water-supply types activity sits in, so it leaves spatial reallocation to the
 per-link deviation penalty; at ``link`` granularity the curves price that
 reallocation themselves and replace the deviation penalty outright.
+
+The ``demand`` component applies the same machinery to the consumption side:
+each (food, country) consumption link gets a concave marginal-*utility* curve
+through its observed intake. The deviation-cost form is identical -- for
+consumption ``X`` with baseline ``b``, the objective carries
+``lambda * (X - b) + gamma / 2 * (X - b)^2`` with ``gamma > 0`` -- because a
+convex deviation cost *is* a diminishing marginal utility: the KKT condition at
+the baseline reads ``price + lambda = 0``, so the fitted intercept is minus the
+marginal willingness to pay, and the positive slope makes that willingness
+decline with quantity.
+
+The demand calibration is *sequential* rather than joint. Pinning production
+and consumption in one solve closes every commodity chain, leaving each
+chain's price level -- and hence the split of the total wedge between producer
+and consumer -- undetermined (the duals park at the pin slack bound). Instead,
+the demand pin runs against the already-fitted, elastic supply curves
+(``pin_baseline: ["demand"]`` with production intercepts supplied), so the
+food-bus prices are unique and the demand wedge is measured against exactly
+the supply side deployed solves will carry. The wedge *level* still inherits
+the supply fit's value convention, so it cannot set the curve's stiffness; the
+slope is instead stated at a reference price fitted by a separate slope-basis
+solve -- the same demand pin against *zero-intercept* supply curves, whose
+prices sit at the accounting-cost chain (``slope_basis`` column of the
+artefact): ``gamma = P_ref / (eta * b)``. Demand curves therefore require the
+sequentially fitted artefact; there is no uncalibrated variant.
 """
 
 import logging
@@ -99,7 +124,13 @@ COMPONENTS = {
     "multi_crops": (("crop_production_multi",), "baseline_area_mha", ("combination",)),
     "grassland": (("grassland_production",), "baseline_area_mha", ()),
     "animals": (("animal_production",), "baseline_feed_use_mt_dm", ("product",)),
+    "demand": (("food_consumption",), "baseline_consumption_mt", ("food",)),
 }
+
+# Components whose activity is consumption rather than production: their curve
+# is a marginal utility (slope stated at the fitted willingness to pay, not at
+# an accounting cost) and their cost is reported as demand response.
+DEMAND_COMPONENTS = frozenset({"demand"})
 
 # Spatial columns appended to a component's commodity key at each granularity.
 # ``link`` is the exception: it resolves every production link separately, so it
@@ -112,21 +143,30 @@ GRANULARITY_COLUMNS = {
 }
 
 
-def evaluate_supply_response_cost(n: pypsa.Network) -> float:
-    """Total deviation cost the curves contributed to the objective.
-
-    Each component's cost variable enters the objective directly, so the term
-    is just the sum of their solutions, and the objective breakdown can report
-    it as its own category with an exact identity check.
-    """
+def _evaluate_curve_cost(n: pypsa.Network, components) -> float:
     m = getattr(n, "model", None)
     if m is None:
         return 0.0
     return sum(
         float(m.variables[name].solution.sum())
-        for component in COMPONENTS
+        for component in components
         if (name := f"{component}_supply_response_cost") in m.variables
     )
+
+
+def evaluate_supply_response_cost(n: pypsa.Network) -> float:
+    """Total deviation cost the production curves contributed to the objective.
+
+    Each component's cost variable enters the objective directly, so the term
+    is just the sum of their solutions, and the objective breakdown can report
+    it as its own category with an exact identity check.
+    """
+    return _evaluate_curve_cost(n, COMPONENTS.keys() - DEMAND_COMPONENTS)
+
+
+def evaluate_demand_response_cost(n: pypsa.Network) -> float:
+    """Deviation cost of the demand curves, reported separately from supply."""
+    return _evaluate_curve_cost(n, DEMAND_COMPONENTS)
 
 
 def extract_supply_response_intercepts(n: pypsa.Network) -> pd.DataFrame:
@@ -236,29 +276,59 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
         )
     spatial_cols = GRANULARITY_COLUMNS[granularity]
 
-    pin = bool(cfg["pin_baseline"])
-    if pin and cfg["intercepts"]:
+    # pin_baseline is false (curves everywhere), true (pin every enabled
+    # component), or a list of component names to pin while the remaining
+    # components carry curves from ``intercepts``. The list form is what the
+    # sequential calibration uses: demand wedges are measured against the
+    # already-fitted, *elastic* supply side, which keeps the food-bus prices
+    # unique where joint pinning would close the chain and degenerate them.
+    pin_cfg = cfg["pin_baseline"]
+    if isinstance(pin_cfg, list):
+        unknown = set(pin_cfg) - set(COMPONENTS)
+        if unknown:
+            raise ValueError(
+                f"supply_response.pin_baseline names unknown components "
+                f"{sorted(unknown)}; valid components: {sorted(COMPONENTS)}"
+            )
+        pinned_components = set(pin_cfg)
+    else:
+        pinned_components = set(COMPONENTS) if pin_cfg else set()
+    if pinned_components == set(COMPONENTS) and cfg["intercepts"]:
         raise ValueError(
             "supply_response.pin_baseline and supply_response.intercepts are "
-            "mutually exclusive: the pinned solve fits the intercepts against "
-            "the accounting costs, so it must not itself carry intercepts"
+            "mutually exclusive when every component is pinned: the pinned "
+            "solve fits the intercepts against the accounting costs, so it "
+            "must not itself carry intercepts"
         )
+    intercepts_table = None
     intercepts = None
     if cfg["intercepts"]:
-        table = pd.read_csv(cfg["intercepts"])
-        intercepts = table.set_index(["component", "sr_group"])["intercept"]
+        intercepts_table = pd.read_csv(cfg["intercepts"]).set_index(
+            ["component", "sr_group"]
+        )
+        intercepts = intercepts_table["intercept"]
 
     for component, (carriers, baseline_col, commodity_cols) in COMPONENTS.items():
         if not cfg["components"][component]:
             continue
+        pin = component in pinned_components
         elasticity = float(cfg["elasticities"][component]) * factor
         if elasticity <= 0:
             raise ValueError(
                 f"supply_response.elasticities.{component} must be > 0 after "
                 f"applying elasticity_factor, got {elasticity}"
             )
+        if component in DEMAND_COMPONENTS and not pin and intercepts is None:
+            raise ValueError(
+                "supply_response demand curves require fitted intercepts: the "
+                "marginal-utility level comes from the fitted willingness to "
+                "pay, so there is no uncalibrated variant. Provide "
+                "supply_response.intercepts or disable "
+                "supply_response.components.demand"
+            )
         component_intercepts = None
-        if intercepts is not None:
+        component_slope_basis = None
+        if intercepts is not None and not pin:
             if component not in intercepts.index.get_level_values("component"):
                 raise ValueError(
                     f"supply_response.intercepts has no entries for component "
@@ -266,6 +336,17 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
                     "solve covering the same components"
                 )
             component_intercepts = intercepts.xs(component, level="component")
+            if component in DEMAND_COMPONENTS:
+                if "slope_basis" not in intercepts_table.columns:
+                    raise ValueError(
+                        "supply_response.intercepts has no slope_basis column; "
+                        "demand curves need the reference-price basis from the "
+                        "sequential calibration (tools/calibrate "
+                        "supply_response)"
+                    )
+                component_slope_basis = intercepts_table.xs(
+                    component, level="component"
+                )["slope_basis"]
         _add_component_curves(
             n,
             component=component,
@@ -280,6 +361,7 @@ def add_supply_response_curves(n: pypsa.Network, cfg: dict) -> None:
             pin=pin,
             pin_slack_cost=float(cfg["pin_slack_cost"]),
             intercepts=component_intercepts,
+            slope_basis=component_slope_basis,
         )
 
 
@@ -338,6 +420,7 @@ def _add_component_curves(
     pin: bool,
     pin_slack_cost: float,
     intercepts: "pd.Series | None",
+    slope_basis: "pd.Series | None" = None,
 ) -> None:
     """Add one component's curves (or its phase-1 pin) to the model."""
     links_df = n.links.static
@@ -435,29 +518,63 @@ def _add_component_curves(
                 "granularity"
             )
 
-    bad = groups["cost"] <= 0
-    if bad.any():
-        raise ValueError(
-            f"{int(bad.sum())} {component} group(s) have a non-positive "
-            f"baseline-weighted marginal cost (e.g. "
-            f"{group_index[bad][:5].tolist()}); the supply-curve slope "
-            "gamma = cost / (elasticity * baseline) is undefined. Marginal "
-            "costs come from the cost data and the cost calibration, so a zero "
-            "here is an upstream data problem rather than something to default "
-            "away."
-        )
+    if component in DEMAND_COMPONENTS:
+        # Marginal-utility slope, stated at the reference price fitted by the
+        # slope-basis solve (demand pinned against zero-intercept supply
+        # curves, so food prices sit at the accounting-cost chain). The fitted
+        # intercept cannot serve as the basis: its level depends on how the
+        # calibration splits value between producer and consumer wedges, which
+        # exactness leaves free, while the slope needs a real price scale. A
+        # zero basis means supplying the food costs nothing at the margin; the
+        # curve degenerates to perfectly elastic demand there, which anchors
+        # nothing but also distorts nothing.
+        if slope_basis is None:
+            raise ValueError(
+                f"{component} curves need a slope_basis series; the intercepts "
+                "artefact must come from the sequential calibration"
+            )
+        basis = slope_basis.reindex(group_index)
+        if basis.isna().any():
+            missing = group_index[basis.isna()][:5].tolist()
+            raise ValueError(
+                f"{int(basis.isna().sum())} {component} group(s) have no "
+                f"slope_basis entry (e.g. {missing})"
+            )
+        slope = basis.abs() / (elasticity * groups["baseline"])
+        flat = slope <= 0
+        if flat.any():
+            logger.warning(
+                "%d %s group(s) have a zero reference price; their demand "
+                "curve is flat (perfectly elastic) and does not anchor "
+                "consumption. Examples: %s",
+                int(flat.sum()),
+                component,
+                group_index[flat][:5].tolist(),
+            )
+    else:
+        bad = groups["cost"] <= 0
+        if bad.any():
+            raise ValueError(
+                f"{int(bad.sum())} {component} group(s) have a non-positive "
+                f"baseline-weighted marginal cost (e.g. "
+                f"{group_index[bad][:5].tolist()}); the supply-curve slope "
+                "gamma = cost / (elasticity * baseline) is undefined. Marginal "
+                "costs come from the cost data and the cost calibration, so a "
+                "zero here is an upstream data problem rather than something "
+                "to default away."
+            )
 
-    # Slope of the marginal-cost curve, in objective units per activity
-    # squared. Stated at the accounting cost, not the calibrated marginal cost
-    # c + lambda: under a pinned diet the wedges trace the Ricardian rent
-    # gradient, and sub-marginal groups at the extensive margin have
-    # c + lambda <= 0, where a calibrated-cost slope is undefined. The
-    # intercept alone carries exactness -- the observed optimum only needs the
-    # marginal cost *level* at the baseline to match the marginal value there
-    # -- so the slope choice affects only the stiffness of the response, which
-    # for a group with wedge lambda realises elasticity
-    # eta * (c + lambda) / c with respect to the market price.
-    slope = groups["cost"] / (elasticity * groups["baseline"])
+        # Slope of the marginal-cost curve, in objective units per activity
+        # squared. Stated at the accounting cost, not the calibrated marginal
+        # cost c + lambda: under a pinned diet the wedges trace the Ricardian
+        # rent gradient, and sub-marginal groups at the extensive margin have
+        # c + lambda <= 0, where a calibrated-cost slope is undefined. The
+        # intercept alone carries exactness -- the observed optimum only needs
+        # the marginal cost *level* at the baseline to match the marginal value
+        # there -- so the slope choice affects only the stiffness of the
+        # response, which for a group with wedge lambda realises elasticity
+        # eta * (c + lambda) / c with respect to the market price.
+        slope = groups["cost"] / (elasticity * groups["baseline"])
 
     # Breakpoint offsets from the baseline, as fractions of it: n_blocks points
     # per side, spaced by shares that grow by width_growth away from the

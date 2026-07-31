@@ -262,21 +262,39 @@ supply_response:
   pin_slack_cost: 100.0
   intercepts: "calibrated"
   calibration:
-    generate: false  # Generate the artefact via a pinned solve (breaks DAG cycle when true)
+    generate: false  # Generate the artefact via pinned solves (breaks DAG cycle when true)
     calibrated_csv: "data/curated/calibration/{calibration_source}/supply_response.csv"
-  # Long-run own-price supply elasticities. Perennials and livestock adjust more
-  # slowly than annual crops; grassland is the least elastic.
+    # Production-fit passes in the sequential demand calibration. Each pass
+    # after the first re-pins production with the fitted demand curves active
+    # and refits the demand intercepts, contracting the residual
+    # production-side drift by roughly 4x per sweep.
+    sweeps: 3
+  # Long-run own-price elasticities; see the configuration reference for the
+  # supporting literature. Supply: long-run crop supply estimates cluster at
+  # 0.3-1.0 (Nerlovian survey tradition, Askari & Cummings 1977), with global
+  # short-run caloric supply far lower (~0.1, Roberts & Schlenker 2013) --
+  # 0.5 is a long-run central value. Livestock adjusts more slowly than
+  # annual crops and grassland is the least elastic. Demand: own-price food
+  # demand magnitudes cluster at 0.2-0.8 across food groups and incomes
+  # (Andreyeva et al. 2010; Green et al. 2013), staples at the low end and
+  # animal products at the high end -- 0.4 is a central value.
   elasticities:
     crops: 0.5
     multi_crops: 0.5
     grassland: 0.3
     animals: 0.4
+    demand: 0.4
   elasticity_factor: 1.0 # Global multiplier for scanning the elasticity assumption
+  # The demand component prices per-(food, country) consumption with a concave
+  # marginal-utility curve through the observed intake, fitted jointly with the
+  # production wedges in the same pinned solve. It replaces
+  # food_utility_piecewise and food_incentives (mutually exclusive with both).
   components:
     crops: true
     multi_crops: true
     grassland: true
     animals: true
+    demand: true
 
 # --- section: food_incentives ---
 food_incentives:

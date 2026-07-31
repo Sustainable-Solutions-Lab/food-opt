@@ -50,6 +50,19 @@ introduce breaking changes to configuration and outputs.
   supply_response` before solving with the curves. See "Supply Response" in
   the configuration reference and the calibration documentation.
 
+- The same mechanism now calibrates the demand side: a `demand` component
+  (enabled by default) gives every (food, country) consumption link a concave
+  marginal-utility curve through its observed intake, with the willingness to
+  pay fitted sequentially against the calibrated supply curves and the curve
+  stiffness governed by an own-price food demand elasticity
+  (`supply_response.elasticities.demand`). Ordinary solves previously had no
+  demand-side valuation at all unless a config enabled the consumer-values /
+  piecewise-utility mechanism; the demand component replaces that pattern (the
+  two are mutually exclusive, and `food_utility_piecewise` remains available
+  for configs that keep it, with `supply_response.components.demand: false`).
+  The demand curves' cost appears as its own `demand_response` category in the
+  objective breakdown.
+
 - Multiple cropping is now anchored to an observed baseline derived from
   MIRCA-OS v2 (new automated data source), using the available 2010, 2015, or
   2020 release nearest `baseline_year`. A fixed, documented sequence catalog

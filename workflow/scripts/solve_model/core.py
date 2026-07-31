@@ -46,6 +46,7 @@ from workflow.scripts.solve_model.production_stability import (
 )
 from workflow.scripts.solve_model.supply_response import (
     add_supply_response_curves,
+    evaluate_demand_response_cost,
     evaluate_supply_response_cost,
     extract_supply_response_intercepts,
 )
@@ -1598,6 +1599,39 @@ def run_solve(
             "food_incentives and food_utility_piecewise cannot both be enabled"
         )
 
+    # Resolved here (rather than at the add_supply_response_curves call) because
+    # the demand component needs the baseline diet matched onto the consume
+    # links below, and its guards against the other demand-side mechanisms
+    # belong next to theirs.
+    supply_response_cfg = dict(smk.params.supply_response)
+    if supply_response_cfg["intercepts"] == "calibrated":
+        # Same sentinel convention as the deviation penalty's l1_cost: the
+        # calibrated artefact is declared as a rule input so the DAG tracks it.
+        intercepts_path = getattr(smk.input, "supply_response_calibration", None)
+        if intercepts_path is None:
+            raise ValueError(
+                "supply_response.intercepts is 'calibrated' but the solve has "
+                "no supply_response_calibration input; run "
+                "tools/calibrate supply_response for this config's "
+                "calibration.source, or set an explicit intercepts path"
+            )
+        supply_response_cfg["intercepts"] = str(intercepts_path)
+    demand_response_active = bool(
+        supply_response_cfg["enabled"] and supply_response_cfg["components"]["demand"]
+    )
+    if demand_response_active and piecewise_utility_enabled:
+        raise ValueError(
+            "supply_response.components.demand and food_utility_piecewise "
+            "cannot both be enabled: both add a marginal-utility curve per "
+            "(food, country) consumption link"
+        )
+    if demand_response_active and incentives_enabled:
+        raise ValueError(
+            "supply_response.components.demand and food_incentives cannot both "
+            "be enabled: the fitted demand intercepts already carry the "
+            "consumption-side value"
+        )
+
     # Add food-level linear incentives to marginal costs if enabled
     if incentives_enabled:
         incentives_paths = list(smk.input.food_incentives)
@@ -1627,7 +1661,13 @@ def run_solve(
     matched_baseline: pd.DataFrame | None = None
     dp_cfg = smk.params.deviation_penalty
     diet_enabled = dp_cfg["enabled"] and dp_cfg["diet"]["enabled"]
-    needs_baseline_match = enforce_baseline or diet_enabled
+    if demand_response_active and enforce_baseline:
+        raise ValueError(
+            "supply_response.components.demand cannot be combined with "
+            "validation.enforce_baseline_diet: enforcement pins consumption "
+            "outright, leaving the demand curves nothing to price"
+        )
+    needs_baseline_match = enforce_baseline or diet_enabled or demand_response_active
     if needs_baseline_match:
         food_demand_multiplier: dict[str, float] | None = None
         fd_cal_path = getattr(smk.input, "food_demand_calibration", None)
@@ -1657,6 +1697,13 @@ def run_solve(
         slack_cost = float(smk.params.slack_marginal_cost)
         add_food_slack_generators(n, matched_baseline, slack_cost)
         fix_food_consumption_to_baseline(n, matched_baseline)
+
+    if demand_response_active and (matched_baseline is None or matched_baseline.empty):
+        raise ValueError(
+            "supply_response.components.demand is enabled but no baseline diet "
+            "rows matched the food consumption links; the demand curves have "
+            "no observed intake to calibrate against"
+        )
 
     # Create the linopy model.
     #
@@ -1827,23 +1874,11 @@ def run_solve(
             with _phase("add_diet_stability_constraints"):
                 add_diet_stability_constraints(n, matched_baseline, dp_cfg)
 
-    # Convex piecewise-linear supply curves on group activity. At link
-    # granularity they replace the per-link deviation penalty above; coarser
+    # Convex piecewise-linear supply curves on group activity, plus the demand
+    # component's marginal-utility curves on consumption. At link granularity
+    # the supply curves replace the per-link deviation penalty above; coarser
     # curves complement it, carrying the elasticity of a group's total
     # activity while the per-link term carries spatial inertia.
-    supply_response_cfg = dict(smk.params.supply_response)
-    if supply_response_cfg["intercepts"] == "calibrated":
-        # Same sentinel convention as the deviation penalty's l1_cost: the
-        # calibrated artefact is declared as a rule input so the DAG tracks it.
-        intercepts_path = getattr(smk.input, "supply_response_calibration", None)
-        if intercepts_path is None:
-            raise ValueError(
-                "supply_response.intercepts is 'calibrated' but the solve has "
-                "no supply_response_calibration input; run "
-                "tools/calibrate supply_response for this config's "
-                "calibration.source, or set an explicit intercepts path"
-            )
-        supply_response_cfg["intercepts"] = str(intercepts_path)
     with _phase("add_supply_response_curves"):
         add_supply_response_curves(n, supply_response_cfg)
 
@@ -2164,10 +2199,14 @@ def run_solve(
 
         # Supply-response curve cost. Outside the deviation-penalty gate: the
         # curves are an independent anchoring mechanism, and a run may carry
-        # either, both, or neither.
+        # either, both, or neither. Demand curves are reported separately so
+        # production anchoring and consumption utility stay readable.
         curve_cost = evaluate_supply_response_cost(n)
         if abs(curve_cost) > 1e-12:
             n.meta["supply_response_cost"] = curve_cost
+        demand_cost = evaluate_demand_response_cost(n)
+        if abs(demand_cost) > 1e-12:
+            n.meta["demand_response_cost"] = demand_cost
 
         # PMP phase 1: a baseline-pinned solve exists to measure the per-group
         # price wedges. Extracted here, while the model still holds its duals,

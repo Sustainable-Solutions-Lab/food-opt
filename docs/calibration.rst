@@ -393,13 +393,31 @@ conditions of the unpinned model and is reproduced exactly, with no
 hard constraints and no tuned deviation target; the configured
 elasticity governs only the response away from the calibrated point.
 
-The pinned solve runs under the base config's own operating regime with
-the policy dials at neutral (no GHG price, demand left to whatever
-drives it in ordinary solves). Exact reproduction therefore holds for
-unpriced solves of the same config, and a priced solve shows the pure
-elasticity-governed response. Wedges are regime-specific: intercepts fit
-under one demand system misprice production under another, so a config
-that changes the demand side materially needs its own artefact set.
+The pinned solves run under the base config's own operating regime with
+the policy dials at neutral (no GHG price). Exact reproduction therefore
+holds for unpriced solves of the same config, and a priced solve shows
+the pure elasticity-governed response. Wedges are regime-specific:
+intercepts fit under one demand system misprice production under
+another, so a config that changes the demand side materially needs its
+own artefact set.
+
+With the ``demand`` component enabled (the default), the calibration is
+sequential rather than a single pin. Jointly pinning production and
+consumption would close every commodity chain and leave the split of
+each chain's wedge between producer and consumer undetermined (the duals
+park at the pin slack bound), so instead: (1) production is pinned with
+demand in the base regime; (2) the demand pin runs against
+*zero-intercept* supply curves, whose food-bus prices sit at the
+accounting-cost chain -- these duals are realistic reference price
+levels, stored as the artefact's ``slope_basis`` column and used for the
+marginal-utility slopes; (3) the demand pin runs again against the
+*calibrated* supply curves, and its duals are the demand intercepts,
+measured against exactly the supply side ordinary solves carry; (4) the
+production pin repeats with the fitted demand curves active and the
+demand intercepts are refit against the refined production curves, for
+``supply_response.calibration.sweeps`` passes in total, so each side's
+wedges converge to consistency with the other side's deployed
+behaviour (residual cross-side drift contracts roughly 4x per sweep).
 
 Groups whose reference activity is inconsistent with the model's hard
 constraints (land or water availability, feed balances) use pin slack

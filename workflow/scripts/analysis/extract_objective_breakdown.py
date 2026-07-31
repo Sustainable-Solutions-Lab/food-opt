@@ -254,6 +254,14 @@ def extract_objective_breakdown(n: pypsa.Network) -> pd.DataFrame:
             total.get("Supply response", 0.0) + supply_response_cost
         )
 
+    # Demand-response curves: the consumption-side marginal-utility term of the
+    # same mechanism, kept separate from production anchoring.
+    demand_response_cost = n.meta.get("demand_response_cost", 0.0)
+    if demand_response_cost:
+        total["Demand response"] = (
+            total.get("Demand response", 0.0) + demand_response_cost
+        )
+
     # Diet stability penalty (per-(food, country) anchor toward observed diet).
     diet_stability_cost = n.meta.get("diet_stability_cost", 0.0)
     if diet_stability_cost:
@@ -409,6 +417,7 @@ def extract_objective_breakdown(n: pypsa.Network) -> pd.DataFrame:
         "Groundwater depletion cost": "groundwater_depletion_cost",
         "Production stability": "production_stability",
         "Supply response": "supply_response",
+        "Demand response": "demand_response",
         "Diet stability": "diet_stability",
     }
     result = result.rename(columns=column_map)

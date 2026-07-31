@@ -4,9 +4,13 @@
 
 # Supply-response intercept calibration (PMP phase 1)
 # ---------------------------------------------------
-# One solve with every supply-curve group pinned to its observed activity
-# behind an elastic pin; the duals of the pinning constraints are the
-# per-group price wedges, written as curve intercepts to
+# Sequential pinned solves driven by calibrate_supply_response.py: production
+# groups pinned first (their duals are the production price wedges), then --
+# when the demand component is enabled -- the demand pin runs twice against
+# the production curves (zero-intercept for the slope-basis reference prices,
+# calibrated for the demand wedges). The stages are driven via per-stage
+# overrides of pin_baseline/intercepts; the values below only mark this config
+# as the fitting config. Everything lands in
 # data/curated/calibration/<source>/supply_response.csv.
 #
 # Usage:

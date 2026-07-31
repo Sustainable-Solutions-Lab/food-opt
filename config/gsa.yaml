@@ -214,9 +214,15 @@ sensitivity_analysis:
       label: Grazing area by region
       units: Mha
 
-# Block-based diminishing marginal utility for food consumption
+# Block-based diminishing marginal utility for food consumption. This config
+# keeps the consumer-values / utility-blocks mechanism; the supply_response
+# demand component is its successor and must stay off alongside it.
 food_utility_piecewise:
   enabled: true
+
+supply_response:
+  components:
+    demand: false
 
 # Compare all scenarios in plots
 plotting:

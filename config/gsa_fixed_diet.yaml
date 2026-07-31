@@ -133,6 +133,12 @@ diet:
 calibration:
   source: "gbd-anchored"
 
+# The diet is held fixed by the GBD group anchoring; demand curves would
+# soften that, so they stay off.
+supply_response:
+  components:
+    demand: false
+
 # No post-hoc YLL evaluation: diet is fixed, so health outputs would be
 # essentially constant across scenarios and just add solve time.
 health:

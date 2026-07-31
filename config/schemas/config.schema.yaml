@@ -2118,8 +2118,13 @@ properties:
         enum: ["country", "region", "link"]
         description: "Spatial resolution of the curves: per country, per optimisation region, or per production link."
       pin_baseline:
-        type: boolean
-        description: "PMP phase 1: pin every group at its observed activity and write the pinning duals (price wedges) next to the solved network."
+        oneOf:
+          - type: boolean
+          - type: array
+            items:
+              type: string
+              enum: ["crops", "multi_crops", "grassland", "animals", "demand"]
+        description: "PMP phase 1: pin every group at its observed activity (true), or only the listed components while the rest carry curves from `intercepts` (the sequential demand fit); the pinning duals (price wedges) are written next to the solved network."
       pin_slack_cost:
         type: number
         exclusiveMinimum: 0
@@ -2129,20 +2134,24 @@ properties:
         description: "PMP phase 2: path to the intercepts CSV from a pinned solve, or the sentinel 'calibrated' resolving to calibration.calibrated_csv; shifts each curve so the observed allocation is the exact unconstrained optimum."
       calibration:
         type: object
-        required: [generate, calibrated_csv]
+        required: [generate, calibrated_csv, sweeps]
         additionalProperties: false
         properties:
           generate:
             type: boolean
-            description: "Generate the intercepts artefact via a pinned solve (breaks the DAG cycle when true)."
+            description: "Generate the intercepts artefact via pinned solves (breaks the DAG cycle when true)."
           calibrated_csv:
             type: string
             description: "Artefact path the 'calibrated' sentinel resolves to."
+          sweeps:
+            type: integer
+            minimum: 1
+            description: "Production-fit passes in the sequential demand calibration; each pass after the first refines both sides against the other's fitted curves."
       elasticities:
         type: object
-        required: [crops, multi_crops, grassland, animals]
+        required: [crops, multi_crops, grassland, animals, demand]
         additionalProperties: false
-        description: "Long-run own-price supply elasticity per component."
+        description: "Long-run own-price supply elasticity per production component; for demand, the own-price food demand elasticity in magnitude."
         properties:
           crops:
             type: number
@@ -2154,6 +2163,9 @@ properties:
             type: number
             exclusiveMinimum: 0
           animals:
+            type: number
+            exclusiveMinimum: 0
+          demand:
             type: number
             exclusiveMinimum: 0
       elasticity_factor:
@@ -2162,9 +2174,9 @@ properties:
         description: "Global multiplier on every elasticity, for scanning the assumption."
       components:
         type: object
-        required: [crops, multi_crops, grassland, animals]
+        required: [crops, multi_crops, grassland, animals, demand]
         additionalProperties: false
-        description: "Which components carry supply curves."
+        description: "Which components carry curves; demand prices per-(food, country) consumption with a fitted marginal-utility curve."
         properties:
           crops:
             type: boolean
@@ -2173,6 +2185,8 @@ properties:
           grassland:
             type: boolean
           animals:
+            type: boolean
+          demand:
             type: boolean
 
   solving:

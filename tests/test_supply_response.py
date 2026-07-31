@@ -63,6 +63,7 @@ def _cfg(
             "multi_crops": crops,
             "grassland": 0.3,
             "animals": 0.4,
+            "demand": 0.4,
         },
         "elasticity_factor": elasticity_factor,
         "components": components
@@ -71,6 +72,7 @@ def _cfg(
             "multi_crops": False,
             "grassland": False,
             "animals": False,
+            "demand": False,
         },
     }
 
@@ -384,3 +386,170 @@ def test_contraction_range_above_one_raises():
     n.optimize.create_model(include_objective_constant=False)
     with pytest.raises(ValueError, match="contraction_range"):
         add_supply_response_curves(n, _cfg(contraction_range=1.5))
+
+
+# ---------------------------------------------------------------------------
+# Demand component: concave marginal-utility curves on consumption links.
+
+DEMAND_BASELINE_MT = 5.0
+SUPPLY_PRICE = 1.5  # bnUSD per Mt of food offered to the consumption link
+
+
+def _demand_cfg(**kwargs) -> dict:
+    components = {
+        "crops": False,
+        "multi_crops": False,
+        "grassland": False,
+        "animals": False,
+        "demand": True,
+    }
+    return _cfg(components=components, **kwargs)
+
+
+def _make_demand_network(
+    supply_price: float, *, baseline: float = DEMAND_BASELINE_MT
+) -> pypsa.Network:
+    """One (food, country) consumption link buying food at ``supply_price``.
+
+    Food is available in any quantity at the supply price and nothing else
+    values it, so consumption is driven entirely by the demand curve.
+    """
+    n = pypsa.Network()
+    n.set_snapshots(["now"])
+    n.carriers.add(["food", "food_consumption", "nutrient"], unit="Mt")
+    n.buses.add(["food:apple:USA", "nutrient:cal:USA"], carrier="food")
+    n.generators.add(
+        "supply:apple:USA",
+        bus="food:apple:USA",
+        p_nom=1e4,
+        marginal_cost=supply_price,
+    )
+    n.stores.add(
+        "intake", bus="nutrient:cal:USA", e_nom=1e6, e_initial=0.0, e_cyclic=False
+    )
+    n.links.add(
+        "consume:apple:USA",
+        bus0="food:apple:USA",
+        bus1="nutrient:cal:USA",
+        carrier="food_consumption",
+        efficiency=1.0,
+        p_nom=1e4,
+        marginal_cost=0.0,
+        baseline_consumption_mt=baseline,
+        food="apple",
+        country="USA",
+    )
+    return n
+
+
+def _solve_demand(n: pypsa.Network, cfg: dict) -> float:
+    n.optimize.create_model(include_objective_constant=False)
+    add_supply_response_curves(n, cfg)
+    status, condition = n.model.solve(solver_name="highs")
+    assert (status, condition) == ("ok", "optimal"), (status, condition)
+    sol = n.model.variables["Link-p"].solution.sel(snapshot="now")
+    return float(sol.sel(name="consume:apple:USA").item())
+
+
+def _fit_demand_intercepts(supply_price: float, cfg: dict, tmp_path) -> str:
+    n = _make_demand_network(supply_price)
+    n.optimize.create_model(include_objective_constant=False)
+    add_supply_response_curves(n, {**cfg, "pin_baseline": True, "intercepts": None})
+    status, condition = n.model.solve(solver_name="highs")
+    assert (status, condition) == ("ok", "optimal"), (status, condition)
+    path = tmp_path / "demand_intercepts.csv"
+    table = extract_supply_response_intercepts(n)
+    # In this fixture supply is a bare generator at a fixed price, so the
+    # slope-basis solve would measure the same wedge; the calibration driver
+    # normally stitches this column from a separate zero-intercept solve.
+    table["slope_basis"] = table["intercept"].abs()
+    table.to_csv(path, index=False)
+    return str(path)
+
+
+def test_demand_pin_holds_consumption_and_measures_willingness_to_pay(tmp_path):
+    """Phase 1 pins intake; the intercept is minus the price paid at the
+    margin, i.e. minus the willingness to pay the calibration imputes."""
+    path = _fit_demand_intercepts(SUPPLY_PRICE, _demand_cfg(), tmp_path)
+    table = pd.read_csv(path)
+    assert set(table["component"]) == {"demand"}
+    assert table["intercept"].to_numpy() == pytest.approx(-SUPPLY_PRICE, rel=1e-9)
+    assert table["slack"].to_numpy() == pytest.approx(0.0, abs=1e-9)
+
+
+def test_demand_intercepts_reproduce_baseline_consumption(tmp_path):
+    """With fitted intercepts, observed intake is the exact optimum: the
+    marginal utility at the baseline equals the supply price there."""
+    path = _fit_demand_intercepts(SUPPLY_PRICE, _demand_cfg(), tmp_path)
+    consumed = _solve_demand(
+        _make_demand_network(SUPPLY_PRICE), _demand_cfg(intercepts=path)
+    )
+    assert consumed == pytest.approx(DEMAND_BASELINE_MT, rel=1e-6)
+
+
+@pytest.mark.parametrize("eta", [0.25, 0.5])
+def test_demand_curve_delivers_the_configured_elasticity(eta, tmp_path):
+    """A price rise of s contracts intake by eta * s of baseline: the slope is
+    stated at the fitted willingness to pay, so the realised own-price demand
+    elasticity is eta itself."""
+    shock = 0.1
+    cfg = _demand_cfg()
+    cfg["elasticities"]["demand"] = eta
+    path = _fit_demand_intercepts(SUPPLY_PRICE, cfg, tmp_path)
+    consumed = _solve_demand(
+        _make_demand_network(SUPPLY_PRICE * (1 + shock)), {**cfg, "intercepts": path}
+    )
+    arc = ((consumed - DEMAND_BASELINE_MT) / DEMAND_BASELINE_MT) / shock
+    assert arc == pytest.approx(-eta, rel=0.05)
+
+
+def test_demand_curves_without_intercepts_raise():
+    n = _make_demand_network(SUPPLY_PRICE)
+    n.optimize.create_model(include_objective_constant=False)
+    with pytest.raises(ValueError, match="demand curves require"):
+        add_supply_response_curves(n, _demand_cfg())
+
+
+def test_sequential_pin_list_pins_demand_against_elastic_supply(tmp_path):
+    """pin_baseline as a component list: production carries its fitted curves
+    while demand alone is pinned, so the demand wedge is measured against the
+    elastic (deployed) supply side rather than a closed pinned chain."""
+    supply_cfg = _cfg(granularity="link")
+    supply_path = _fit_intercepts(COST * 1.5, supply_cfg, tmp_path)
+
+    n = _make_network(COST * 1.5)
+    n.optimize.create_model(include_objective_constant=False)
+    cfg = _cfg(
+        granularity="link",
+        intercepts=supply_path,
+        components={
+            "crops": True,
+            "multi_crops": False,
+            "grassland": False,
+            "animals": False,
+            "demand": False,
+        },
+    )
+    cfg["pin_baseline"] = ["demand"]
+    # No demand links in this fixture: the point is that the list form applies
+    # curves to the unpinned crops component instead of raising the
+    # pin-vs-intercepts exclusivity error, and reproduces the baseline.
+    add_supply_response_curves(n, cfg)
+    status, condition = n.model.solve(solver_name="highs")
+    assert (status, condition) == ("ok", "optimal")
+    sol = n.model.variables["Link-p"].solution.sel(snapshot="now")
+    produce = [
+        str(v) for v in sol.coords["name"].values if str(v).startswith("produce")
+    ]
+    assert float(sol.sel(name=produce).sum().item()) == pytest.approx(
+        sum(BASELINE_MHA), rel=1e-6
+    )
+
+
+def test_pin_list_with_unknown_component_raises():
+    n = _make_network(COST)
+    n.optimize.create_model(include_objective_constant=False)
+    cfg = _cfg()
+    cfg["pin_baseline"] = ["croops"]
+    with pytest.raises(ValueError, match="unknown components"):
+        add_supply_response_curves(n, cfg)

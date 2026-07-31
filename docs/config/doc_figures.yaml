@@ -65,9 +65,15 @@ scenarios:
     <<: *ghg_base
     emissions: {ghg_price: 500}
 
-# Enable piecewise utility at base level (blocks get built from baseline)
+# Enable piecewise utility at base level (blocks get built from baseline).
+# The supply_response demand component is its successor and must stay off
+# alongside it.
 food_utility_piecewise:
   enabled: true
+
+supply_response:
+  components:
+    demand: false
 
 health:
   # Documentation figures include the health-cluster map, the diet-attributable
