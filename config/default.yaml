@@ -1990,12 +1990,11 @@ crop_costs:
     yield_element_code: 5412  # Yield (kg/ha)
 
 # --- section: cost_calibration ---
-# Unified cost calibration corrections extracted from production stability duals.
-# Covers crops, grassland, and animals. Corrections are stored on the built links
-# and applied as baseline-bounded solve-time terms only for components not covered
-# by market_response curves; applying both would double-count the calibrated wedge.
+# Legacy cost calibration corrections extracted from production stability duals.
+# Covers crops, grassland, and animals. This mechanism is mutually exclusive
+# with market_response and is disabled in the default PMP configuration.
 cost_calibration:
-  enabled: true       # Apply calibration corrections to production costs
+  enabled: false      # Legacy anchoring; mutually exclusive with market_response
   generate: false     # Generate calibration from solved model (breaks DAG cycle when true)
   scenario: "calibration"  # Scenario name used for calibration solve
   crop_correction_csv: "data/curated/calibration/{calibration_source}/crop_cost.csv"

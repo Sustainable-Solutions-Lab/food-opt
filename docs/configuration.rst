@@ -470,6 +470,20 @@ followed by a jump to whichever bound stops it. Its curvature comes from an
 exogenous supply elasticity instead of a coefficient fitted to a chosen
 deviation target.
 
+Production anchoring selection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The model has two alternative production-anchoring mechanisms. The default
+uses the PMP curves (``market_response.enabled: true``) and leaves the legacy
+cost corrections disabled (``cost_calibration.enabled: false``). A legacy
+configuration may set ``market_response.enabled: false`` and
+``cost_calibration.enabled: true`` to apply the baseline-bounded corrections
+extracted from the cost-calibration duals. JSON Schema validation rejects a
+configuration that enables both mechanisms, because their local production
+wedge would be counted twice. ``cost_calibration.generate`` is independent of
+this choice: calibration-generation configs set it to ``true`` while keeping
+``cost_calibration.enabled`` false.
+
 For one side of the market, calibration follows the standard two-phase
 procedure. Phase 1 (``pin_baseline: true``) holds each positive-baseline group
 at its observed activity; the dual :math:`\lambda_g` of each pinning constraint
@@ -609,10 +623,10 @@ and is mutually exclusive with both, as well as with
   A missing demand baseline is an input error, not a zero.
 * A group whose baseline-weighted marginal cost is not positive is an error,
   since the slope is undefined there.
-* For every covered production component, the solve suppresses the legacy
-  baseline-bounded cost-calibration correction. The intercept already absorbs
-  the local value-versus-accounting-cost wedge, and applying both would add a
-  second kink at the baseline. Uncovered components retain their correction.
+* The PMP curves and legacy cost corrections are mutually exclusive at config
+  validation time. A PMP run therefore accounts for its curve wedges, while a
+  legacy cost-calibration run accounts for its baseline-bounded correction
+  terms; no component-level gate is needed at solve time.
 
 .. _growth-caps:
 

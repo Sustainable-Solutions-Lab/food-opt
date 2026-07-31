@@ -354,7 +354,7 @@ regenerate in this order:
    `food_demand.csv` (per-food global multiplier on baseline-diet
    `target_mt`, applied in `_match_baseline_to_consume_links` at solve
    time).
-4. **cost** — `config/calibration/cost.yaml` → `crop_cost.csv`,
+4. **cost** (legacy production anchoring) — `config/calibration/cost.yaml` → `crop_cost.csv`,
    `grassland_cost.csv`, `animal_cost.csv`. Step 1 of the cost solve
    now enables hard production-stability bounds at +/-20% with a
    `slack_marginal_cost: 5.0` override for foods carrying structural
@@ -365,6 +365,13 @@ regenerate in this order:
    fit sequentially; the sentinel `market_response.intercepts: "calibrated"`
    resolves this artefact at solve time. Entries are keyed by curve group, so
    link-granularity intercepts are specific to the exact model structure.
+
+Production anchoring is strictly exclusive: the default workflow uses
+`market_response.enabled: true` and `cost_calibration.enabled: false`.
+Configurations that consume the legacy cost corrections must set
+`market_response.enabled: false` before enabling `cost_calibration`; JSON
+Schema validation rejects both active at once. Calibration generation may set
+`cost_calibration.generate: true` while leaving `enabled: false`.
 
 The legacy **stability** step (`config/calibration/stability.yaml` →
 `deviation_penalty.yaml`, the calibrated L1 penalty costs) is no longer

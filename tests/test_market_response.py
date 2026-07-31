@@ -20,7 +20,6 @@ import pandas as pd
 import pypsa
 import pytest
 
-from workflow.scripts.solve_model.core import _bounded_cost_correction_carriers
 from workflow.scripts.solve_model.market_response import (
     add_market_response_curves,
     extract_market_response_intercepts,
@@ -135,35 +134,6 @@ def _solve(n: pypsa.Network, cfg: dict) -> float:
         str(v) for v in sol.coords["name"].values if str(v).startswith("produce")
     ]
     return float(sol.sel(name=produce).sum().item())
-
-
-def test_market_response_replaces_bounded_corrections_component_by_component():
-    cfg = _cfg(
-        components={
-            "crops": True,
-            "multi_crops": False,
-            "grassland": False,
-            "animals": True,
-            "demand": True,
-        }
-    )
-
-    active, skipped = _bounded_cost_correction_carriers(cfg)
-
-    assert active == ["crop_production_multi", "grassland_production"]
-    assert skipped == ["animal_production", "crop_production"]
-
-
-def test_disabled_market_response_keeps_all_bounded_corrections():
-    active, skipped = _bounded_cost_correction_carriers(_cfg(enabled=False))
-
-    assert active == [
-        "animal_production",
-        "crop_production",
-        "crop_production_multi",
-        "grassland_production",
-    ]
-    assert skipped == []
 
 
 def test_baseline_is_optimal_at_reference_price():

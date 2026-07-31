@@ -50,6 +50,11 @@ validation:
 market_response:
   enabled: false
 
+# This legacy calibration uses the cost corrections as its production-cost
+# anchoring mechanism; PMP and cost calibration are mutually exclusive.
+cost_calibration:
+  enabled: true
+
 # Per-iteration scenarios override these; the baseline iteration disables
 # the penalty entirely via enforce_baseline_diet + l1_cost overrides.
 deviation_penalty:

@@ -137,8 +137,9 @@ When upstream data or build logic changes, rerun in this order:
 #. :ref:`market_response <market-response-calibration>` — the pinned
    solves measure each group's residual price wedge against the fully
    calibrated feed, waste, demand, and accounting-cost behaviour. The
-   intercepts absorb the remaining local wedge without retaining the legacy
-   bounded cost correction on the same covered component.
+   intercepts absorb the remaining local wedge. This is the default production
+   anchoring mechanism; the legacy cost-correction mechanism is selected only
+   when ``market_response.enabled`` is false.
 
 The legacy :ref:`stability <prod-stability-calibration>` step is no
 longer part of the default chain; run ``tools/calibrate stability``
@@ -238,8 +239,11 @@ workflow when their configuration blocks are enabled (the default):
   each per-food multiplier uniformly to the baseline-diet ``target_mt``
   in ``_match_baseline_to_consume_links`` (see
   :ref:`food-demand-calibration`).
-* ``cost_calibration.enabled: true`` loads the cost-correction
-  CSVs at build time (see :ref:`cost-calibration-correction`).
+* ``cost_calibration.enabled: true`` loads the legacy cost-correction CSVs at
+  build time (see :ref:`cost-calibration-correction`). It is mutually exclusive
+  with ``market_response.enabled`` and is therefore off in the default chain.
+  The cost calibration step sets ``generate: true`` while leaving ``enabled``
+  false because it writes, rather than consumes, these artefacts.
 * ``deviation_penalty.calibration.enabled: true`` resolves the sentinel
   ``"calibrated"`` on any of
   ``deviation_penalty.{land.crops,land.grassland,feed,diet}.l1_cost`` from
@@ -385,8 +389,7 @@ Market-response intercept calibration
 The default anchoring mechanism is the set of convex piecewise-linear supply
 and demand curves described under :ref:`Market Response
 <market-response-curves>`. This section states the calibration contract: what
-is being fitted, which observations receive curves, and which older
-calibration terms remain active.
+is being fitted and which observations receive curves.
 
 Accounting costs, intercepts, and elastic slopes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -482,18 +485,20 @@ keys. Regenerate with ``tools/calibrate market_response`` or with
 ``tools/calibrate --base config/<name>.yaml market_response`` for a dedicated
 artefact set.
 
-Interaction with legacy bounded cost corrections
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Interaction with legacy cost calibration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The cost-calibration files store additive corrections as baseline-bounded
 subsidy or penalty terms. A market-response intercept already absorbs the
-local gap between accounting cost and marginal value. Applying both terms to
-the same component would introduce a second kink at the baseline and change
-the response implied by the configured elasticity. Solves therefore suppress
-bounded cost corrections for each production component covered by an enabled
-market-response curve. Components without a market-response curve retain the
-legacy bounded correction. This gate follows the component switches, not the
-curve granularity.
+local gap between accounting cost and marginal value, so applying both
+mechanisms would introduce a second kink at the baseline and change the
+response implied by the configured elasticity. JSON Schema validation
+therefore permits at most one active production anchor:
+the default enables ``market_response`` and disables ``cost_calibration``;
+legacy configs do the reverse. The solve and objective accounting can then
+handle the selected mechanism directly, without a component-level suppression
+gate. ``cost_calibration.generate`` may remain true while
+``cost_calibration.enabled`` is false when producing the legacy artefacts.
 
 Groups whose reference activity conflicts with hard land, water, feed, or
 other constraints use elastic pin slack. Their intercept is censored at

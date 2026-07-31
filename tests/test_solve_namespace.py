@@ -62,6 +62,37 @@ class TestValidateScenarioConfigSchemas:
         }
         validate_scenario_config_schemas(base_config, defs, ".")
 
+    def test_accepts_either_production_anchoring_mechanism(self, base_config):
+        validate_scenario_config_schemas(
+            base_config,
+            {
+                "market": {},
+                "none": {
+                    "market_response": {"enabled": False},
+                },
+                "cost": {
+                    "market_response": {"enabled": False},
+                    "cost_calibration": {"enabled": True},
+                },
+                "cost_generation": {
+                    "cost_calibration": {"generate": True},
+                },
+            },
+            ".",
+        )
+
+    def test_rejects_mixed_production_anchoring_mechanisms(self, base_config):
+        with pytest.raises(ValueError, match="mixed"):
+            validate_scenario_config_schemas(
+                base_config,
+                {
+                    "mixed": {
+                        "cost_calibration": {"enabled": True},
+                    },
+                },
+                ".",
+            )
+
     def test_rejects_pre_split_deviation_penalty_structure(self, base_config):
         """The old flat land.l1_cost_factor layout must fail loudly instead of
         merging in silently and being ignored at solve time."""

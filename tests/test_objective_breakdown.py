@@ -379,7 +379,7 @@ class TestLinopyMetaCosts:
             ("bounded_penalty_bnusd_per_mha", 4.0, 0.5, 2.0),
         ],
     )
-    def test_skipped_bounded_correction_is_not_reconstructed(
+    def test_bounded_correction_is_reconstructed(
         self,
         solved_network,
         rate_column,
@@ -387,19 +387,11 @@ class TestLinopyMetaCosts:
         baseline,
         correction_cost,
     ):
-        """Objective accounting follows the solve's component-wise PMP gate."""
+        """Objective accounting reconstructs active calibration corrections."""
         n = solved_network
         link = "produce:wheat_r:r1_c1"
         n.links.static.loc[link, rate_column] = rate
         n.links.static.loc[link, "baseline_area_mha"] = baseline
-        n._meta["skipped_bounded_cost_correction_carriers"] = ["crop_production"]
-
-        result = extract_objective_breakdown(n)
-        assert result["crop_production"].iloc[0] == pytest.approx(
-            EXPECTED_COSTS["crop_production"]
-        )
-
-        n._meta["skipped_bounded_cost_correction_carriers"] = []
         n._objective += correction_cost
         result = extract_objective_breakdown(n)
         assert result["crop_production"].iloc[0] == pytest.approx(

@@ -135,6 +135,13 @@ introduce breaking changes to configuration and outputs.
 
 ### Changed
 
+- Production anchoring is now validated as a strict choice between the PMP
+  `market_response` curves and legacy `cost_calibration` corrections. The
+  default keeps the PMP mechanism enabled and cost corrections disabled;
+  configurations that consume the legacy corrections must explicitly disable
+  `market_response`. Calibration-generation configs can still set
+  `cost_calibration.generate: true` without applying the corrections.
+
 - The validation configs (`config/validation.yaml`,
   `docs/config/doc_validation.yaml`) and both tutorial configs under
   `config/tutorial/` now leave the health module off, so they run without the

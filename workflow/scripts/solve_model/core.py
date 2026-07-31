@@ -36,8 +36,6 @@ from workflow.scripts.solve_model.health import (
     run_relax_and_fix,
 )
 from workflow.scripts.solve_model.market_response import (
-    COMPONENTS,
-    DEMAND_COMPONENTS,
     add_market_response_curves,
     evaluate_demand_response_cost,
     evaluate_supply_response_cost,
@@ -57,28 +55,6 @@ from workflow.scripts.solve_model.production_stability import (
 logger = logging.getLogger(__name__)
 
 _PHASE_TIMES: list[tuple[str, float]] = []
-
-
-def _bounded_cost_correction_carriers(
-    market_response_cfg: dict,
-) -> tuple[list[str], list[str]]:
-    """Return carriers that keep or skip bounded cost corrections."""
-    production_components = {
-        component: set(carriers)
-        for component, (carriers, _, _) in COMPONENTS.items()
-        if component not in DEMAND_COMPONENTS
-    }
-    active = set().union(*production_components.values())
-    covered = set()
-    if market_response_cfg["enabled"]:
-        covered = {
-            carrier
-            for component, carriers in production_components.items()
-            if market_response_cfg["components"][component]
-            for carrier in carriers
-        }
-        active -= covered
-    return sorted(active), sorted(covered)
 
 
 @contextlib.contextmanager
@@ -1930,18 +1906,11 @@ def run_solve(
     with _phase("add_reforestation_cap_constraints"):
         add_reforestation_cap_constraints(n, reforest_fraction, reforest_buffer_mha)
 
-    # Market-response intercepts already absorb the gap between accounting cost
-    # and marginal value at baseline. Retaining the bounded cost-calibration
-    # corrections on the same component would add a second kink there and
-    # destroy the curve's configured response. Components without a market-
-    # response curve keep the corrections used by the legacy anchoring paths.
-    bounded_correction_carriers, covered_carriers = _bounded_cost_correction_carriers(
-        market_response_cfg
-    )
+    # Cost calibration and market response are mutually exclusive at config
+    # validation time, so the bounded corrections are either all active or all
+    # absent. The helper is a no-op when no calibration columns were loaded.
     with _phase("add_bounded_subsidy_constraints"):
-        add_bounded_subsidy_constraints(n, carriers=bounded_correction_carriers)
-    # The analysis reconstructs these auxiliary objective terms from dispatch.
-    n.meta["skipped_bounded_cost_correction_carriers"] = covered_carriers
+        add_bounded_subsidy_constraints(n)
 
     # Add within-group food ratio constraints if enabled (separate from baseline enforcement)
     ratio_cfg = smk.params.fix_within_group_ratios

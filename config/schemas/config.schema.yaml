@@ -2579,3 +2579,14 @@ allOf:
           properties:
             enabled:
               const: true
+  - not:
+      required: [cost_calibration, market_response]
+      properties:
+        cost_calibration:
+          properties:
+            enabled:
+              const: true
+        market_response:
+          properties:
+            enabled:
+              const: true
