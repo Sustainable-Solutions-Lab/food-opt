@@ -52,13 +52,14 @@ integral of the slope from the baseline,
 
 which is convex and, net of the value of output, minimised at ``X = b_g``, so
 the observed activity stays optimal at reference prices. ``Psi_g`` enters the
-LP through linopy's piecewise machinery: it is sampled at ``n_blocks``
-breakpoints per side of the baseline and one free variable per group is bounded
-below by the chords between consecutive samples (``linopy.piecewise
-.tangent_lines``). Minimisation presses the variable onto the upper envelope of
-the chords -- the piecewise-linear interpolant of ``Psi_g`` -- and beyond the
-outermost breakpoints the envelope extrapolates at the end chords' slopes, so
-the curve imposes no hidden activity bound.
+LP as its piecewise-linear interpolant, sampled at ``n_blocks`` breakpoints per
+side of the baseline: the deviation from baseline splits into one bounded
+segment variable per breakpoint interval whose objective coefficient is the
+chord slope over that interval. Convexity makes the segment costs nondecreasing
+away from the baseline, so minimisation fills them in merit order; the chords
+enter as variable bounds rather than constraint rows. The outermost segment on
+each side is unbounded, so beyond the sampled range the curve extrapolates at
+the end chords' slopes and imposes no hidden activity bound.
 
 The breakpoint spacing sets the finest response the curve can resolve: between
 adjacent breakpoints the marginal cost is a single chord slope. With equal
@@ -105,16 +106,16 @@ sequentially fitted artefact; there is no uncalibrated variant.
 """
 
 import logging
-import warnings
 
-from linopy.constants import BREAKPOINT_DIM, EvolvingAPIWarning
-from linopy.piecewise import tangent_lines
 import numpy as np
 import pandas as pd
 import pypsa
 import xarray as xr
 
 logger = logging.getLogger(__name__)
+
+# Dimension of the per-side deviation segments of a group's curve.
+SEGMENT_DIM = "mr_segment"
 
 # Component -> (carriers, baseline column, commodity-identifying columns). The
 # commodity columns say *what* is produced; the granularity setting adds the
@@ -613,40 +614,74 @@ def _add_component_curves(
     cum = np.cumsum(shares / shares.sum())
     offsets = np.concatenate([-contraction * cum[::-1], [0.0], expansion * cum])
 
-    # The deviation cost lambda * d + slope / 2 * d^2 sampled on the grid; one
-    # free variable per group bounded below by the chords between consecutive
-    # samples. Minimisation presses it onto the chords' upper envelope -- the
-    # piecewise-linear interpolant of the curve, kinked at the baseline point
-    # so the observed activity is strictly optimal -- and beyond the outermost
-    # samples the envelope extrapolates at the end chords' slopes, imposing no
-    # hidden activity bound.
-    deviation = groups["baseline"].to_numpy()[:, None] * offsets[None, :]
-    bp_coords = {
-        "mr_group": group_index.to_numpy(),
-        BREAKPOINT_DIM: np.arange(len(offsets)),
-    }
-    bp_dims = ("mr_group", BREAKPOINT_DIM)
-    x_points = xr.DataArray(
-        groups["baseline"].to_numpy()[:, None] + deviation, bp_coords, bp_dims
-    )
-    y_points = xr.DataArray(
+    # The deviation cost lambda * d + slope / 2 * d^2 sampled on the grid; the
+    # chords between consecutive samples give each segment's marginal cost.
+    # The deviation from baseline is split into one bounded variable per
+    # segment; because the curve is convex the segment costs are nondecreasing
+    # away from the baseline, so minimisation fills them in merit order and
+    # the formulation is exactly the piecewise-linear interpolant of the
+    # curve, kinked at the baseline point so the observed activity is strictly
+    # optimal. The chords enter as variable bounds and objective coefficients
+    # rather than constraint rows -- 2 * n_blocks rows per group would be
+    # about half the rows of the whole model. The outermost segment on each
+    # side is unbounded, so beyond the sampled range the curve extrapolates at
+    # the end chords' slopes, imposing no hidden activity bound.
+    baseline_np = groups["baseline"].to_numpy()
+    deviation = baseline_np[:, None] * offsets[None, :]
+    x_points = baseline_np[:, None] + deviation
+    y_points = (
         lam.to_numpy()[:, None] * deviation
-        + slope.to_numpy()[:, None] / 2 * deviation**2,
-        bp_coords,
-        bp_dims,
+        + slope.to_numpy()[:, None] / 2 * deviation**2
     )
+    chord_slopes = np.diff(y_points, axis=1) / np.diff(x_points, axis=1)
+
+    seg_coords = {
+        "mr_group": group_index.to_numpy(),
+        SEGMENT_DIM: np.arange(n_blocks),
+    }
+    seg_dims = ("mr_group", SEGMENT_DIM)
+    # Costs and widths ordered from the baseline outward on each side; a
+    # downward segment's cost is the negated chord slope (the curve rises
+    # leftward wherever contraction is costly).
+    up_cost = xr.DataArray(chord_slopes[:, n_blocks:], seg_coords, seg_dims)
+    down_cost = xr.DataArray(-chord_slopes[:, :n_blocks][:, ::-1], seg_coords, seg_dims)
+    widths_up = baseline_np[:, None] * np.diff(np.concatenate([[0.0], expansion * cum]))
+    widths_down = baseline_np[:, None] * np.diff(
+        np.concatenate([[0.0], contraction * cum])
+    )
+    widths_up[:, -1] = np.inf
+    widths_down[:, -1] = np.inf
+    up = m.add_variables(
+        lower=0,
+        upper=xr.DataArray(widths_up, seg_coords, seg_dims),
+        coords=seg_coords,
+        dims=seg_dims,
+        name=f"{component}_market_response_up",
+    )
+    down = m.add_variables(
+        lower=0,
+        upper=xr.DataArray(widths_down, seg_coords, seg_dims),
+        coords=seg_coords,
+        dims=seg_dims,
+        name=f"{component}_market_response_down",
+    )
+    baseline_da = xr.DataArray(
+        baseline_np, coords={"mr_group": group_index.to_numpy()}, dims="mr_group"
+    )
+    m.add_constraints(
+        activity - up.sum(SEGMENT_DIM) + down.sum(SEGMENT_DIM) == baseline_da,
+        name=f"GlobalConstraint-{component}_market_response_segments",
+    )
+    # The per-group deviation cost as an explicit variable: it keeps the
+    # objective breakdown an exact identity and presolve folds it away.
     cost = m.add_variables(
         coords={"mr_group": group_index.to_numpy()},
         dims=("mr_group",),
         name=f"{component}_market_response_cost",
     )
-    with warnings.catch_warnings():
-        # The piecewise API is marked evolving upstream; our linopy fork is
-        # pinned by tag, so any evolution arrives through a deliberate bump.
-        warnings.simplefilter("ignore", EvolvingAPIWarning)
-        chords = tangent_lines(activity, x_points, y_points)
     m.add_constraints(
-        cost >= chords,
+        cost - (up_cost * up).sum(SEGMENT_DIM) - (down_cost * down).sum(SEGMENT_DIM)
+        == 0,
         name=f"GlobalConstraint-{component}_market_response_curve",
     )
     m.objective += cost.sum()

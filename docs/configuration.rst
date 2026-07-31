@@ -499,13 +499,13 @@ the optimality condition at the baseline -- but a group with wedge
 \lambda_g) / c_g` to its market price. The curve enters the objective as
 :math:`\lambda_g (X_g - b_g) + \tfrac{1}{2}\gamma_g (X_g - b_g)^2`, which is
 convex and, net of the value of output, minimised at the observed activity.
-The curve enters the LP through linopy's piecewise machinery
-(``linopy.piecewise.tangent_lines``): it is sampled at ``n_blocks`` breakpoints
-per side of the baseline and one free variable per group is bounded below by
-the chords between consecutive samples. Minimisation presses the variable onto
-the chords' upper envelope -- the piecewise-linear interpolant of the curve --
-and beyond the outermost breakpoints the envelope extrapolates at the end
-chords' slopes, so the curve imposes no hidden activity bound.
+The curve enters the LP as its piecewise-linear interpolant, sampled at
+``n_blocks`` breakpoints per side of the baseline: the deviation from baseline
+splits into bounded segment variables whose objective coefficients are the
+chord slopes between consecutive samples, filled in merit order because the
+curve is convex. The outermost segment on each side is unbounded, so beyond
+the sampled range the curve extrapolates at the end chords' slopes and imposes
+no hidden activity bound.
 
 Between adjacent breakpoints the marginal cost is a single chord slope, so the
 spacing sets the finest response the curve can resolve. With equal spacing this
