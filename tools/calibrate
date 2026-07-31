@@ -12,12 +12,16 @@
 #   1. feed        → {grassland_yield,fodder_conversion,exogenous_forage,exogenous_feed}.csv
 #   2. food_waste  → food_waste.yaml
 #   3. food_demand → food_demand.csv
-#   4. cost        → {crop_cost,grassland_cost,animal_cost}.csv
-#   5. market_response → market_response.csv (PMP curve intercepts)
+#   4. market_response → market_response.csv (PMP curve intercepts)
 #
-# The legacy L1 stability step (deviation_penalty.yaml) is no longer part of
-# the default chain; run `tools/calibrate stability` explicitly for artefact
-# sets still consumed by deviation-penalty configs.
+# The legacy anchoring steps are not part of the default chain, which uses the
+# market-response curves instead. Configs that anchor with the calibrated cost
+# corrections and/or the L1 deviation penalty run them explicitly, in order
+# (cost depends on the chain above; stability depends on cost):
+#   tools/calibrate cost       → {crop,multi_crop,grassland,animal}_cost.csv
+#   tools/calibrate stability  → deviation_penalty.yaml
+# `--check`/`--record` cover a legacy step whenever its artefacts are present
+# in the set.
 #
 # After a successful run the artefact set is stamped with a provenance
 # record (provenance.yaml) of the structural config it was fit against;
@@ -25,12 +29,12 @@
 # consume.
 #
 # Usage:
-#   tools/calibrate                # run all in order (default artefact set)
+#   tools/calibrate                # run the default chain in order
 #   tools/calibrate feed           # one step (forage + protein feed slack)
 #   tools/calibrate food_waste
 #   tools/calibrate food_demand
-#   tools/calibrate cost
 #   tools/calibrate market_response
+#   tools/calibrate cost           # legacy cost corrections, not in the default chain
 #   tools/calibrate stability      # legacy L1 step, not in the default chain
 #   tools/calibrate --check        # report which calibrations are stale (no execution)
 #   tools/calibrate --record       # fingerprint the set as it stands (no execution)
@@ -103,19 +107,14 @@ trap 'rm -f "$ANCHOR_OVERLAY"' EXIT
 printf 'diet:\n  anchor_groups_to_gbd: %s\n' "$ANCHORING" > "$ANCHOR_OVERLAY"
 echo "[calibrate] baseline-diet GBD anchoring: ${ANCHORING}"
 
-ARTEFACT_FILES=(
+CHAIN_ARTEFACT_FILES=(
   grassland_yield.csv
   fodder_conversion.csv
   exogenous_forage.csv
   exogenous_feed.csv
   food_waste.yaml
   food_demand.csv
-  crop_cost.csv
-  multi_crop_cost.csv
-  grassland_cost.csv
-  animal_cost.csv
   market_response.csv
-  deviation_penalty.yaml
 )
 
 FEED_TARGETS=(
@@ -255,70 +254,55 @@ stamp_provenance() {
   pixi run python "$PROVENANCE_SCRIPT" "${BASE_ARGS[@]}"
 }
 
-# A fresh (non-default) artefact set must be seeded before the chain can
-# run: each step's solve consumes the other steps' artefacts, so missing
-# files are copied from the default set as a starting vintage and then
-# regenerated in order by the full chain.
-seed_source_set() {
-  # Artefacts the requested step itself regenerates may be absent; only the
-  # other steps' artefacts are inputs the solve needs on disk.
-  local step="${1:-all}"
-  local own=()
+# Each step's solve consumes only the artefacts of the steps *before* it
+# (later calibrations are disabled in its config), so a fresh set needs no
+# seeding: `all` generates the chain in order, and a single step just
+# requires its predecessors' artefacts to already be on disk.
+require_preceding_artefacts() {
+  local step="$1"
+  local required=()
   case "$step" in
-    feed) own=("${FEED_TARGETS[@]}") ;;
-    food_waste) own=("${FOOD_WASTE_TARGETS[@]}") ;;
-    food_demand) own=("${FOOD_DEMAND_TARGETS[@]}") ;;
-    cost) own=("${COST_TARGETS[@]}") ;;
-    market_response) own=("${MARKET_RESPONSE_TARGETS[@]}") ;;
-    stability) own=("${STABILITY_TARGETS[@]}") ;;
+    feed) ;;
+    food_waste) required=("${FEED_TARGETS[@]}") ;;
+    food_demand) required=("${FEED_TARGETS[@]}" "${FOOD_WASTE_TARGETS[@]}") ;;
+    market_response|cost)
+      required=("${FEED_TARGETS[@]}" "${FOOD_WASTE_TARGETS[@]}" "${FOOD_DEMAND_TARGETS[@]}") ;;
+    stability)
+      required=("${FEED_TARGETS[@]}" "${FOOD_WASTE_TARGETS[@]}" "${FOOD_DEMAND_TARGETS[@]}"
+                "${COST_TARGETS[@]}") ;;
   esac
   local missing=()
-  local f t is_own
-  for f in "${ARTEFACT_FILES[@]}"; do
-    [[ -f "$CAL_DIR/$f" ]] && continue
-    is_own=0
-    for t in "${own[@]}"; do
-      [[ "$(basename "$t")" == "$f" ]] && is_own=1
-    done
-    [[ $is_own -eq 1 ]] && continue
-    missing+=("$f")
+  local f
+  for f in "${required[@]}"; do
+    [[ -f "$f" ]] || missing+=("$(basename "$f")")
   done
   [[ ${#missing[@]} -eq 0 ]] && return 0
-  if [[ "$cmd" != all ]]; then
-    echo "[calibrate] Artefact set '${SOURCE}' is incomplete (missing: ${missing[*]})." >&2
-    echo "            Run the full chain first: tools/calibrate --base $BASE_CONFIG all" >&2
-    exit 2
-  fi
-  mkdir -p "$CAL_DIR"
-  for f in "${missing[@]}"; do
-    cp "data/curated/calibration/default/$f" "$CAL_DIR/$f"
-  done
-  echo "[calibrate] Seeded ${#missing[@]} artefact(s) in $CAL_DIR from the default set;"
-  echo "            the full chain will regenerate them in order."
+  echo "[calibrate] Step '$step' needs its predecessors' artefacts (missing: ${missing[*]})." >&2
+  echo "            Run the chain first: tools/calibrate${BASE_CONFIG:+ --base $BASE_CONFIG} all" >&2
+  exit 2
 }
 
 cmd="${1:-all}"
 shift || true
 
-if [[ "$SOURCE" != "default" ]]; then
-  case "$cmd" in
-    all|feed|food_waste|food_demand|cost|market_response|stability) seed_source_set "$cmd" ;;
-    --record|record) ;;
-    --check|check)
-      for f in "${ARTEFACT_FILES[@]}"; do
-        if [[ ! -f "$CAL_DIR/$f" ]]; then
-          echo "[calibrate] Artefact set '${SOURCE}' is incomplete (missing e.g. $f)." >&2
-          echo "            Generate it first: tools/calibrate --base $BASE_CONFIG all" >&2
-          exit 2
-        fi
-      done
-      ;;
-  esac
-fi
+case "$cmd" in
+  feed|food_waste|food_demand|cost|market_response|stability)
+    require_preceding_artefacts "$cmd"
+    ;;
+  --check|check)
+    for f in "${CHAIN_ARTEFACT_FILES[@]}"; do
+      if [[ ! -f "$CAL_DIR/$f" ]]; then
+        echo "[calibrate] Artefact set '${SOURCE}' is incomplete (missing e.g. $f)." >&2
+        echo "            Generate it first: tools/calibrate${BASE_CONFIG:+ --base $BASE_CONFIG} all" >&2
+        exit 2
+      fi
+    done
+    ;;
+esac
 
 case "$cmd" in
   -h|--help|help)
-    sed -n '7,40p' "$0"
+    sed -n '7,44p' "$0"
     exit 0
     ;;
   --record|record)
@@ -326,8 +310,13 @@ case "$cmd" in
     record_step feed        config/calibration/feed.yaml        "${FEED_TARGETS[@]}"        -- "$@"
     record_step food_waste  config/calibration/food_waste.yaml  "${FOOD_WASTE_TARGETS[@]}"  -- "$@"
     record_step food_demand config/calibration/food_demand.yaml "${FOOD_DEMAND_TARGETS[@]}" -- "$@"
-    record_step cost        config/calibration/cost.yaml        "${COST_TARGETS[@]}"        -- "$@"
     record_step market_response config/calibration/market_response.yaml "${MARKET_RESPONSE_TARGETS[@]}" -- "$@"
+    if [[ -f "${COST_TARGETS[0]}" ]]; then
+      record_step cost config/calibration/cost.yaml "${COST_TARGETS[@]}" -- "$@"
+    fi
+    if [[ -f "${STABILITY_TARGETS[0]}" ]]; then
+      record_step stability config/calibration/stability.yaml "${STABILITY_TARGETS[@]}" -- "$@"
+    fi
     ;;
   --check|check)
     echo "[calibrate] Checking staleness (no execution) ..."
@@ -335,8 +324,13 @@ case "$cmd" in
     check_step feed        config/calibration/feed.yaml        "${FEED_TARGETS[@]}"        -- "$@" || rc=$?
     check_step food_waste  config/calibration/food_waste.yaml  "${FOOD_WASTE_TARGETS[@]}"  -- "$@" || rc=$?
     check_step food_demand config/calibration/food_demand.yaml "${FOOD_DEMAND_TARGETS[@]}" -- "$@" || rc=$?
-    check_step cost        config/calibration/cost.yaml        "${COST_TARGETS[@]}"        -- "$@" || rc=$?
     check_step market_response config/calibration/market_response.yaml "${MARKET_RESPONSE_TARGETS[@]}" -- "$@" || rc=$?
+    if [[ -f "${COST_TARGETS[0]}" ]]; then
+      check_step cost config/calibration/cost.yaml "${COST_TARGETS[@]}" -- "$@" || rc=$?
+    fi
+    if [[ -f "${STABILITY_TARGETS[0]}" ]]; then
+      check_step stability config/calibration/stability.yaml "${STABILITY_TARGETS[@]}" -- "$@" || rc=$?
+    fi
     pixi run python "$PROVENANCE_SCRIPT" "${BASE_ARGS[@]}" --check | sed 's/^/  /' || rc=$?
     exit "$rc"
     ;;
@@ -344,7 +338,6 @@ case "$cmd" in
     run_step feed        config/calibration/feed.yaml        "${FEED_TARGETS[@]}"        -- "$@"
     run_step food_waste  config/calibration/food_waste.yaml  "${FOOD_WASTE_TARGETS[@]}"  -- "$@"
     run_step food_demand config/calibration/food_demand.yaml "${FOOD_DEMAND_TARGETS[@]}" -- "$@"
-    run_step cost        config/calibration/cost.yaml        "${COST_TARGETS[@]}"        -- "$@"
     run_step market_response config/calibration/market_response.yaml "${MARKET_RESPONSE_TARGETS[@]}" -- "$@"
     stamp_provenance
     ;;

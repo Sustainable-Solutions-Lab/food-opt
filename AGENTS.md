@@ -335,7 +335,7 @@ pixi run -e dev pytest -v         # verbose output
 
 ## Calibration
 
-Five calibrations feed the default workflow. Their outputs are organized
+Four calibrations feed the default workflow. Their outputs are organized
 in per-config artefact *sets* under `data/curated/calibration/<source>/`
 (selected by the `calibration.source` config key; git-tracked sets, both
 fit against the default GDD-IA diet source: `default` -- fit against the
@@ -354,12 +354,7 @@ regenerate in this order:
    `food_demand.csv` (per-food global multiplier on baseline-diet
    `target_mt`, applied in `_match_baseline_to_consume_links` at solve
    time).
-4. **cost** (legacy production anchoring) — `config/calibration/cost.yaml` → `crop_cost.csv`,
-   `grassland_cost.csv`, `animal_cost.csv`. Step 1 of the cost solve
-   now enables hard production-stability bounds at +/-20% with a
-   `slack_marginal_cost: 5.0` override for foods carrying structural
-   FAOSTAT-vs-FBS mismatch beyond the band.
-5. **market_response** - `config/calibration/market_response.yaml` ->
+4. **market_response** - `config/calibration/market_response.yaml` ->
    `market_response.csv` (per-group production intercepts and, when enabled,
    demand intercepts plus their slope-price basis). Production and demand are
    fit sequentially; the sentinel `market_response.intercepts: "calibrated"`
@@ -373,14 +368,20 @@ Configurations that consume the legacy cost corrections must set
 Schema validation rejects both active at once. Calibration generation may set
 `cost_calibration.generate: true` while leaving `enabled: false`.
 
-The legacy **stability** step (`config/calibration/stability.yaml` →
-`deviation_penalty.yaml`, the calibrated L1 penalty costs) is no longer
-part of the default chain; run `tools/calibrate stability` explicitly
-for artefact sets still consumed by deviation-penalty configs.
+Two legacy anchoring steps sit outside the default chain and are run
+explicitly, in order, for artefact sets consumed by configs that anchor
+with them: **cost** (`config/calibration/cost.yaml` → `crop_cost.csv`,
+`multi_crop_cost.csv`, `grassland_cost.csv`, `animal_cost.csv`; hard
+production-stability bounds at +/-20% with a `slack_marginal_cost: 5.0`
+override for foods carrying structural FAOSTAT-vs-FBS mismatch beyond
+the band) and **stability** (`config/calibration/stability.yaml` →
+`deviation_penalty.yaml`, the calibrated L1 penalty costs; depends on
+cost).
 
 Single entrypoint: `tools/calibrate` (`all` by default; `feed`,
-`food_waste`, `food_demand`, `cost`, `market_response`, `stability`, or
-`--check` for staleness). `tools/smk` prints a one-line reminder when
+`food_waste`, `food_demand`, `market_response`, `cost`, `stability`, or
+`--check` for staleness, which also covers legacy artefacts present in
+the set). `tools/smk` prints a one-line reminder when
 `data/curated/` inputs are newer than the oldest calibration artefact.
 
 Each artefact set carries a `provenance.yaml` stamp of the structural
