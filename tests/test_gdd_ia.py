@@ -9,6 +9,8 @@ import pytest
 
 from workflow.scripts.diet.gdd_ia import closest_gdd_ia_release_year
 from workflow.scripts.prepare_gdd_ia_dietary_intake import (
+    PRCD_TO_GLADE_GROUP,
+    PRIM_TO_GLADE_GROUP,
     UNIT_BY_GROUP,
     _materialize_sparse_zeros,
 )
@@ -49,6 +51,10 @@ def test_sparse_country_group_cells_become_explicit_zeros():
 
 
 def test_all_gdd_groups_have_output_units():
+    """Every group the GDD mappings can emit must have a unit, or the
+    output-stage guard in prepare_gdd_ia_dietary_intake raises."""
+    emittable = set(PRIM_TO_GLADE_GROUP.values()) | set(PRCD_TO_GLADE_GROUP.values())
+    assert emittable <= set(UNIT_BY_GROUP)
     assert UNIT_BY_GROUP["animal_fat"] == "g/day (fresh wt)"
 
 

@@ -36,23 +36,11 @@ health:
 
 # With health on, the baseline diet is GBD-anchored, so consume the artefact
 # set calibrated against that diet (the `default` set is anchoring-off).
-# Regenerate with `tools/calibrate --base config/gsa.yaml`.
+# Regenerate with `tools/calibrate --base config/gbd_anchored.yaml`.
 calibration:
   source: "gbd-anchored"
 
 scenarios:
-  # Baseline scenario for calibrating piecewise food utility blocks. Consumer
-  # values (dual variables) are taken from this enforced-baseline solve.
-  baseline:
-    validation:
-      enforce_baseline_diet: true
-    food_utility_piecewise:
-      enabled: false
-    emissions:
-      ghg_price: 0
-    health:
-      value_per_yll: 0
-
   # Default scenario for reference (no sensitivity adjustments)
   default: {}
 
@@ -141,8 +129,6 @@ scenarios:
         macronutrients:
           cal:
             equal_to_baseline: true
-        consumer_values:
-          baseline_scenario: "baseline"
 
 # Surrogate-based sensitivity analysis methods.
 sensitivity_analysis:
@@ -180,7 +166,7 @@ sensitivity_analysis:
       label: Carbon sequestration
       units: "MtCO\u2082eq"
     # Per-objective-breakdown category, so figures can recover producer cost
-    # separately from internalised YLL/GHG terms and consumer values.
+    # separately from internalised YLL/GHG terms and demand response.
     objective_breakdown:
       kind: vector
       source: objective_breakdown.parquet
@@ -213,16 +199,6 @@ sensitivity_analysis:
       n_components: 30
       label: Grazing area by region
       units: Mha
-
-# Block-based diminishing marginal utility for food consumption. This config
-# keeps the consumer-values / utility-blocks mechanism; the market_response
-# demand component is its successor and must stay off alongside it.
-food_utility_piecewise:
-  enabled: true
-
-market_response:
-  components:
-    demand: false
 
 # Compare all scenarios in plots
 plotting:

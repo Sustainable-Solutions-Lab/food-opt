@@ -308,10 +308,11 @@ market_response:
       stimulants: 0.74
   elasticity_factor: 1.0 # Global multiplier for scanning the elasticity assumption
   # The demand component prices per-(food, country) consumption with a concave
-  # marginal-utility curve through positive observed intake. It is fitted
-  # sequentially against the calibrated production curves, because a joint pin
-  # cannot identify how a commodity-chain wedge is split between supply and
-  # demand. It replaces
+  # marginal-utility curve through positive observed intake; zero-baseline
+  # consumption groups are fixed to zero, like their supply counterparts. It
+  # is fitted sequentially against the calibrated production curves, because a
+  # joint pin cannot identify how a commodity-chain wedge is split between
+  # supply and demand. It replaces
   # food_utility_piecewise and food_incentives (mutually exclusive with both).
   components:
     crops: true

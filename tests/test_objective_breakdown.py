@@ -362,6 +362,16 @@ class TestLinopyMetaCosts:
             stability_cost, abs=1e-6
         )
 
+    def test_market_response_costs(self, solved_network):
+        """supply_response and demand_response appear as their own categories."""
+        n = solved_network
+        n._meta["supply_response_cost"] = 2.5
+        n._meta["demand_response_cost"] = -0.75
+        n._objective += 2.5 - 0.75
+        result = extract_objective_breakdown(n)
+        assert result["supply_response"].iloc[0] == pytest.approx(2.5, abs=1e-6)
+        assert result["demand_response"].iloc[0] == pytest.approx(-0.75, abs=1e-6)
+
     def test_food_utility_cost(self, solved_network):
         """food_utility_cost should add to Consumer values."""
         n = solved_network

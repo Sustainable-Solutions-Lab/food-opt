@@ -2091,7 +2091,7 @@ properties:
     type: object
     required: [enabled, n_blocks, expansion_range, contraction_range, width_growth, granularity, pin_baseline, pin_slack_cost, intercepts, calibration, elasticities, elasticity_factor, components]
     additionalProperties: false
-    description: "Convex piecewise-linear supply curves through observed production, with curvature set by an exogenous supply elasticity per component."
+    description: "Convex piecewise-linear supply and demand curves through observed activity, with curvature set by exogenous elasticities per component."
     properties:
       enabled:
         type: boolean
@@ -2099,11 +2099,11 @@ properties:
       n_blocks:
         type: integer
         minimum: 1
-        description: "Tranches per direction approximating the quadratic deviation cost."
+        description: "Deviation segments per direction approximating the quadratic deviation cost."
       expansion_range:
         type: number
         exclusiveMinimum: 0
-        description: "Up-range as a fraction of group baseline; the outermost tranche is unbounded and extrapolates."
+        description: "Up-range as a fraction of group baseline; the outermost segment is unbounded and extrapolates."
       contraction_range:
         type: number
         exclusiveMinimum: 0
@@ -2112,7 +2112,7 @@ properties:
       width_growth:
         type: number
         minimum: 1
-        description: "Relative width of each successive tranche. 1.0 gives equal widths; above 1 concentrates resolution near the baseline."
+        description: "Relative width of each successive segment. 1.0 gives equal widths; above 1 concentrates resolution near the baseline."
       granularity:
         type: string
         enum: ["country", "region", "link"]
@@ -2124,7 +2124,7 @@ properties:
             items:
               type: string
               enum: ["crops", "multi_crops", "grassland", "animals", "demand"]
-        description: "PMP phase 1: pin every group at its observed activity (true), or only the listed components while the rest carry curves from `intercepts` (the sequential demand fit); the pinning duals (price wedges) are written next to the solved network."
+        description: "PMP phase 1: pin every group at its observed activity (true), or only the listed components while the rest carry curves from `intercepts` (the sequential demand fit); the pinning duals (price wedges) become the intercepts the calibration driver writes to the artefact."
       pin_slack_cost:
         type: number
         exclusiveMinimum: 0
@@ -2590,3 +2590,50 @@ allOf:
           properties:
             enabled:
               const: true
+  # With market-response curves enabled, the demand side must be either elastic
+  # (components.demand) or held at the observed baseline
+  # (validation.enforce_baseline_diet) -- exactly one of the two. The
+  # production intercepts are fit against the demand fixed point, which both
+  # regimes reproduce; any other demand valuation would silently break
+  # baseline reproduction.
+  - if:
+      required: [market_response]
+      properties:
+        market_response:
+          required: [enabled]
+          properties:
+            enabled:
+              const: true
+    then:
+      required: [market_response, validation]
+      properties:
+        market_response:
+          required: [components]
+          properties:
+            components:
+              required: [demand]
+        validation:
+          required: [enforce_baseline_diet]
+      oneOf:
+        - properties:
+            market_response:
+              properties:
+                components:
+                  properties:
+                    demand:
+                      const: true
+            validation:
+              properties:
+                enforce_baseline_diet:
+                  const: false
+        - properties:
+            market_response:
+              properties:
+                components:
+                  properties:
+                    demand:
+                      const: false
+            validation:
+              properties:
+                enforce_baseline_diet:
+                  const: true

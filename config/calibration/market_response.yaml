@@ -21,11 +21,11 @@
 name: "calibration"
 
 # The wedges are fit under the base config's own operating regime with the
-# policy dials at neutral: production pinned, demand left to whatever drives
-# it in ordinary solves, no GHG price. Exact baseline reproduction then holds
-# for unpriced solves of the same config, and a priced solve shows the pure
-# elasticity-governed response. Enforcing the baseline diet here instead would
-# fit the wedges against a demand system ordinary solves do not have.
+# policy dials at neutral and no GHG price. The driver stages the demand side
+# itself: the bootstrap production pin runs with no demand-side valuation, and
+# the refinement sweeps re-pin production with the fitted demand curves
+# active. Exact baseline reproduction then holds for unpriced solves of the
+# same config, and a priced solve shows the pure elasticity-governed response.
 emissions:
   ghg_pricing_enabled: false
 

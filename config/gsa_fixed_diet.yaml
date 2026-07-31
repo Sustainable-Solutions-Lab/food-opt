@@ -8,14 +8,14 @@
 # optimizer is constrained to the baseline diet via
 # `validation.enforce_baseline_diet: true`. With consumption pinned, the
 # problem reduces to a least-cost production sweep; diet-specific dials
-# (piecewise food utility, consumer values, YLL weighting, relative-risk
+# (demand curves, YLL weighting, relative-risk
 # quantiles) drop out.
 #
 # Differences vs. gsa.yaml:
 #   - `enforce_baseline_diet: true` applied at the base config (and thus
 #     every scenario).
-#   - `food_utility_piecewise.enabled: false` (required with enforce_baseline_diet).
-#   - No baseline calibration scenarios — consumer values are not used.
+#   - `market_response.components.demand: false` (the diet is fixed, so
+#     demand curves have nothing to price).
 #   - Parameters `rr_protective`, `rr_harmful`, `value_per_yll` dropped
 #     (they only steer the optimum through diet choice, which is now fixed).
 #   - Single production-stability regime (the calibrated one).
