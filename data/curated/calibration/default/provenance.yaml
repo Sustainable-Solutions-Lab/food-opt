@@ -4,8 +4,8 @@
 # tools/calibrate; do not edit by hand.
 # Licensing: see the annotation in REUSE.toml.
 base_config: config/default.yaml
-generated_at: '2026-07-30T22:25:04+00:00'
-git_commit: c04309cb8349a5862f9f9212814185f745eb6d7c
+generated_at: '2026-07-31T03:45:04+00:00'
+git_commit: 7d10c00b0d733a5e85f56fa7773bde39f86164a4
 source: default
 structural_config:
   aggregation.irrigated_area_source: current
