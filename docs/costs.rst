@@ -221,13 +221,12 @@ for crops, grassland, and animals based on shadow prices from a
 two-step paired solve:
 
 * **Step 1** pins consumption to the baseline diet, enables hard
-  production-stability bounds at +/-20 %, and applies the file-level
-  ``validation.slack_marginal_cost: 5.0`` override (5 000 USD/t) to
+  production-stability bounds at +/-5 %, and applies the file-level
+  ``validation.slack_marginal_cost: 7.5`` override (7 500 USD/t) to
   cap the duals of the small set of foods whose FAOSTAT-vs-FBS
-  mismatch still exceeds the +/-20 % band (buckwheat, plantain,
-  coffee, tea, olive-oil). The food-bus duals feed the piecewise
-  consumer-utility blocks used by step 2.
-* **Step 2** activates the step-1 piecewise utility and tightens
+  mismatch still exceeds the band (buckwheat, plantain, coffee, tea,
+  olive-oil).
+* **Step 2** keeps consumption pinned to the baseline diet and tightens
   production stability to +/-1 %. The duals on these tight constraints
   become the per-group additive cost corrections.
 

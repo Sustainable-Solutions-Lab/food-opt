@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Unit tests for food-level baseline enforcement and consumer values."""
+"""Unit tests for food-level baseline enforcement."""
 
 import pandas as pd
 import pypsa
