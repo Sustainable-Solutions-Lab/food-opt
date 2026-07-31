@@ -54,8 +54,9 @@ introduce breaking changes to configuration and outputs.
   (enabled by default) gives every (food, country) consumption link a concave
   marginal-utility curve through its observed intake, with the willingness to
   pay fitted sequentially against the calibrated supply curves and the curve
-  stiffness governed by an own-price food demand elasticity
-  (`market_response.elasticities.demand`). Ordinary solves previously had no
+  stiffness governed by per-food-group own-price demand elasticities
+  (`market_response.elasticities.demand`, central values from the Green et
+  al. 2013 meta-regression). Ordinary solves previously had no
   demand-side valuation at all unless a config enabled the consumer-values /
   piecewise-utility mechanism; the demand component replaces that pattern (the
   two are mutually exclusive, and `food_utility_piecewise` remains available

@@ -312,12 +312,27 @@ def add_market_response_curves(n: pypsa.Network, cfg: dict) -> None:
         if not cfg["components"][component]:
             continue
         pin = component in pinned_components
-        elasticity = float(cfg["elasticities"][component]) * factor
-        if elasticity <= 0:
-            raise ValueError(
-                f"market_response.elasticities.{component} must be > 0 after "
-                f"applying elasticity_factor, got {elasticity}"
-            )
+        raw_elasticity = cfg["elasticities"][component]
+        if component in DEMAND_COMPONENTS:
+            # Per-food-group demand elasticity magnitudes.
+            elasticity = {
+                str(group): float(value) * factor
+                for group, value in raw_elasticity.items()
+            }
+            bad_groups = [g for g, v in elasticity.items() if v <= 0]
+            if bad_groups:
+                raise ValueError(
+                    f"market_response.elasticities.{component} must be > 0 "
+                    f"after applying elasticity_factor for every food group; "
+                    f"non-positive: {bad_groups}"
+                )
+        else:
+            elasticity = float(raw_elasticity) * factor
+            if elasticity <= 0:
+                raise ValueError(
+                    f"market_response.elasticities.{component} must be > 0 after "
+                    f"applying elasticity_factor, got {elasticity}"
+                )
         if component in DEMAND_COMPONENTS and not pin and intercepts is None:
             raise ValueError(
                 "market_response demand curves require fitted intercepts: the "
@@ -412,7 +427,7 @@ def _add_component_curves(
     carriers: tuple[str, ...],
     baseline_col: str,
     group_cols: tuple[str, ...],
-    elasticity: float,
+    elasticity: "float | dict[str, float]",
     n_blocks: int,
     expansion: float,
     contraction: float,
@@ -540,7 +555,20 @@ def _add_component_curves(
                 f"{int(basis.isna().sum())} {component} group(s) have no "
                 f"slope_basis entry (e.g. {missing})"
             )
-        slope = basis.abs() / (elasticity * groups["baseline"])
+        # Per-food-group elasticity: every consumed group must have an entry.
+        group_food = (
+            work.drop_duplicates("_group")
+            .set_index("_group")["food_group"]
+            .reindex(group_index)
+        )
+        eta = group_food.map(elasticity)
+        if eta.isna().any():
+            missing_groups = sorted(group_food[eta.isna()].dropna().unique())
+            raise ValueError(
+                f"market_response.elasticities.{component} has no entry for "
+                f"food group(s) {missing_groups}"
+            )
+        slope = basis.abs() / (eta * groups["baseline"])
         flat = slope <= 0
         if flat.any():
             logger.warning(
@@ -623,14 +651,19 @@ def _add_component_curves(
     )
     m.objective += cost.sum()
 
+    elasticity_label = (
+        f"{min(elasticity.values()):.2f}-{max(elasticity.values()):.2f} by group"
+        if isinstance(elasticity, dict)
+        else f"{elasticity:.3f}"
+    )
     logger.info(
         "Added %s market-response curves: %d groups x %d breakpoints/side "
-        "(elasticity=%.3f, baseline=%.1f, slope median=%.4g, intercept "
+        "(elasticity=%s, baseline=%.1f, slope median=%.4g, intercept "
         "median=%.4g)",
         component,
         len(group_index),
         n_blocks,
-        elasticity,
+        elasticity_label,
         float(groups["baseline"].sum()),
         float(slope.median()),
         float(lam.median()),

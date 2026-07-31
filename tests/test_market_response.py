@@ -63,7 +63,7 @@ def _cfg(
             "multi_crops": crops,
             "grassland": 0.3,
             "animals": 0.4,
-            "demand": 0.4,
+            "demand": {"fruits": 0.4},
         },
         "elasticity_factor": elasticity_factor,
         "components": components
@@ -437,6 +437,7 @@ def _make_demand_network(
         marginal_cost=0.0,
         baseline_consumption_mt=baseline,
         food="apple",
+        food_group="fruits",
         country="USA",
     )
     return n
@@ -494,7 +495,7 @@ def test_demand_curve_delivers_the_configured_elasticity(eta, tmp_path):
     elasticity is eta itself."""
     shock = 0.1
     cfg = _demand_cfg()
-    cfg["elasticities"]["demand"] = eta
+    cfg["elasticities"]["demand"] = {"fruits": eta}
     path = _fit_demand_intercepts(SUPPLY_PRICE, cfg, tmp_path)
     consumed = _solve_demand(
         _make_demand_network(SUPPLY_PRICE * (1 + shock)), {**cfg, "intercepts": path}
@@ -552,4 +553,14 @@ def test_pin_list_with_unknown_component_raises():
     cfg = _cfg()
     cfg["pin_baseline"] = ["croops"]
     with pytest.raises(ValueError, match="unknown components"):
+        add_market_response_curves(n, cfg)
+
+
+def test_demand_elasticity_missing_food_group_raises(tmp_path):
+    path = _fit_demand_intercepts(SUPPLY_PRICE, _demand_cfg(), tmp_path)
+    cfg = _demand_cfg(intercepts=path)
+    cfg["elasticities"]["demand"] = {"vegetables": 0.65}
+    n = _make_demand_network(SUPPLY_PRICE)
+    n.optimize.create_model(include_objective_constant=False)
+    with pytest.raises(ValueError, match="no entry for food group"):
         add_market_response_curves(n, cfg)

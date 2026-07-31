@@ -2151,7 +2151,7 @@ properties:
         type: object
         required: [crops, multi_crops, grassland, animals, demand]
         additionalProperties: false
-        description: "Long-run own-price supply elasticity per production component; for demand, the own-price food demand elasticity in magnitude."
+        description: "Long-run own-price supply elasticity per production component; for demand, per-food-group own-price demand elasticity magnitudes."
         properties:
           crops:
             type: number
@@ -2166,8 +2166,12 @@ properties:
             type: number
             exclusiveMinimum: 0
           demand:
-            type: number
-            exclusiveMinimum: 0
+            type: object
+            minProperties: 1
+            additionalProperties:
+              type: number
+              exclusiveMinimum: 0
+            description: "Own-price food demand elasticity magnitude per food group; every consumed food group must have an entry."
       elasticity_factor:
         type: number
         exclusiveMinimum: 0

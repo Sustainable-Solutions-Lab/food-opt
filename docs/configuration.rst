@@ -571,20 +571,31 @@ and is mutually exclusive with both, as well as with
   ``"calibrated"``, or ``null``.
 * ``market_response.elasticities.{crops,multi_crops,grassland,animals}``:
   own-price supply elasticity per production component;
-  ``elasticities.demand`` is the own-price food demand elasticity in
-  magnitude. The defaults are central values from the empirical literature.
-  Long-run crop supply elasticities cluster around 0.3-1.0 in the Nerlovian
-  estimation tradition (surveyed by Askari and Cummings, *International
-  Economic Review* 1977), while the short-run global caloric supply
-  elasticity is an order of magnitude lower (roughly 0.1; Roberts and
-  Schlenker, *American Economic Review* 2013) -- the curves describe a
-  long-run planning response, hence 0.5 for annual crops, with livestock
-  (0.4) and grassland (0.3) slower to adjust. Own-price food demand
-  magnitudes cluster around 0.2-0.8 across food groups, with staples at the
-  low end and animal-source foods toward the high end, and stronger
-  responses in lower-income settings (Andreyeva, Long and Brownell,
-  *American Journal of Public Health* 2010; Green et al., *BMJ* 2013) --
-  hence 0.4 as a single central value. ``elasticity_factor`` exists
+  ``elasticities.demand`` maps each food group to its own-price demand
+  elasticity magnitude. The defaults are central values from the empirical
+  literature. Long-run crop supply elasticities span roughly 0.3-1.2 in the
+  Nerlovian estimation tradition (Rao, *Agricultural Economics* 1989,
+  updating the survey of Askari and Cummings, *International Economic
+  Review* 1977), hence 0.5 for annual crops; the frequently cited ~0.1
+  world caloric supply elasticity (Roberts and Schlenker, *American
+  Economic Review* 2013) is a single-season response identified from
+  weather shocks and is not comparable to a long-run value. Long-run
+  livestock supply estimates are wide -- roughly 0.3-2.9 for cattle, with
+  farm-level dairy estimates of 0.47-0.65, against short-run herd-dynamics
+  responses that can even turn negative (Jarvis, *Journal of Political
+  Economy* 1974) -- so 0.4 is a conservative long-run value. Grassland has
+  no dedicated empirical estimate; 0.3 is an assumption by analogy to
+  long-run cropland area elasticities of 0.05-0.79 (Iqbal and Babcock,
+  *Agricultural Economics* 2018). The per-group demand magnitudes are the
+  middle-income column of the meta-regression by Green et al. (*BMJ*
+  2013), taken as global central values: cereals and other staple-like
+  groups 0.55, meat and dairy 0.72, eggs 0.54, fruit and vegetables 0.65,
+  fats and oils 0.5, and sweets/discretionary items 0.74, consistent with
+  the 0.27-0.81 range of the US review by Andreyeva, Long and Brownell
+  (*American Journal of Public Health* 2010); groups Green et al. do not
+  cover use a documented analog. Elasticities fall roughly 30-40% from
+  low- to high-income countries in that meta-regression -- heterogeneity
+  the single global values do not resolve. ``elasticity_factor`` exists
   precisely so sensitivity analyses can sweep these assumptions.
 * ``market_response.elasticity_factor``: global multiplier on every elasticity,
   for scanning the assumption.

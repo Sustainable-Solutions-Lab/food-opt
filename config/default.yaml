@@ -270,20 +270,40 @@ market_response:
     # production-side drift by roughly 4x per sweep.
     sweeps: 3
   # Long-run own-price elasticities; see the configuration reference for the
-  # supporting literature. Supply: long-run crop supply estimates cluster at
-  # 0.3-1.0 (Nerlovian survey tradition, Askari & Cummings 1977), with global
-  # short-run caloric supply far lower (~0.1, Roberts & Schlenker 2013) --
-  # 0.5 is a long-run central value. Livestock adjusts more slowly than
-  # annual crops and grassland is the least elastic. Demand: own-price food
-  # demand magnitudes cluster at 0.2-0.8 across food groups and incomes
-  # (Andreyeva et al. 2010; Green et al. 2013), staples at the low end and
-  # animal products at the high end -- 0.4 is a central value.
+  # supporting literature. Supply: long-run crop supply estimates span
+  # roughly 0.3-1.2 (Rao 1989, in the Nerlovian survey tradition of Askari &
+  # Cummings 1977) -- 0.5 is a central value; the much-cited ~0.1 of Roberts
+  # & Schlenker 2013 is a short-run, weather-identified response and not
+  # comparable. Long-run livestock estimates are wide (cattle roughly
+  # 0.3-2.9, dairy 0.47-0.65), so 0.4 is conservative. Grassland has no
+  # dedicated empirical estimate; 0.3 is an assumption by analogy to
+  # long-run cropland area elasticities (0.05-0.79, Iqbal & Babcock 2018).
   elasticities:
     crops: 0.5
     multi_crops: 0.5
     grassland: 0.3
     animals: 0.4
-    demand: 0.4
+    # Demand magnitudes per food group, from the middle-income column of
+    # Green et al. 2013 (BMJ, meta-regression by food group and income
+    # tier) as global central values; groups without a Green category use a
+    # documented analog (staple-like -> cereals, discretionary -> sweets,
+    # nuts/seeds -> fruit & veg, animal_fat -> fats & oils).
+    demand:
+      grain: 0.55
+      whole_grains: 0.55
+      starchy_vegetable: 0.55
+      legumes: 0.55
+      red_meat: 0.72
+      poultry: 0.72
+      dairy: 0.72
+      eggs: 0.54
+      oil: 0.5
+      animal_fat: 0.5
+      fruits: 0.65
+      vegetables: 0.65
+      nuts_seeds: 0.65
+      sugar: 0.74
+      stimulants: 0.74
   elasticity_factor: 1.0 # Global multiplier for scanning the elasticity assumption
   # The demand component prices per-(food, country) consumption with a concave
   # marginal-utility curve through the observed intake, fitted jointly with the
