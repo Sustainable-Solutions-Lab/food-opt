@@ -23,8 +23,9 @@ so that ordinary builds don't need to re-solve anything. See
 .. admonition:: Calibration is tied to the baseline diet (and thus to diet source, health and anchoring)
    :class: warning
 
-   Several artefacts (notably ``food_demand.csv``, ``food_waste.yaml``
-   and ``deviation_penalty.yaml``) are fit against a *specific* baseline
+   Several artefacts (notably ``market_response.csv``,
+   ``food_demand.csv``, ``food_waste.yaml`` and
+   ``deviation_penalty.yaml``) are fit against a *specific* baseline
    diet. The baseline diet depends on the diet source (``diet.source``:
    GDD-IA or FBS-derived; see :ref:`current-diets-fbs-source`) and on
    whether the GBD risk-factor groups are anchored to GBD intake, which
@@ -40,7 +41,7 @@ so that ordinary builds don't need to re-solve anything. See
    ``calibration.source: gbd-anchored``. No set is shipped for
    ``diet.source: fbs``: that source is supported but needs its own
    calibration run before use. ``tools/calibrate`` resolves anchoring
-   from its base config and pins it across all five steps, so each set
+   from its base config and pins it across every step, so each set
    is regenerated against the right diet automatically. The provenance
    stamps record the diet source and the *resolved* anchoring, so
    consuming a set fit against a different diet fails at startup.
@@ -91,27 +92,30 @@ so that ordinary builds don't need to re-solve anything. See
      - Per-food global multiplier on the baseline-diet ``target_mt``
        that closes the residual per-food gap between FAOSTAT QCL supply
        and GDD-IA demand left over after the food-waste step.
-   * - :ref:`cost <cost-calibration>`
-     - ``config/calibration/cost.yaml``
-     - ``crop_cost.csv``,
-       ``multi_crop_cost.csv``,
-       ``grassland_cost.csv``,
-       ``animal_cost.csv``
-     - Additive production-cost corrections derived from stability-
-       constraint duals (observed allocation -> optimal allocation).
    * - :ref:`market_response <market-response-calibration>`
      - ``config/calibration/market_response.yaml``
      - ``market_response.csv``
      - Per-group production intercepts and, when enabled, demand intercepts
        with their reference-price slope basis. Supply and demand are fitted
        sequentially against the same deployed regime.
+   * - :ref:`cost <cost-calibration>` (legacy)
+     - ``config/calibration/cost.yaml``
+     - ``crop_cost.csv``,
+       ``multi_crop_cost.csv``,
+       ``grassland_cost.csv``,
+       ``animal_cost.csv``
+     - Additive production-cost corrections derived from stability-
+       constraint duals. Superseded by ``market_response`` in the
+       default chain; run explicitly for configs anchoring with the
+       cost corrections.
    * - :ref:`stability <prod-stability-calibration>` (legacy)
      - ``config/calibration/stability.yaml``
      - ``deviation_penalty.yaml``
      - The L1 penalty pair :math:`(\ell^c_1, \ell^a_1)` that brings both
        land-use and animal-feed deviations to ~5 % of observed totals.
        Superseded by ``market_response`` in the default chain; run
-       explicitly for configs still using the deviation penalty.
+       explicitly for configs still using the deviation penalty
+       (depends on the cost step).
 
 Dependency order
 ----------------
@@ -128,23 +132,29 @@ When upstream data or build logic changes, rerun in this order:
    food-waste fractions so that any per-food gap that remains reflects
    a genuine supply / demand mismatch (FAOSTAT QCL vs GDD-IA) and not
    a waste mis-attribution.
+#. :ref:`market_response <market-response-calibration>` — the pinned
+   solves measure each group's residual price wedge against the fully
+   calibrated feed, waste, and demand behaviour. The intercepts absorb
+   the remaining local wedge. This is the default production anchoring
+   mechanism; the legacy cost-correction mechanism is selected only
+   when ``market_response.enabled`` is false.
+
+The two legacy anchoring steps sit outside the default chain and are run
+explicitly, in order, for artefact sets consumed by configs that anchor
+with them (e.g. the tutorials):
+
 #. :ref:`cost <cost-calibration>` — the cost-calibration solve uses
    the calibrated feed, waste, and demand behaviour to extract duals
    that make economic sense. Without the food-demand step, residual
    per-food mismatch leaks into the cost-calibration duals as spurious
    sign (e.g. olive-oil cost driven negative, coffee/cocoa pegged at
    the slack ceiling) and inflates the stability L1 cost downstream.
-#. :ref:`market_response <market-response-calibration>` — the pinned
-   solves measure each group's residual price wedge against the fully
-   calibrated feed, waste, demand, and accounting-cost behaviour. The
-   intercepts absorb the remaining local wedge. This is the default production
-   anchoring mechanism; the legacy cost-correction mechanism is selected only
-   when ``market_response.enabled`` is false.
+#. :ref:`stability <prod-stability-calibration>` — the L1 Broyden
+   iteration runs against the calibrated cost corrections, so it must
+   follow the cost step.
 
-The legacy :ref:`stability <prod-stability-calibration>` step is no
-longer part of the default chain; run ``tools/calibrate stability``
-explicitly for artefact sets still consumed by deviation-penalty
-configs.
+``tools/calibrate --check`` and ``--record`` cover a legacy step
+whenever its artefacts are present in the set.
 
 Running the calibrations
 ------------------------
@@ -157,8 +167,8 @@ Everything is wrapped by ``tools/calibrate``:
    tools/calibrate feed         # one step (forage + protein feed slack)
    tools/calibrate food_waste
    tools/calibrate food_demand
-   tools/calibrate cost
    tools/calibrate market_response
+   tools/calibrate cost         # legacy cost corrections, not in the default chain
    tools/calibrate stability    # legacy L1 step, not in the default chain
    tools/calibrate --check      # per-step staleness + provenance, no execution
    tools/calibrate --record     # re-stamp the set as it stands, no execution
@@ -206,10 +216,10 @@ A config with different structural assumptions has three options:
 
 * **Calibrate its own set**: declare ``calibration.source: <name>`` in
   the config and run ``tools/calibrate --base config/<file>.yaml``.
-  Artefacts land in ``data/curated/calibration/<name>/``. A fresh set
-  is first seeded from the ``default`` set (each calibration solve
-  consumes the other steps' artefacts) and then regenerated in
-  dependency order.
+  Artefacts land in ``data/curated/calibration/<name>/``, generated in
+  dependency order (each calibration solve consumes only the artefacts
+  of the steps before it). Legacy anchoring artefacts are added only by
+  explicitly running the ``cost`` and ``stability`` steps.
 * **Point at a compatible existing set** via ``calibration.source``.
 * **Accept the mismatch** with
   ``calibration.accept_provenance_mismatch: true``, downgrading the
@@ -239,6 +249,11 @@ workflow when their configuration blocks are enabled (the default):
   each per-food multiplier uniformly to the baseline-diet ``target_mt``
   in ``_match_baseline_to_consume_links`` (see
   :ref:`food-demand-calibration`).
+* ``market_response.enabled: true`` with ``intercepts: "calibrated"``
+  resolves ``data/curated/calibration/<source>/market_response.csv`` at
+  solve time (wired as a DAG input by ``calibration_artefact_inputs`` in
+  ``workflow/rules/common.smk``); see
+  :ref:`market-response-calibration`.
 * ``cost_calibration.enabled: true`` loads the legacy cost-correction CSVs at
   build time (see :ref:`cost-calibration-correction`). It is mutually exclusive
   with ``market_response.enabled`` and is therefore off in the default chain.
@@ -451,6 +466,14 @@ The pinned solves use the base config's operating regime with GHG and health
 objective prices neutralized by the calibration config. Intercepts are
 regime-specific: changing the demand mechanism, baseline diet, model structure,
 or curve grouping materially requires a matching artefact set.
+
+The production intercepts of a demand-enabled fit are conditioned on the
+fitted demand system: the final production pin runs with the demand curves
+active. Schema validation therefore requires every market-response solve to
+run either with the demand component enabled or with the diet held at the
+observed baseline (``validation.enforce_baseline_diet``) -- both reproduce
+the fitted point up to the residual sweep drift, while any other demand
+valuation would silently break baseline reproduction.
 
 Observed support and grouping
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

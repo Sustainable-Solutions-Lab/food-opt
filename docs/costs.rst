@@ -668,9 +668,9 @@ For multi-cropping systems (multiple crops per year on the same land):
 Cost-calibration corrections do not compose by cycle. Each multi-cropping
 link has one dispatch variable and one stability-band dual for the whole
 bundle, so calibration extracts direct per-(combination, country) bundle
-corrections. When the multi-crop market-response component is disabled, these
-use the same baseline-bounded subsidy/penalty mechanism as single-crop links;
-when it is enabled, its curve intercept replaces that bounded correction.
+corrections. These use the same baseline-bounded subsidy/penalty mechanism as
+single-crop links; like all cost corrections they are inactive whenever
+``market_response`` is enabled.
 
 **Interpretation**:
   * The marginal cost represents the economic cost of using one Mha of land for crop production

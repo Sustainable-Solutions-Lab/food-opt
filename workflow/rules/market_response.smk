@@ -4,8 +4,10 @@
 
 """PMP calibration of the market-response curve intercepts.
 
-One baseline-pinned solve, run in-process by the script; the duals of the
-pinning constraints are the per-group price wedges written to the artefact.
+A sequence of pinned solves run in-process by the script (production pin,
+demand slope basis, demand intercepts, then refinement sweeps); the duals of
+the pinning constraints are the per-group price wedges written to the
+artefact.
 """
 
 

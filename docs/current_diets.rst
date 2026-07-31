@@ -23,9 +23,9 @@ The baseline diet serves several roles:
 * **Optimization reference**: comparison point for optimized diets and,
   optionally, an equality constraint when ``enforce_baseline_diet`` is
   enabled.
-* **Calibration**: anchors the consumer-utility piecewise blocks
-  (:doc:`consumer_values`) and the production-stability L1 calibration
-  (:doc:`calibration`).
+* **Calibration**: anchors the market-response demand curves
+  (:doc:`calibration`) and the legacy consumer-utility piecewise blocks
+  (:doc:`consumer_values`).
 
 .. figure:: https://github.com/Sustainable-Solutions-Lab/GLADE/releases/download/doc-figures/baseline_diet_by_region.png
    :alt: Baseline diet composition by world region

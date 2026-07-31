@@ -407,6 +407,21 @@ Output file:
       ``biomass_routing``, float, bn USD, "Internal biomass flow costs"
       ``health_burden``, float, bn USD, "Health costs from YLL"
       ``ghg_cost``, float, bn USD, "Emissions costs"
+      ``emissions_aggregation``, float, bn USD, "Links aggregating emissions to the GHG bus (usually zero)"
+      ``land_use``, float, bn USD, "Land-use and land-conversion link costs"
+      ``water``, float, bn USD, "Water stores"
+      ``water_scarcity_cost``, float, bn USD, "Priced water-scarcity footprint (when enabled)"
+      ``groundwater_depletion_cost``, float, bn USD, "Priced groundwater depletion (when enabled)"
+      ``slack_penalties``, float, bn USD, "Constraint-violation penalties (ideally zero)"
+      ``resource_supply``, float, bn USD, "Land and resource generators (usually zero)"
+      ``nutrient_tracking``, float, bn USD, "Nutrient stores (usually zero)"
+      ``production_stability``, float, bn USD, "L1/quadratic deviation penalty plus bounded cost corrections (legacy anchoring)"
+      ``supply_response``, float, bn USD, "Deviation cost of the market-response supply curves"
+      ``demand_response``, float, bn USD, "Forgone-utility cost of the market-response demand curves"
+      ``diet_stability``, float, bn USD, "Diet deviation penalty (when enabled)"
+
+   Zero-valued categories are dropped from the output, so a given file
+   contains only the columns active in that solve.
 
 The script validates that extracted categories sum to the model's reported
 objective value and raises an error if they don't match (within 1% tolerance).

@@ -30,6 +30,7 @@ Categories extracted:
 - Nutrient tracking: Nutrient stores (usually zero cost)
 - Production stability: Penalty for deviating from baseline production (L1 or quadratic)
 - Supply response: Deviation cost of the piecewise-linear supply curves
+- Demand response: Forgone-utility cost of the piecewise-linear demand curves
 
 All costs are in billion USD, matching the model's internal units.
 

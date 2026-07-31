@@ -38,7 +38,14 @@ introduce breaking changes to configuration and outputs.
   back as curve intercepts. Production-only fits satisfy the local PMP
   optimality condition directly. With demand enabled, alternating supply and
   demand fits reduce rather than mathematically eliminate coupled drift, so
-  calibration reports should retain the achieved baseline deviations.
+  calibration reports should retain the achieved baseline deviations. During
+  the pinned fits, capacity bounds of pinned links are lifted so links
+  sitting exactly at capacity yield identified wedges rather than degenerate
+  duals censored at the pin slack bound. The curves are an intensive-margin
+  model: groups with zero observed baseline are fixed to zero activity (at
+  the default `link` granularity this closes the extensive margin per link,
+  mirroring what the growth caps already enforce at country level; the solve
+  log reports the fixed share per component).
   The spatial resolution of the curves is configurable (`granularity`); the
   default is per production link, which prices spatial reallocation and makes
   the per-link deviation penalty redundant, and per-country or per-region
@@ -64,7 +71,16 @@ introduce breaking changes to configuration and outputs.
   two are mutually exclusive, and `food_utility_piecewise` remains available
   for configs that keep it, with `market_response.components.demand: false`).
   The demand curves' cost appears as its own `demand_response` category in the
-  objective breakdown.
+  objective breakdown. Demand groups whose marginal utility is still positive
+  at the outer end of the sampled range have their unbounded expansion tail
+  floored at zero marginal utility, so consumption cannot run away when
+  supply becomes very cheap. With `market_response` enabled, schema
+  validation requires `components.demand` and
+  `validation.enforce_baseline_diet` to be exact opposites -- the demand side
+  is either elastic or held at the observed baseline, both of which
+  reproduce the fitted point; the `gsa`, `gsa_fixed_diet` and doc-figure
+  configs have been migrated accordingly (gsa and doc_figures now run the
+  demand component instead of piecewise food utility).
 
 - Multiple cropping is now anchored to an observed baseline derived from
   MIRCA-OS v2 (new automated data source), using the available 2010, 2015, or
@@ -79,6 +95,9 @@ introduce breaking changes to configuration and outputs.
   links. Harvested cycles are reconciled out of the single-crop FAOSTAT
   baselines so each cycle is counted once. A new `multi_crop_cost.csv`
   calibration artefact carries per-(combination, country) bundle corrections.
+  Cropland buses carrying baseline crop area but no land-cover supply at all
+  now also receive a land-correction generator sized to their baseline
+  demand, closing the last physically infeasible spots in pinned solves.
   The GAEZ growing-season compatibility gate is removed; observed feasibility
   comes from MIRCA plus the GAEZ multiple-cropping zone.
 
@@ -141,6 +160,17 @@ introduce breaking changes to configuration and outputs.
   configurations that consume the legacy corrections must explicitly disable
   `market_response`. Calibration-generation configs can still set
   `cost_calibration.generate: true` without applying the corrections.
+
+- The default calibration chain run by `tools/calibrate` (and watched by
+  `--check`/`--record`) is now feed, food_waste, food_demand,
+  market_response. The legacy anchoring steps -- `cost` and `stability` --
+  sit outside the chain and are run explicitly, in that order, for artefact
+  sets consumed by configs that anchor with the cost corrections and/or the
+  L1 deviation penalty; `--check` and `--record` still cover them whenever
+  their artefacts are present in a set. Fresh `--base` artefact sets are no
+  longer seeded from the `default` set: each step consumes only its
+  predecessors' artefacts, so the chain regenerates a new set from scratch
+  and legacy artefacts appear only when their steps are run.
 
 - The validation configs (`config/validation.yaml`,
   `docs/config/doc_validation.yaml`) and both tutorial configs under

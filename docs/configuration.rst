@@ -447,7 +447,7 @@ across components.
 * The L1 penalty also applies to links with zero baseline.
 * The diet penalty has no effect when ``enforce_baseline_diet`` is true
   (consumption is already pinned via ``p_set``).
-* Costs land in three separate columns of the per-scenario
+* Costs land in two separate columns of the per-scenario
   ``analysis/.../objective_breakdown.parquet``: production stability
   (land + feed L1) and diet stability.
 
@@ -613,16 +613,51 @@ and is mutually exclusive with both, as well as with
 * ``market_response.elasticity_factor``: global multiplier on every elasticity,
   for scanning the assumption.
 * ``market_response.components.{crops,multi_crops,grassland,animals,demand}``:
-  which components carry curves.
+  which components carry curves. With the block enabled, schema validation
+  requires ``components.demand`` and ``validation.enforce_baseline_diet`` to
+  be exact opposites: the demand side is either elastic or held at the
+  observed baseline, both of which reproduce the fitted point.
+* ``market_response.pin_slack_cost``: price of deviating from a phase-1 pin
+  (see ``pin_baseline`` above); it also bounds the magnitude of any fitted
+  intercept.
+* ``market_response.calibration.generate``: produce the intercepts artefact
+  via the sequential fitting driver (used by the calibration step config;
+  mutually exclusive with consuming ``intercepts: "calibrated"`` in the same
+  run).
+* ``market_response.calibration.calibrated_csv``: where the fitted artefact
+  lands, resolved through the ``{calibration_source}`` placeholder.
+* ``market_response.calibration.sweeps``: refinement passes of the sequential
+  production/demand fit; each pass contracts the residual cross-side drift
+  (see :ref:`market-response-calibration`).
 
 **Behavior notes**:
 
 * Curves cover the intensive margin only. Groups with a genuine zero baseline
   get no curve and are fixed to zero. At coarse granularity this applies to a
   zero aggregate, not to each zero-baseline link within a positive aggregate.
-  A missing demand baseline is an input error, not a zero.
+  At the default ``link`` granularity this fixes a substantial share of
+  observed-zero links outright (roughly 16% of single-crop, 43% of
+  multi-cropping and 20% of animal-production links, and 19% of consumption
+  links, on the default build) -- the same contract the growth caps already
+  enforce at country level, applied per link. The solve log reports the
+  fixed share per component. A missing demand baseline is an input error,
+  not a zero.
 * A group whose baseline-weighted marginal cost is not positive is an error,
   since the slope is undefined there.
+* The configured elasticities are responses per *relative change of the
+  reference price*: the accounting marginal cost for supply, the
+  ``slope_basis`` reference price for demand. They are not arc elasticities
+  at the curve's own calibrated equilibrium price, which includes the fitted
+  wedge and generally sits elsewhere (see the module docstring of
+  ``workflow/scripts/solve_model/market_response.py``).
+* During phase-1 pins at ``link`` granularity, the capacity bounds of pinned
+  production links are lifted so that links sitting exactly at capacity
+  (baseline equal to ``p_nom_max``) yield an identified pin dual instead of a
+  degenerate one censored at the slack bound. The extracted wedge then
+  includes the link's scarcity rent, which the curve prices on contraction.
+* A demand group whose marginal utility is still positive at the outer end of
+  the sampled range has its unbounded expansion tail floored at zero marginal
+  utility, so consumption cannot run away when supply becomes very cheap.
 * The PMP curves and legacy cost corrections are mutually exclusive at config
   validation time. A PMP run therefore accounts for its curve wedges, while a
   legacy cost-calibration run accounts for its baseline-bounded correction

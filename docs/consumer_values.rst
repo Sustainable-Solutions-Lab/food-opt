@@ -143,7 +143,8 @@ configuration looks the way it does (see ``docs/config/doc_figures.yaml``'s
 
 2. **The L1 deviation penalty pulls in the same direction.** When
    ``deviation_penalty`` is enabled with ``penalty_mode: "l1"``
-   (typical for the central and GSA configurations), the objective gains a
+   (legacy configs and the tutorials; the default and GSA configs now
+   anchor production with market-response curves), the objective gains a
    term :math:`l_1 \cdot \sum |a - a_{\mathrm{baseline}}|` on harvested area
    per crop. If the modelled outlets for some crop's production cannot
    absorb its baseline area, the L1 term drags the corresponding food
